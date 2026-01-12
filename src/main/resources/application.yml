@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: excel-pipeline
+
+pipeline:
+  queue:
+    raw-capacity: 2000
+    mapped-capacity: 2000
+  threads:
+    validator: 4
+    inserter: 4
+  insert:
+    chunk-size: 500
+  backpressure:
+    offer-timeout-ms: 200
