@@ -28,6 +28,12 @@ Each stage communicates through a bounded blocking queue.
 - Producers send poison pills downstream after input completion.
 - Consumers drain queued work, flush final partial chunks, then exit.
 
+### Shutdown Mechanism
+- Channels carry `Envelope<T>` values with `DATA` and `END` kinds.
+- Stages process `DATA` envelopes normally and stop their run loop when receiving `END`.
+- For `N` workers on a stage, publish exactly `N` `END` envelopes so each worker can terminate gracefully.
+- END propagation happens after upstream data production completes, preserving FIFO ordering and clean drains.
+
 ## Failure Policy
 - Validation and mapping failures are handled at row level.
 - Row errors are collected with row identifier and reason.
