@@ -4,11 +4,14 @@ import com.example.pipeline.model.IngestItem;
 import com.example.pipeline.model.MappedRow;
 import com.example.pipeline.model.RawRow;
 import com.example.pipeline.model.ValidationError;
+import com.example.pipeline.parse.ExcelStreamingReader;
 import com.example.pipeline.queue.BoundedChannel;
 import com.example.pipeline.stage.Envelope;
 import com.example.pipeline.stage.ShutdownSignals;
 import com.polynomeer.excelpipeline.config.PipelineProperties;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -19,15 +22,19 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PipelineRunner {
-    public static final int DUMMY_ROW_COUNT = 100;
-
     private final PipelineProperties properties;
+    private final ExcelStreamingReader excelReader;
 
     public PipelineRunner(PipelineProperties properties) {
-        this.properties = properties;
+        this(properties, new ExcelStreamingReader());
     }
 
-    public PipelineRunResult runDummyPipeline() throws InterruptedException {
+    public PipelineRunner(PipelineProperties properties, ExcelStreamingReader excelReader) {
+        this.properties = properties;
+        this.excelReader = excelReader;
+    }
+
+    public PipelineRunResult run(InputStream excelInputStream) throws InterruptedException, IOException {
         BoundedChannel<Envelope<RawRow>> rawChannel =
                 new BoundedChannel<>(properties.getQueue().getRawCapacity(), properties);
         BoundedChannel<Envelope<MappedRow>> mappedChannel =
@@ -47,28 +54,30 @@ public class PipelineRunner {
             List<Future<?>> inserterFutures = startInsertWorkers(
                     inserterPool, inserterWorkers, mappedChannel, insertedCount);
 
-            produceDummyRows(rawChannel, DUMMY_ROW_COUNT);
+            int producedCount = produceFromExcel(excelInputStream, rawChannel);
             ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
 
             waitForWorkers(validatorFutures);
             ShutdownSignals.publishEndSignals(mappedChannel, inserterWorkers);
             waitForWorkers(inserterFutures);
 
-            return new PipelineRunResult(DUMMY_ROW_COUNT, insertedCount.get(), new ArrayList<>(validationErrors));
+            return new PipelineRunResult(producedCount, insertedCount.get(), new ArrayList<>(validationErrors));
         } finally {
             validatorPool.shutdownNow();
             inserterPool.shutdownNow();
         }
     }
 
-    private static void produceDummyRows(BoundedChannel<Envelope<RawRow>> rawChannel, int rowCount)
-            throws InterruptedException {
-        for (int i = 0; i < rowCount; i++) {
-            String col1 = (i % 10 == 0) ? "" : "col1-" + i;
-            String col2 = (i % 15 == 0) ? "" : "col2-" + i;
-            RawRow row = new RawRow(i, List.of(col1, col2, String.valueOf(i)));
-            rawChannel.put(Envelope.data(row));
-        }
+    private int produceFromExcel(InputStream excelInputStream, BoundedChannel<Envelope<RawRow>> rawChannel)
+            throws IOException, InterruptedException {
+        return excelReader.readFirstSheet(excelInputStream, rawRow -> {
+            try {
+                rawChannel.put(Envelope.data(rawRow));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while enqueueing raw row", ex);
+            }
+        });
     }
 
     private static List<Future<?>> startValidatorMapWorkers(

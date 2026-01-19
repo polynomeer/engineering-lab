@@ -10,6 +10,7 @@ Build a parallel Excel ingestion pipeline that is fast, memory-bounded, and reli
 4. Insert: write records using chunked batch inserts.
 
 Each stage communicates through a bounded blocking queue.
+Current parser contract: XLSX is read from an `InputStream` (first sheet only, header row skipped).
 
 ## Concurrency Model
 - Fixed thread pools per stage (`parse`, `validate/map`, `insert`).
