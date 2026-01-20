@@ -3,9 +3,16 @@ package com.example.pipeline;
 import com.polynomeer.excelpipeline.config.PipelineProperties;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -19,10 +26,16 @@ class PipelineRunnerIntegrationTest {
         properties.getQueue().setMappedCapacity(8);
         properties.getThreads().setValidator(3);
         properties.getThreads().setInserter(2);
+        properties.getInsert().setChunkSize(2);
         properties.getBackpressure().setOfferTimeoutMs(200L);
 
+        DataSource dataSource = createDataSource();
+        initializeSchema(dataSource);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        TransactionTemplate transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+
         byte[] xlsx = createTestWorkbook();
-        PipelineRunner runner = new PipelineRunner(properties);
+        PipelineRunner runner = new PipelineRunner(properties, jdbcTemplate, transactionTemplate);
         PipelineRunner.PipelineRunResult result = runner.run(new ByteArrayInputStream(xlsx));
 
         int expectedProduced = 5;
@@ -33,6 +46,7 @@ class PipelineRunnerIntegrationTest {
         assertEquals(expectedInserted, result.getInsertedCount());
         assertFalse(result.getValidationErrors().isEmpty());
         assertEquals(expectedErrors, result.getValidationErrors().size());
+        assertEquals(expectedInserted, jdbcTemplate.queryForObject("select count(*) from ingest_item", Integer.class));
     }
 
     private static byte[] createTestWorkbook() throws Exception {
@@ -73,5 +87,18 @@ class PipelineRunnerIntegrationTest {
             workbook.write(output);
             return output.toByteArray();
         }
+    }
+
+    private static DataSource createDataSource() {
+        String dbName = "pipeline_it_" + System.nanoTime();
+        return new DriverManagerDataSource(
+                "jdbc:h2:mem:" + dbName + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+                "sa",
+                "");
+    }
+
+    private static void initializeSchema(DataSource dataSource) {
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator(new ClassPathResource("schema.sql"));
+        populator.execute(dataSource);
     }
 }

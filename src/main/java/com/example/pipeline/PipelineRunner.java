@@ -9,10 +9,13 @@ import com.example.pipeline.queue.BoundedChannel;
 import com.example.pipeline.stage.Envelope;
 import com.example.pipeline.stage.ShutdownSignals;
 import com.polynomeer.excelpipeline.config.PipelineProperties;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -22,16 +25,29 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PipelineRunner {
+    private static final String INSERT_SQL = "insert into ingest_item(col1, col2, col3) values (?, ?, ?)";
+
     private final PipelineProperties properties;
     private final ExcelStreamingReader excelReader;
+    private final JdbcTemplate jdbcTemplate;
+    private final TransactionTemplate transactionTemplate;
 
-    public PipelineRunner(PipelineProperties properties) {
-        this(properties, new ExcelStreamingReader());
+    public PipelineRunner(
+            PipelineProperties properties,
+            JdbcTemplate jdbcTemplate,
+            TransactionTemplate transactionTemplate) {
+        this(properties, new ExcelStreamingReader(), jdbcTemplate, transactionTemplate);
     }
 
-    public PipelineRunner(PipelineProperties properties, ExcelStreamingReader excelReader) {
+    public PipelineRunner(
+            PipelineProperties properties,
+            ExcelStreamingReader excelReader,
+            JdbcTemplate jdbcTemplate,
+            TransactionTemplate transactionTemplate) {
         this.properties = properties;
         this.excelReader = excelReader;
+        this.jdbcTemplate = jdbcTemplate;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public PipelineRunResult run(InputStream excelInputStream) throws InterruptedException, IOException {
@@ -51,8 +67,7 @@ public class PipelineRunner {
         try {
             List<Future<?>> validatorFutures = startValidatorMapWorkers(
                     validatorPool, validatorWorkers, rawChannel, mappedChannel, validationErrors);
-            List<Future<?>> inserterFutures = startInsertWorkers(
-                    inserterPool, inserterWorkers, mappedChannel, insertedCount);
+            List<Future<?>> inserterFutures = startInsertWorkers(inserterPool, inserterWorkers, mappedChannel, insertedCount);
 
             int producedCount = produceFromExcel(excelInputStream, rawChannel);
             ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
@@ -128,21 +143,31 @@ public class PipelineRunner {
         return futures;
     }
 
-    private static List<Future<?>> startInsertWorkers(
+    private List<Future<?>> startInsertWorkers(
             ExecutorService pool,
             int workerCount,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             AtomicInteger insertedCount) {
+        int chunkSize = properties.getInsert().getChunkSize();
+        if (chunkSize <= 0) {
+            throw new IllegalArgumentException("insert.chunkSize must be > 0");
+        }
+
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < workerCount; i++) {
             futures.add(pool.submit(() -> {
+                List<MappedRow> chunk = new ArrayList<>(chunkSize);
                 try {
                     while (true) {
                         Envelope<MappedRow> envelope = mappedChannel.take();
                         if (envelope.isEnd()) {
+                            flushChunk(chunk, insertedCount);
                             return;
                         }
-                        insertedCount.incrementAndGet();
+                        chunk.add(envelope.getPayload());
+                        if (chunk.size() >= chunkSize) {
+                            flushChunk(chunk, insertedCount);
+                        }
                     }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -150,6 +175,38 @@ public class PipelineRunner {
             }));
         }
         return futures;
+    }
+
+    private void flushChunk(List<MappedRow> chunk, AtomicInteger insertedCount) {
+        if (chunk.isEmpty()) {
+            return;
+        }
+
+        Integer inserted = transactionTemplate.execute(status -> {
+            int[][] updated = jdbcTemplate.batchUpdate(
+                    INSERT_SQL,
+                    chunk,
+                    chunk.size(),
+                    (ps, mappedRow) -> {
+                        IngestItem item = mappedRow.getItem();
+                        ps.setString(1, item.getCol1());
+                        ps.setString(2, item.getCol2());
+                        ps.setInt(3, item.getCol3Int());
+                    });
+            return normalizeBatchUpdateCount(updated, chunk.size());
+        });
+        insertedCount.addAndGet(inserted == null ? 0 : inserted);
+        chunk.clear();
+    }
+
+    private static int normalizeBatchUpdateCount(int[][] updated, int fallbackCount) {
+        if (updated.length == 0) {
+            return fallbackCount;
+        }
+        return Arrays.stream(updated)
+                .flatMapToInt(Arrays::stream)
+                .map(value -> value > 0 ? value : 1)
+                .sum();
     }
 
     private static void waitForWorkers(List<Future<?>> futures) throws InterruptedException {
