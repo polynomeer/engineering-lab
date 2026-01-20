@@ -9,6 +9,8 @@ import com.example.pipeline.queue.BoundedChannel;
 import com.example.pipeline.stage.Envelope;
 import com.example.pipeline.stage.ShutdownSignals;
 import com.polynomeer.excelpipeline.config.PipelineProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -23,34 +25,50 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class PipelineRunner {
     private static final String INSERT_SQL = "insert into ingest_item(col1, col2, col3) values (?, ?, ?)";
+    private static final Logger log = LoggerFactory.getLogger(PipelineRunner.class);
 
     private final PipelineProperties properties;
     private final ExcelStreamingReader excelReader;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
+    private final long insertDelayMs;
 
     public PipelineRunner(
             PipelineProperties properties,
             JdbcTemplate jdbcTemplate,
             TransactionTemplate transactionTemplate) {
-        this(properties, new ExcelStreamingReader(), jdbcTemplate, transactionTemplate);
+        this(properties, new ExcelStreamingReader(), jdbcTemplate, transactionTemplate, 0L);
+    }
+
+    public PipelineRunner(
+            PipelineProperties properties,
+            JdbcTemplate jdbcTemplate,
+            TransactionTemplate transactionTemplate,
+            long insertDelayMs) {
+        this(properties, new ExcelStreamingReader(), jdbcTemplate, transactionTemplate, insertDelayMs);
     }
 
     public PipelineRunner(
             PipelineProperties properties,
             ExcelStreamingReader excelReader,
             JdbcTemplate jdbcTemplate,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate,
+            long insertDelayMs) {
         this.properties = properties;
         this.excelReader = excelReader;
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
+        this.insertDelayMs = Math.max(0L, insertDelayMs);
     }
 
     public PipelineRunResult run(InputStream excelInputStream) throws InterruptedException, IOException {
+        long startNanos = System.nanoTime();
         BoundedChannel<Envelope<RawRow>> rawChannel =
                 new BoundedChannel<>(properties.getQueue().getRawCapacity(), properties);
         BoundedChannel<Envelope<MappedRow>> mappedChannel =
@@ -60,34 +78,51 @@ public class PipelineRunner {
         int inserterWorkers = properties.getThreads().getInserter();
 
         var validationErrors = new ConcurrentLinkedQueue<ValidationError>();
+        var producedCount = new AtomicInteger(0);
+        var mappedCount = new AtomicInteger(0);
         var insertedCount = new AtomicInteger(0);
 
         ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers);
         ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers);
+        ScheduledExecutorService metricsLogger = startMetricsLogger(rawChannel, mappedChannel, producedCount, mappedCount, insertedCount);
         try {
             List<Future<?>> validatorFutures = startValidatorMapWorkers(
-                    validatorPool, validatorWorkers, rawChannel, mappedChannel, validationErrors);
+                    validatorPool, validatorWorkers, rawChannel, mappedChannel, validationErrors, mappedCount);
             List<Future<?>> inserterFutures = startInsertWorkers(inserterPool, inserterWorkers, mappedChannel, insertedCount);
 
-            int producedCount = produceFromExcel(excelInputStream, rawChannel);
+            produceFromExcel(excelInputStream, rawChannel, producedCount);
             ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
 
             waitForWorkers(validatorFutures);
             ShutdownSignals.publishEndSignals(mappedChannel, inserterWorkers);
             waitForWorkers(inserterFutures);
 
-            return new PipelineRunResult(producedCount, insertedCount.get(), new ArrayList<>(validationErrors));
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            return new PipelineRunResult(
+                    producedCount.get(),
+                    insertedCount.get(),
+                    new ArrayList<>(validationErrors),
+                    rawChannel.getCumulativeEnqueueWaitNanos(),
+                    mappedChannel.getCumulativeEnqueueWaitNanos(),
+                    rawChannel.getEnqueuedCount(),
+                    mappedChannel.getEnqueuedCount(),
+                    elapsedMillis);
         } finally {
+            metricsLogger.shutdownNow();
             validatorPool.shutdownNow();
             inserterPool.shutdownNow();
         }
     }
 
-    private int produceFromExcel(InputStream excelInputStream, BoundedChannel<Envelope<RawRow>> rawChannel)
+    private void produceFromExcel(
+            InputStream excelInputStream,
+            BoundedChannel<Envelope<RawRow>> rawChannel,
+            AtomicInteger producedCount)
             throws IOException, InterruptedException {
-        return excelReader.readFirstSheet(excelInputStream, rawRow -> {
+        excelReader.readFirstSheet(excelInputStream, rawRow -> {
             try {
                 rawChannel.put(Envelope.data(rawRow));
+                producedCount.incrementAndGet();
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Interrupted while enqueueing raw row", ex);
@@ -100,7 +135,8 @@ public class PipelineRunner {
             int workerCount,
             BoundedChannel<Envelope<RawRow>> rawChannel,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
-            ConcurrentLinkedQueue<ValidationError> validationErrors) {
+            ConcurrentLinkedQueue<ValidationError> validationErrors,
+            AtomicInteger mappedCount) {
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < workerCount; i++) {
             futures.add(pool.submit(() -> {
@@ -134,6 +170,7 @@ public class PipelineRunner {
 
                         IngestItem item = new IngestItem(col1, col2, col3Int);
                         mappedChannel.put(Envelope.data(new MappedRow(row.getRowIndex(), item)));
+                        mappedCount.incrementAndGet();
                     }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -177,9 +214,12 @@ public class PipelineRunner {
         return futures;
     }
 
-    private void flushChunk(List<MappedRow> chunk, AtomicInteger insertedCount) {
+    private void flushChunk(List<MappedRow> chunk, AtomicInteger insertedCount) throws InterruptedException {
         if (chunk.isEmpty()) {
             return;
+        }
+        if (insertDelayMs > 0) {
+            Thread.sleep(insertDelayMs);
         }
 
         Integer inserted = transactionTemplate.execute(status -> {
@@ -197,6 +237,44 @@ public class PipelineRunner {
         });
         insertedCount.addAndGet(inserted == null ? 0 : inserted);
         chunk.clear();
+    }
+
+    private ScheduledExecutorService startMetricsLogger(
+            BoundedChannel<Envelope<RawRow>> rawChannel,
+            BoundedChannel<Envelope<MappedRow>> mappedChannel,
+            AtomicInteger producedCount,
+            AtomicInteger mappedCount,
+            AtomicInteger insertedCount) {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        AtomicLong lastNanos = new AtomicLong(System.nanoTime());
+        AtomicInteger lastProduced = new AtomicInteger(0);
+        AtomicInteger lastMapped = new AtomicInteger(0);
+        AtomicInteger lastInserted = new AtomicInteger(0);
+        scheduler.scheduleAtFixedRate(() -> {
+            long now = System.nanoTime();
+            long deltaNanos = now - lastNanos.getAndSet(now);
+            double seconds = Math.max(0.001d, deltaNanos / 1_000_000_000.0d);
+
+            int produced = producedCount.get();
+            int mapped = mappedCount.get();
+            int inserted = insertedCount.get();
+
+            double producedRate = (produced - lastProduced.getAndSet(produced)) / seconds;
+            double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
+            double insertedRate = (inserted - lastInserted.getAndSet(inserted)) / seconds;
+
+            log.info(
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} rate/s[p={},m={},i={}]",
+                    rawChannel.size(),
+                    mappedChannel.size(),
+                    produced,
+                    mapped,
+                    inserted,
+                    Math.round(producedRate),
+                    Math.round(mappedRate),
+                    Math.round(insertedRate));
+        }, 250, 250, TimeUnit.MILLISECONDS);
+        return scheduler;
     }
 
     private static int normalizeBatchUpdateCount(int[][] updated, int fallbackCount) {
@@ -231,11 +309,29 @@ public class PipelineRunner {
         private final int producedCount;
         private final int insertedCount;
         private final List<ValidationError> validationErrors;
+        private final long rawChannelEnqueueWaitNanos;
+        private final long mappedChannelEnqueueWaitNanos;
+        private final long rawChannelEnqueuedCount;
+        private final long mappedChannelEnqueuedCount;
+        private final long elapsedMillis;
 
-        public PipelineRunResult(int producedCount, int insertedCount, List<ValidationError> validationErrors) {
+        public PipelineRunResult(
+                int producedCount,
+                int insertedCount,
+                List<ValidationError> validationErrors,
+                long rawChannelEnqueueWaitNanos,
+                long mappedChannelEnqueueWaitNanos,
+                long rawChannelEnqueuedCount,
+                long mappedChannelEnqueuedCount,
+                long elapsedMillis) {
             this.producedCount = producedCount;
             this.insertedCount = insertedCount;
             this.validationErrors = List.copyOf(validationErrors);
+            this.rawChannelEnqueueWaitNanos = rawChannelEnqueueWaitNanos;
+            this.mappedChannelEnqueueWaitNanos = mappedChannelEnqueueWaitNanos;
+            this.rawChannelEnqueuedCount = rawChannelEnqueuedCount;
+            this.mappedChannelEnqueuedCount = mappedChannelEnqueuedCount;
+            this.elapsedMillis = elapsedMillis;
         }
 
         public int getProducedCount() {
@@ -248,6 +344,26 @@ public class PipelineRunner {
 
         public List<ValidationError> getValidationErrors() {
             return validationErrors;
+        }
+
+        public long getRawChannelEnqueueWaitNanos() {
+            return rawChannelEnqueueWaitNanos;
+        }
+
+        public long getMappedChannelEnqueueWaitNanos() {
+            return mappedChannelEnqueueWaitNanos;
+        }
+
+        public long getRawChannelEnqueuedCount() {
+            return rawChannelEnqueuedCount;
+        }
+
+        public long getMappedChannelEnqueuedCount() {
+            return mappedChannelEnqueuedCount;
+        }
+
+        public long getElapsedMillis() {
+            return elapsedMillis;
         }
     }
 }

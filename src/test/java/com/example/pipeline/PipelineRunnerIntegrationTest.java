@@ -16,6 +16,7 @@ import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PipelineRunnerIntegrationTest {
 
@@ -47,6 +48,34 @@ class PipelineRunnerIntegrationTest {
         assertFalse(result.getValidationErrors().isEmpty());
         assertEquals(expectedErrors, result.getValidationErrors().size());
         assertEquals(expectedInserted, jdbcTemplate.queryForObject("select count(*) from ingest_item", Integer.class));
+    }
+
+    @Test
+    void backpressureAppearsWithSmallQueuesAndSlowInsert() throws Exception {
+        PipelineProperties properties = new PipelineProperties();
+        properties.getQueue().setRawCapacity(5);
+        properties.getQueue().setMappedCapacity(5);
+        properties.getThreads().setValidator(2);
+        properties.getThreads().setInserter(1);
+        properties.getInsert().setChunkSize(1);
+        properties.getBackpressure().setOfferTimeoutMs(500L);
+
+        DataSource dataSource = createDataSource();
+        initializeSchema(dataSource);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        TransactionTemplate transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+
+        int rowCount = 40;
+        byte[] xlsx = createValidWorkbook(rowCount);
+        PipelineRunner runner = new PipelineRunner(properties, jdbcTemplate, transactionTemplate, 25L);
+        PipelineRunner.PipelineRunResult result = runner.run(new ByteArrayInputStream(xlsx));
+
+        assertEquals(rowCount, result.getProducedCount());
+        assertEquals(rowCount, result.getInsertedCount());
+        assertEquals(0, result.getValidationErrors().size());
+        assertEquals(rowCount, jdbcTemplate.queryForObject("select count(*) from ingest_item", Integer.class));
+        assertTrue(result.getRawChannelEnqueueWaitNanos() > 1_000_000L);
+        assertTrue(result.getElapsedMillis() >= 500L);
     }
 
     private static byte[] createTestWorkbook() throws Exception {
@@ -83,6 +112,27 @@ class PipelineRunnerIntegrationTest {
             row5.createCell(0).setCellValue("a5");
             row5.createCell(1).setCellValue("b5");
             row5.createCell(2).setCellValue(5);
+
+            workbook.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private static byte[] createValidWorkbook(int rowCount) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet("input");
+            var header = sheet.createRow(0);
+            header.createCell(0).setCellValue("col1");
+            header.createCell(1).setCellValue("col2");
+            header.createCell(2).setCellValue("col3Int");
+
+            for (int i = 1; i <= rowCount; i++) {
+                var row = sheet.createRow(i);
+                row.createCell(0).setCellValue("a" + i);
+                row.createCell(1).setCellValue("b" + i);
+                row.createCell(2).setCellValue(i);
+            }
 
             workbook.write(output);
             return output.toByteArray();
