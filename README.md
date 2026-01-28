@@ -17,7 +17,7 @@ Parallel Excel ingestion pipeline with bounded queues, worker pools, streaming X
 
 ## Project layout (important files)
 - `src/main/java/com/polynomeer/excelpipeline/api` : REST API + in-memory job tracking
-- `src/main/java/com/example/pipeline` : pipeline runner/stages
+- `src/main/java/com/pnomeer/pipeline` : pipeline runner/stages
 - `src/main/resources/application.yml` : pipeline configuration defaults
 - `src/main/resources/schema.sql` : DB schema for runtime startup
 
@@ -25,6 +25,12 @@ Parallel Excel ingestion pipeline with bounded queues, worker pools, streaming X
 Default config in `application.yml`:
 
 ```yaml
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
 pipeline:
   queue:
     raw-capacity: 2000
@@ -43,6 +49,8 @@ Meaning:
 - `threads.validator` / `threads.inserter`: worker pool sizes.
 - `insert.chunk-size`: JDBC batch size per chunk/transaction.
 - `backpressure.offer-timeout-ms`: enqueue timeout for timed offers.
+- `spring.servlet.multipart.max-file-size`: max single upload size.
+- `spring.servlet.multipart.max-request-size`: max multipart request size.
 
 ## Run locally
 1. Run tests first:
