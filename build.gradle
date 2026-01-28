@@ -32,3 +32,10 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+tasks.register('generateTestXlsx', JavaExec) {
+    group = 'application'
+    description = 'Generate a sample XLSX file for ingestion testing.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.example.pipeline.tools.TestWorkbookGenerator'
+}

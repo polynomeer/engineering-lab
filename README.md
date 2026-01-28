@@ -152,6 +152,20 @@ while true; do
 done
 ```
 
+## Generate a test XLSX file
+Use the helper script:
+
+```bash
+./scripts/create-test-xlsx.sh [output_path] [row_count]
+```
+
+Examples:
+
+```bash
+./scripts/create-test-xlsx.sh
+./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500
+```
+
 ## Limitations (current)
 - Job store is in-memory (`ConcurrentHashMap`), so job history is lost on restart.
 - No authentication/authorization on endpoints.
