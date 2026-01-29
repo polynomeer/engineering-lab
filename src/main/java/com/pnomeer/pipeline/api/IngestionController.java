@@ -43,7 +43,17 @@ public class IngestionController {
                 state.getInsertedCount(),
                 state.getValidationErrorCount(),
                 state.getErrorSummary(),
-                state.getFailureMessage());
+                state.getFailureMessage(),
+                state.getLatestProgress());
+    }
+
+    @GetMapping("/jobs/{jobId}/timeline")
+    public IngestionTimelineResponse getJobTimeline(@PathVariable String jobId) {
+        IngestionJobState state = ingestionService.getJob(jobId);
+        if (state == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "job not found");
+        }
+        return new IngestionTimelineResponse(state.getJobId(), state.getStatus(), state.getProgressTimeline());
     }
 
     public record StartIngestionResponse(String jobId) {
@@ -56,6 +66,13 @@ public class IngestionController {
             int insertedCount,
             int validationErrorCount,
             java.util.Map<String, Long> errorSummary,
-            String failureMessage) {
+            String failureMessage,
+            com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot latestProgress) {
+    }
+
+    public record IngestionTimelineResponse(
+            String jobId,
+            IngestionJobStatus status,
+            java.util.List<com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot> snapshots) {
     }
 }

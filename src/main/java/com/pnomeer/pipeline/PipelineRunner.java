@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class PipelineRunner {
     private static final String INSERT_SQL = "insert into ingest_item(col1, col2, col3) values (?, ?, ?)";
@@ -68,6 +69,11 @@ public class PipelineRunner {
     }
 
     public PipelineRunResult run(InputStream excelInputStream) throws InterruptedException, IOException {
+        return run(excelInputStream, null);
+    }
+
+    public PipelineRunResult run(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
+            throws InterruptedException, IOException {
         long startNanos = System.nanoTime();
         BoundedChannel<Envelope<RawRow>> rawChannel =
                 new BoundedChannel<>(properties.getQueue().getRawCapacity(), properties);
@@ -84,7 +90,14 @@ public class PipelineRunner {
 
         ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers);
         ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers);
-        ScheduledExecutorService metricsLogger = startMetricsLogger(rawChannel, mappedChannel, producedCount, mappedCount, insertedCount);
+        ScheduledExecutorService metricsLogger = startMetricsLogger(
+                rawChannel,
+                mappedChannel,
+                producedCount,
+                mappedCount,
+                insertedCount,
+                startNanos,
+                progressListener);
         try {
             List<Future<?>> validatorFutures = startValidatorMapWorkers(
                     validatorPool, validatorWorkers, rawChannel, mappedChannel, validationErrors, mappedCount);
@@ -244,7 +257,9 @@ public class PipelineRunner {
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             AtomicInteger producedCount,
             AtomicInteger mappedCount,
-            AtomicInteger insertedCount) {
+            AtomicInteger insertedCount,
+            long startNanos,
+            Consumer<ProgressSnapshot> progressListener) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         AtomicLong lastNanos = new AtomicLong(System.nanoTime());
         AtomicInteger lastProduced = new AtomicInteger(0);
@@ -258,6 +273,7 @@ public class PipelineRunner {
             int produced = producedCount.get();
             int mapped = mappedCount.get();
             int inserted = insertedCount.get();
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
 
             double producedRate = (produced - lastProduced.getAndSet(produced)) / seconds;
             double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
@@ -273,6 +289,18 @@ public class PipelineRunner {
                     Math.round(producedRate),
                     Math.round(mappedRate),
                     Math.round(insertedRate));
+            if (progressListener != null) {
+                progressListener.accept(new ProgressSnapshot(
+                        rawChannel.size(),
+                        mappedChannel.size(),
+                        produced,
+                        mapped,
+                        inserted,
+                        Math.round(producedRate),
+                        Math.round(mappedRate),
+                        Math.round(insertedRate),
+                        elapsedMillis));
+            }
         }, 250, 250, TimeUnit.MILLISECONDS);
         return scheduler;
     }
@@ -365,5 +393,17 @@ public class PipelineRunner {
         public long getElapsedMillis() {
             return elapsedMillis;
         }
+    }
+
+    public record ProgressSnapshot(
+            int rawQueueSize,
+            int mappedQueueSize,
+            int producedCount,
+            int mappedCount,
+            int insertedCount,
+            long producedRatePerSec,
+            long mappedRatePerSec,
+            long insertedRatePerSec,
+            long elapsedMillis) {
     }
 }

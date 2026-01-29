@@ -43,7 +43,7 @@ public class IngestionService {
 
     private void runJob(IngestionJobState state, byte[] payload) {
         try {
-            var result = pipelineRunner.run(new ByteArrayInputStream(payload));
+            var result = pipelineRunner.run(new ByteArrayInputStream(payload), state::recordProgress);
             Map<String, Long> errorSummary = result.getValidationErrors().stream()
                     .map(ValidationError::getReason)
                     .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));

@@ -129,6 +129,21 @@ Statuses:
 - `SUCCEEDED`: processing complete (may include row-level validation errors).
 - `FAILED`: pipeline failed; check `failureMessage`.
 
+### 3) View progress timeline (visualization data)
+`GET /ingest/jobs/{jobId}/timeline`
+
+Returns sampled snapshots captured during pipeline execution:
+- queue sizes (`rawQueueSize`, `mappedQueueSize`)
+- counters (`producedCount`, `mappedCount`, `insertedCount`)
+- per-second rates (`producedRatePerSec`, `mappedRatePerSec`, `insertedRatePerSec`)
+- elapsed time (`elapsedMillis`)
+
+Example:
+
+```bash
+curl -s "http://localhost:8080/ingest/jobs/<jobId>/timeline"
+```
+
 ## Expected XLSX format
 - First sheet only is parsed.
 - Row `0` is treated as header and skipped.

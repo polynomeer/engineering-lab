@@ -1,8 +1,15 @@
 package com.pnomeer.pipeline.api;
 
+import com.pnomeer.pipeline.PipelineRunner;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class IngestionJobState {
+    private static final int MAX_PROGRESS_POINTS = 200;
+
     private final String jobId;
     private volatile IngestionJobStatus status;
     private volatile int producedCount;
@@ -10,6 +17,8 @@ public final class IngestionJobState {
     private volatile int validationErrorCount;
     private volatile Map<String, Long> errorSummary;
     private volatile String failureMessage;
+    private volatile PipelineRunner.ProgressSnapshot latestProgress;
+    private final CopyOnWriteArrayList<PipelineRunner.ProgressSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
 
     public IngestionJobState(String jobId) {
         this.jobId = jobId;
@@ -43,6 +52,22 @@ public final class IngestionJobState {
 
     public String getFailureMessage() {
         return failureMessage;
+    }
+
+    public PipelineRunner.ProgressSnapshot getLatestProgress() {
+        return latestProgress;
+    }
+
+    public List<PipelineRunner.ProgressSnapshot> getProgressTimeline() {
+        return new ArrayList<>(progressTimeline);
+    }
+
+    public void recordProgress(PipelineRunner.ProgressSnapshot progressSnapshot) {
+        this.latestProgress = progressSnapshot;
+        progressTimeline.add(progressSnapshot);
+        if (progressTimeline.size() > MAX_PROGRESS_POINTS) {
+            progressTimeline.removeFirst();
+        }
     }
 
     public void markSucceeded(int producedCount, int insertedCount, int validationErrorCount, Map<String, Long> errorSummary) {
