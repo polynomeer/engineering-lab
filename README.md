@@ -144,6 +144,20 @@ Example:
 curl -s "http://localhost:8080/ingest/jobs/<jobId>/timeline"
 ```
 
+### 4) Open live visualization page
+`GET /ingest/ui/{jobId}`
+
+This page polls status + timeline endpoints and renders:
+- queue sizes over time
+- throughput (produced/mapped/inserted rows/sec)
+- current counters and status
+
+Open in browser:
+
+```bash
+open "http://localhost:8080/ingest/ui/<jobId>"
+```
+
 ## Expected XLSX format
 - First sheet only is parsed.
 - Row `0` is treated as header and skipped.
