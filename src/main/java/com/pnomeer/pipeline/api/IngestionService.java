@@ -15,6 +15,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Comparator;
 
 @Service
 public class IngestionService {
@@ -30,7 +32,8 @@ public class IngestionService {
     public String startJob(MultipartFile file) {
         byte[] payload = readFile(file);
         String jobId = UUID.randomUUID().toString();
-        IngestionJobState state = new IngestionJobState(jobId);
+        String fileName = file.getOriginalFilename() == null ? "unknown.xlsx" : file.getOriginalFilename();
+        IngestionJobState state = new IngestionJobState(jobId, fileName);
         jobs.put(jobId, state);
 
         taskExecutor.execute(() -> runJob(state, payload));
@@ -39,6 +42,12 @@ public class IngestionService {
 
     public IngestionJobState getJob(String jobId) {
         return jobs.get(jobId);
+    }
+
+    public List<IngestionJobState> listJobs() {
+        return jobs.values().stream()
+                .sorted(Comparator.comparingLong(IngestionJobState::getCreatedAtEpochMs).reversed())
+                .toList();
     }
 
     private void runJob(IngestionJobState state, byte[] payload) {

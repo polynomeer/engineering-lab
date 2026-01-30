@@ -40,12 +40,34 @@ public class IngestionController {
         return new IngestionJobResponse(
                 state.getJobId(),
                 state.getStatus(),
+                state.getFileName(),
+                state.getCreatedAtEpochMs(),
+                state.getUpdatedAtEpochMs(),
                 state.getProducedCount(),
                 state.getInsertedCount(),
                 state.getValidationErrorCount(),
                 state.getErrorSummary(),
                 state.getFailureMessage(),
                 state.getLatestProgress());
+    }
+
+    @GetMapping("/jobs")
+    public IngestionJobsResponse listJobs() {
+        var jobs = ingestionService.listJobs().stream()
+                .map(state -> new IngestionJobResponse(
+                        state.getJobId(),
+                        state.getStatus(),
+                        state.getFileName(),
+                        state.getCreatedAtEpochMs(),
+                        state.getUpdatedAtEpochMs(),
+                        state.getProducedCount(),
+                        state.getInsertedCount(),
+                        state.getValidationErrorCount(),
+                        state.getErrorSummary(),
+                        state.getFailureMessage(),
+                        state.getLatestProgress()))
+                .toList();
+        return new IngestionJobsResponse(jobs);
     }
 
     @GetMapping("/jobs/{jobId}/timeline")
@@ -172,18 +194,123 @@ public class IngestionController {
                 """.formatted(safeJobId, safeJobId, safeJobId);
     }
 
+    @GetMapping(value = "/ui", produces = MediaType.TEXT_HTML_VALUE)
+    public String getJobsVisualization() {
+        return """
+                <!doctype html>
+                <html lang="en">
+                <head>
+                  <meta charset="utf-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1" />
+                  <title>Ingestion Jobs Live</title>
+                  <style>
+                    :root { --bg: #070c14; --panel: #101a2a; --line: #263a5e; --txt: #e8f0ff; --muted: #90a5cc; --ok: #63d38f; --run: #f6c358; --fail: #ff6b7d; }
+                    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--txt); background: radial-gradient(1200px 600px at 20%% -10%%, #1b2b47 0%%, var(--bg) 60%%); }
+                    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px 40px; }
+                    h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: 0.4px; }
+                    .sub { color: var(--muted); margin-bottom: 16px; }
+                    .statbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+                    .stat { background: color-mix(in srgb, var(--panel) 90%%, black); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+                    .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; }
+                    .v { font-size: 24px; font-weight: 700; }
+                    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+                    .job { background: linear-gradient(180deg, #12223a, #0d182a); border: 1px solid var(--line); border-radius: 14px; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); animation: pulse 2.5s ease-in-out infinite; }
+                    .job.done { animation: none; opacity: 0.95; }
+                    .top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+                    .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%%; }
+                    .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; font-weight: 700; }
+                    .RUNNING { background: color-mix(in srgb, var(--run) 30%%, transparent); color: var(--run); border: 1px solid color-mix(in srgb, var(--run) 50%%, black); }
+                    .SUCCEEDED { background: color-mix(in srgb, var(--ok) 25%%, transparent); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 50%%, black); }
+                    .FAILED { background: color-mix(in srgb, var(--fail) 25%%, transparent); color: var(--fail); border: 1px solid color-mix(in srgb, var(--fail) 50%%, black); }
+                    .row { display: flex; justify-content: space-between; font-size: 12px; margin-top: 7px; color: #cfe0ff; }
+                    .bar { margin-top: 8px; background: #0a1322; border: 1px solid #203250; border-radius: 8px; height: 10px; overflow: hidden; }
+                    .fill { height: 100%%; background: linear-gradient(90deg, #4fa2ff, #5fd398); width: 0%%; transition: width 0.3s ease; }
+                    .link { margin-top: 8px; font-size: 12px; }
+                    .link a { color: #8dc1ff; text-decoration: none; }
+                    @keyframes pulse { 0%%,100%% { box-shadow: 0 8px 24px rgba(0,0,0,.22); } 50%% { box-shadow: 0 8px 32px rgba(31,80,170,.35); } }
+                    @media (max-width: 900px) { .grid, .statbar { grid-template-columns: 1fr; } }
+                  </style>
+                </head>
+                <body>
+                <div class="wrap">
+                  <h1>Ingestion Jobs</h1>
+                  <div class="sub">Live dashboard auto-refreshes every second</div>
+                  <div class="statbar">
+                    <div class="stat"><div class="k">Running</div><div class="v" id="running">0</div></div>
+                    <div class="stat"><div class="k">Succeeded</div><div class="v" id="succeeded">0</div></div>
+                    <div class="stat"><div class="k">Failed</div><div class="v" id="failed">0</div></div>
+                    <div class="stat"><div class="k">Total Inserted</div><div class="v" id="insertedTotal">0</div></div>
+                  </div>
+                  <div id="jobs" class="grid"></div>
+                </div>
+                <script>
+                  function fmtTime(ts) { return new Date(ts).toLocaleTimeString(); }
+                  function ratio(p, i, e) {
+                    const denom = Math.max(1, p - e);
+                    return Math.max(0, Math.min(100, Math.round((i / denom) * 100)));
+                  }
+                  function renderJob(j) {
+                    const latest = j.latestProgress || {};
+                    const doneClass = j.status === "RUNNING" ? "" : "done";
+                    const failure = j.failureMessage ? `<div class="row"><span>failure</span><span>${j.failureMessage}</span></div>` : "";
+                    return `
+                      <div class="job ${doneClass}">
+                        <div class="top">
+                          <div class="name">${j.fileName || "unknown.xlsx"}</div>
+                          <span class="badge ${j.status}">${j.status}</span>
+                        </div>
+                        <div class="row"><span>jobId</span><span>${j.jobId}</span></div>
+                        <div class="row"><span>produced / inserted / errors</span><span>${j.producedCount} / ${j.insertedCount} / ${j.validationErrorCount}</span></div>
+                        <div class="row"><span>queues raw|mapped</span><span>${latest.rawQueueSize || 0} | ${latest.mappedQueueSize || 0}</span></div>
+                        <div class="row"><span>rate p|m|i</span><span>${latest.producedRatePerSec || 0} | ${latest.mappedRatePerSec || 0} | ${latest.insertedRatePerSec || 0}</span></div>
+                        <div class="row"><span>updated</span><span>${fmtTime(j.updatedAtEpochMs)}</span></div>
+                        ${failure}
+                        <div class="bar"><div class="fill" style="width:${ratio(j.producedCount, j.insertedCount, j.validationErrorCount)}%"></div></div>
+                        <div class="link"><a href="/ingest/ui/${j.jobId}" target="_blank">open detail view</a></div>
+                      </div>
+                    `;
+                  }
+                  async function refresh() {
+                    const res = await fetch("/ingest/jobs");
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const jobs = data.jobs || [];
+                    const running = jobs.filter(j => j.status === "RUNNING").length;
+                    const succeeded = jobs.filter(j => j.status === "SUCCEEDED").length;
+                    const failed = jobs.filter(j => j.status === "FAILED").length;
+                    const insertedTotal = jobs.reduce((s, j) => s + (j.insertedCount || 0), 0);
+                    document.getElementById("running").textContent = running;
+                    document.getElementById("succeeded").textContent = succeeded;
+                    document.getElementById("failed").textContent = failed;
+                    document.getElementById("insertedTotal").textContent = insertedTotal;
+                    document.getElementById("jobs").innerHTML = jobs.map(renderJob).join("");
+                  }
+                  setInterval(() => refresh().catch(console.error), 1000);
+                  refresh().catch(console.error);
+                </script>
+                </body>
+                </html>
+                """;
+    }
+
     public record StartIngestionResponse(String jobId) {
     }
 
     public record IngestionJobResponse(
             String jobId,
             IngestionJobStatus status,
+            String fileName,
+            long createdAtEpochMs,
+            long updatedAtEpochMs,
             int producedCount,
             int insertedCount,
             int validationErrorCount,
             java.util.Map<String, Long> errorSummary,
             String failureMessage,
             com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot latestProgress) {
+    }
+
+    public record IngestionJobsResponse(java.util.List<IngestionJobResponse> jobs) {
     }
 
     public record IngestionTimelineResponse(

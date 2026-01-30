@@ -11,6 +11,9 @@ public final class IngestionJobState {
     private static final int MAX_PROGRESS_POINTS = 200;
 
     private final String jobId;
+    private final String fileName;
+    private final long createdAtEpochMs;
+    private volatile long updatedAtEpochMs;
     private volatile IngestionJobStatus status;
     private volatile int producedCount;
     private volatile int insertedCount;
@@ -20,8 +23,11 @@ public final class IngestionJobState {
     private volatile PipelineRunner.ProgressSnapshot latestProgress;
     private final CopyOnWriteArrayList<PipelineRunner.ProgressSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
 
-    public IngestionJobState(String jobId) {
+    public IngestionJobState(String jobId, String fileName) {
         this.jobId = jobId;
+        this.fileName = fileName;
+        this.createdAtEpochMs = System.currentTimeMillis();
+        this.updatedAtEpochMs = this.createdAtEpochMs;
         this.status = IngestionJobStatus.RUNNING;
         this.errorSummary = Map.of();
     }
@@ -32,6 +38,18 @@ public final class IngestionJobState {
 
     public IngestionJobStatus getStatus() {
         return status;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public long getCreatedAtEpochMs() {
+        return createdAtEpochMs;
+    }
+
+    public long getUpdatedAtEpochMs() {
+        return updatedAtEpochMs;
     }
 
     public int getProducedCount() {
@@ -65,6 +83,7 @@ public final class IngestionJobState {
     public void recordProgress(PipelineRunner.ProgressSnapshot progressSnapshot) {
         this.latestProgress = progressSnapshot;
         progressTimeline.add(progressSnapshot);
+        this.updatedAtEpochMs = System.currentTimeMillis();
         if (progressTimeline.size() > MAX_PROGRESS_POINTS) {
             progressTimeline.removeFirst();
         }
@@ -77,10 +96,12 @@ public final class IngestionJobState {
         this.errorSummary = errorSummary;
         this.failureMessage = null;
         this.status = IngestionJobStatus.SUCCEEDED;
+        this.updatedAtEpochMs = System.currentTimeMillis();
     }
 
     public void markFailed(String message) {
         this.failureMessage = message;
         this.status = IngestionJobStatus.FAILED;
+        this.updatedAtEpochMs = System.currentTimeMillis();
     }
 }

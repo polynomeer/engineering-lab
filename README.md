@@ -158,6 +158,15 @@ Open in browser:
 open "http://localhost:8080/ingest/ui/<jobId>"
 ```
 
+### 5) Open all-jobs live dashboard
+`GET /ingest/ui`
+
+Shows all jobs in real time (RUNNING/SUCCEEDED/FAILED), live queue/rate stats, and links to per-job detail charts.
+
+```bash
+open "http://localhost:8080/ingest/ui"
+```
+
 ## Expected XLSX format
 - First sheet only is parsed.
 - Row `0` is treated as header and skipped.
