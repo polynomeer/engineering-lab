@@ -204,44 +204,47 @@ public class IngestionController {
                   <meta name="viewport" content="width=device-width, initial-scale=1" />
                   <title>Ingestion Jobs Live</title>
                   <style>
-                    :root { --bg: #070c14; --panel: #101a2a; --line: #263a5e; --txt: #e8f0ff; --muted: #90a5cc; --ok: #63d38f; --run: #f6c358; --fail: #ff6b7d; }
-                    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--txt); background: radial-gradient(1200px 600px at 20%% -10%%, #1b2b47 0%%, var(--bg) 60%%); }
-                    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px 40px; }
-                    h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: 0.4px; }
-                    .sub { color: var(--muted); margin-bottom: 16px; }
-                    .statbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-                    .stat { background: color-mix(in srgb, var(--panel) 90%%, black); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
-                    .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; }
-                    .v { font-size: 24px; font-weight: 700; }
-                    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-                    .job { background: linear-gradient(180deg, #12223a, #0d182a); border: 1px solid var(--line); border-radius: 14px; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); animation: pulse 2.5s ease-in-out infinite; }
-                    .job.done { animation: none; opacity: 0.95; }
-                    .top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-                    .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%%; }
-                    .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; font-weight: 700; }
-                    .RUNNING { background: color-mix(in srgb, var(--run) 30%%, transparent); color: var(--run); border: 1px solid color-mix(in srgb, var(--run) 50%%, black); }
-                    .SUCCEEDED { background: color-mix(in srgb, var(--ok) 25%%, transparent); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 50%%, black); }
-                    .FAILED { background: color-mix(in srgb, var(--fail) 25%%, transparent); color: var(--fail); border: 1px solid color-mix(in srgb, var(--fail) 50%%, black); }
-                    .row { display: flex; justify-content: space-between; font-size: 12px; margin-top: 7px; color: #cfe0ff; }
-                    .bar { margin-top: 8px; background: #0a1322; border: 1px solid #203250; border-radius: 8px; height: 10px; overflow: hidden; }
-                    .fill { height: 100%%; background: linear-gradient(90deg, #4fa2ff, #5fd398); width: 0%%; transition: width 0.3s ease; }
+                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: #0b1320; color: #e6edf7; }
+                    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+                    .card { background: #121c2d; border: 1px solid #22314e; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+                    .title { font-size: 28px; font-weight: 700; margin: 0; }
+                    .sub { font-size: 12px; color: #9eb2d6; margin-top: 4px; }
+                    .statbar { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+                    .k { font-size: 12px; color: #8ea2c9; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .v { font-size: 24px; font-weight: 700; margin-top: 4px; }
+                    .jobs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+                    .job { background: #121c2d; border: 1px solid #22314e; border-radius: 10px; padding: 12px; transition: transform .15s ease, border-color .15s ease; }
+                    .job:hover { transform: translateY(-1px); border-color: #355382; }
+                    .job.running { animation: glow 1.8s ease-in-out infinite; }
+                    .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+                    .name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; border: 1px solid; font-weight: 700; }
+                    .RUNNING { color: #f2cc60; border-color: #7d6a2e; background: rgba(242,204,96,0.12); }
+                    .SUCCEEDED { color: #66d9a0; border-color: #2a704f; background: rgba(102,217,160,0.12); }
+                    .FAILED { color: #ff7f8f; border-color: #873847; background: rgba(255,127,143,0.12); }
+                    .row { display: flex; justify-content: space-between; font-size: 12px; margin-top: 7px; color: #cfe0ff; gap: 8px; }
+                    .row > span:last-child { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
+                    .bar { margin-top: 8px; background: #0f1727; border: 1px solid #243555; border-radius: 8px; height: 10px; overflow: hidden; }
+                    .fill { height: 100%%; background: linear-gradient(90deg, #58a6ff, #66d9a0); width: 0%%; transition: width .3s ease; }
                     .link { margin-top: 8px; font-size: 12px; }
                     .link a { color: #8dc1ff; text-decoration: none; }
-                    @keyframes pulse { 0%%,100%% { box-shadow: 0 8px 24px rgba(0,0,0,.22); } 50%% { box-shadow: 0 8px 32px rgba(31,80,170,.35); } }
-                    @media (max-width: 900px) { .grid, .statbar { grid-template-columns: 1fr; } }
+                    @keyframes glow { 0%%,100%% { box-shadow: 0 0 0 rgba(88,166,255,0); } 50%% { box-shadow: 0 0 16px rgba(88,166,255,0.25); } }
+                    @media (max-width: 900px) { .jobs, .statbar { grid-template-columns: 1fr; } .row > span:last-child { max-width: 55%; } }
                   </style>
                 </head>
                 <body>
                 <div class="wrap">
-                  <h1>Ingestion Jobs</h1>
-                  <div class="sub">Live dashboard auto-refreshes every second</div>
-                  <div class="statbar">
-                    <div class="stat"><div class="k">Running</div><div class="v" id="running">0</div></div>
-                    <div class="stat"><div class="k">Succeeded</div><div class="v" id="succeeded">0</div></div>
-                    <div class="stat"><div class="k">Failed</div><div class="v" id="failed">0</div></div>
-                    <div class="stat"><div class="k">Total Inserted</div><div class="v" id="insertedTotal">0</div></div>
+                  <div class="card">
+                    <h1 class="title">Ingestion Jobs</h1>
+                    <div class="sub">Live dashboard auto-refreshes every second</div>
                   </div>
-                  <div id="jobs" class="grid"></div>
+                  <div class="card statbar">
+                    <div><div class="k">Running</div><div class="v" id="running">0</div></div>
+                    <div><div class="k">Succeeded</div><div class="v" id="succeeded">0</div></div>
+                    <div><div class="k">Failed</div><div class="v" id="failed">0</div></div>
+                    <div><div class="k">Total Inserted</div><div class="v" id="insertedTotal">0</div></div>
+                  </div>
+                  <div id="jobs" class="jobs"></div>
                 </div>
                 <script>
                   function fmtTime(ts) { return new Date(ts).toLocaleTimeString(); }
@@ -251,10 +254,10 @@ public class IngestionController {
                   }
                   function renderJob(j) {
                     const latest = j.latestProgress || {};
-                    const doneClass = j.status === "RUNNING" ? "" : "done";
+                    const stateClass = j.status === "RUNNING" ? "running" : "";
                     const failure = j.failureMessage ? `<div class="row"><span>failure</span><span>${j.failureMessage}</span></div>` : "";
                     return `
-                      <div class="job ${doneClass}">
+                      <div class="job ${stateClass}">
                         <div class="top">
                           <div class="name">${j.fileName || "unknown.xlsx"}</div>
                           <span class="badge ${j.status}">${j.status}</span>
