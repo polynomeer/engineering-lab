@@ -90,14 +90,14 @@ public class IngestionController {
                   <meta name="viewport" content="width=device-width, initial-scale=1" />
                   <title>Ingestion Job %s</title>
                   <style>
-                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: #0b1320; color: #e6edf7; }
+                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: #282a36; color: #f8f8f2; }
                     .wrap { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
-                    .card { background: #121c2d; border: 1px solid #22314e; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+                    .card { background: #1f2330; border: 1px solid #44475a; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
                     .grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
-                    .k { font-size: 12px; color: #8ea2c9; }
+                    .k { font-size: 12px; color: #bd93f9; }
                     .v { font-size: 22px; font-weight: 700; }
-                    svg { width: 100%%; height: 180px; background: #0f1727; border-radius: 8px; border: 1px solid #243555; }
-                    .small { font-size: 12px; color: #9eb2d6; }
+                    svg { width: 100%%; height: 180px; background: #1a1d29; border-radius: 8px; border: 1px solid #44475a; }
+                    .small { font-size: 12px; color: #6272a4; }
                     @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
                   </style>
                 </head>
@@ -155,9 +155,9 @@ public class IngestionController {
                     const rMax = Math.max(1, ...rP, ...rM, ...rI);
 
                     document.getElementById("queueChart").innerHTML =
-                      toPath(qRaw, qMax, "#58a6ff") + toPath(qMapped, qMax, "#f2cc60");
+                      toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
                     document.getElementById("rateChart").innerHTML =
-                      toPath(rP, rMax, "#58a6ff") + toPath(rM, rMax, "#f2cc60") + toPath(rI, rMax, "#66d9a0");
+                      toPath(rP, rMax, "#8be9fd") + toPath(rM, rMax, "#ffb86c") + toPath(rI, rMax, "#50fa7b");
                   }
 
                   async function poll() {
@@ -204,31 +204,31 @@ public class IngestionController {
                   <meta name="viewport" content="width=device-width, initial-scale=1" />
                   <title>Ingestion Jobs Live</title>
                   <style>
-                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: #0b1320; color: #e6edf7; }
+                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: #282a36; color: #f8f8f2; }
                     .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-                    .card { background: #121c2d; border: 1px solid #22314e; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+                    .card { background: #1f2330; border: 1px solid #44475a; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
                     .title { font-size: 28px; font-weight: 700; margin: 0; }
-                    .sub { font-size: 12px; color: #9eb2d6; margin-top: 4px; }
+                    .sub { font-size: 12px; color: #6272a4; margin-top: 4px; }
                     .statbar { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
-                    .k { font-size: 12px; color: #8ea2c9; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .k { font-size: 12px; color: #bd93f9; text-transform: uppercase; letter-spacing: 0.5px; }
                     .v { font-size: 24px; font-weight: 700; margin-top: 4px; }
                     .jobs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
-                    .job { background: #121c2d; border: 1px solid #22314e; border-radius: 10px; padding: 12px; transition: transform .15s ease, border-color .15s ease; }
-                    .job:hover { transform: translateY(-1px); border-color: #355382; }
+                    .job { background: #1f2330; border: 1px solid #44475a; border-radius: 10px; padding: 12px; transition: transform .15s ease, border-color .15s ease; }
+                    .job:hover { transform: translateY(-1px); border-color: #8be9fd; }
                     .job.running { animation: glow 1.8s ease-in-out infinite; }
                     .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
                     .name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                     .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; border: 1px solid; font-weight: 700; }
-                    .RUNNING { color: #f2cc60; border-color: #7d6a2e; background: rgba(242,204,96,0.12); }
-                    .SUCCEEDED { color: #66d9a0; border-color: #2a704f; background: rgba(102,217,160,0.12); }
-                    .FAILED { color: #ff7f8f; border-color: #873847; background: rgba(255,127,143,0.12); }
-                    .row { display: flex; justify-content: space-between; font-size: 12px; margin-top: 7px; color: #cfe0ff; gap: 8px; }
+                    .RUNNING { color: #ffb86c; border-color: #ffb86c; background: rgba(255,184,108,0.12); }
+                    .SUCCEEDED { color: #50fa7b; border-color: #50fa7b; background: rgba(80,250,123,0.12); }
+                    .FAILED { color: #ff5555; border-color: #ff5555; background: rgba(255,85,85,0.12); }
+                    .row { display: flex; justify-content: space-between; font-size: 12px; margin-top: 7px; color: #f8f8f2; gap: 8px; }
                     .row > span:last-child { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
-                    .bar { margin-top: 8px; background: #0f1727; border: 1px solid #243555; border-radius: 8px; height: 10px; overflow: hidden; }
-                    .fill { height: 100%%; background: linear-gradient(90deg, #58a6ff, #66d9a0); width: 0%%; transition: width .3s ease; }
+                    .bar { margin-top: 8px; background: #1a1d29; border: 1px solid #44475a; border-radius: 8px; height: 10px; overflow: hidden; }
+                    .fill { height: 100%%; background: linear-gradient(90deg, #bd93f9, #8be9fd); width: 0%%; transition: width .3s ease; }
                     .link { margin-top: 8px; font-size: 12px; }
-                    .link a { color: #8dc1ff; text-decoration: none; }
-                    @keyframes glow { 0%%,100%% { box-shadow: 0 0 0 rgba(88,166,255,0); } 50%% { box-shadow: 0 0 16px rgba(88,166,255,0.25); } }
+                    .link a { color: #8be9fd; text-decoration: none; }
+                    @keyframes glow { 0%%,100%% { box-shadow: 0 0 0 rgba(139,233,253,0); } 50%% { box-shadow: 0 0 16px rgba(139,233,253,0.25); } }
                     @media (max-width: 900px) { .jobs, .statbar { grid-template-columns: 1fr; } .row > span:last-child { max-width: 55%; } }
                   </style>
                 </head>
