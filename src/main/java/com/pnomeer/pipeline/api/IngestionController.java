@@ -2,6 +2,7 @@ package com.pnomeer.pipeline.api;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.util.HtmlUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,9 +18,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/ingest")
 public class IngestionController {
     private final IngestionService ingestionService;
+    private final JdbcTemplate jdbcTemplate;
 
-    public IngestionController(IngestionService ingestionService) {
+    public IngestionController(IngestionService ingestionService, JdbcTemplate jdbcTemplate) {
         this.ingestionService = ingestionService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @PostMapping(value = "/excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -77,6 +80,26 @@ public class IngestionController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "job not found");
         }
         return new IngestionTimelineResponse(state.getJobId(), state.getStatus(), state.getProgressTimeline());
+    }
+
+    @GetMapping("/db/count")
+    public DbCountResponse getDbCount() {
+        Integer count = jdbcTemplate.queryForObject("select count(*) from ingest_item", Integer.class);
+        return new DbCountResponse(count == null ? 0 : count);
+    }
+
+    @GetMapping("/db/rows")
+    public DbRowsResponse getDbRows(@RequestParam(defaultValue = "200") int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 2000));
+        var rows = jdbcTemplate.query(
+                "select id, col1, col2, col3 from ingest_item order by id desc limit ?",
+                (rs, rowNum) -> new DbRow(
+                        rs.getLong("id"),
+                        rs.getString("col1"),
+                        rs.getString("col2"),
+                        rs.getInt("col3")),
+                safeLimit);
+        return new DbRowsResponse(safeLimit, rows);
     }
 
     @GetMapping(value = "/ui/{jobId}", produces = MediaType.TEXT_HTML_VALUE)
@@ -296,6 +319,114 @@ public class IngestionController {
                 """;
     }
 
+    @GetMapping(value = "/ui/db", produces = MediaType.TEXT_HTML_VALUE)
+    public String getDbVisualization() {
+        return """
+                <!doctype html>
+                <html lang="en">
+                <head>
+                  <meta charset="utf-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1" />
+                  <title>Ingestion DB View</title>
+                  <style>
+                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: #282a36; color: #f8f8f2; }
+                    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+                    .card { background: #1f2330; border: 1px solid #44475a; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+                    .title { font-size: 28px; font-weight: 700; margin: 0; }
+                    .sub { font-size: 12px; color: #6272a4; margin-top: 4px; }
+                    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+                    input { background: #1a1d29; color: #f8f8f2; border: 1px solid #44475a; border-radius: 8px; padding: 6px 10px; width: 100px; }
+                    button { background: #bd93f9; color: #282a36; border: 0; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
+                    .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+                    .k { font-size: 12px; color: #bd93f9; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .v { font-size: 24px; font-weight: 700; margin-top: 4px; }
+                    .table-wrap { overflow: auto; max-height: 65vh; border-radius: 8px; border: 1px solid #44475a; }
+                    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+                    thead th { position: sticky; top: 0; background: #1a1d29; color: #8be9fd; text-align: left; padding: 10px; border-bottom: 1px solid #44475a; }
+                    tbody td { padding: 9px 10px; border-bottom: 1px solid #383b4c; }
+                    tbody tr:hover { background: #2b3040; }
+                    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+                    @media (max-width: 900px) { .stats { grid-template-columns: 1fr; } }
+                  </style>
+                </head>
+                <body>
+                <div class="wrap">
+                  <div class="card">
+                    <h1 class="title">Database View</h1>
+                    <div class="sub">Live rows from <code>ingest_item</code> (newest first)</div>
+                  </div>
+
+                  <div class="card controls">
+                    <label for="limit">Row limit</label>
+                    <input id="limit" type="number" min="1" max="2000" value="200" />
+                    <button id="applyBtn">Apply</button>
+                    <span class="sub">Auto refresh: 2s</span>
+                  </div>
+
+                  <div class="card stats">
+                    <div><div class="k">Total Rows</div><div class="v" id="totalRows">0</div></div>
+                    <div><div class="k">Visible Rows</div><div class="v" id="visibleRows">0</div></div>
+                    <div><div class="k">Last Refresh</div><div class="v mono" id="refreshedAt">-</div></div>
+                  </div>
+
+                  <div class="card">
+                    <div class="table-wrap">
+                      <table>
+                        <thead>
+                          <tr><th>ID</th><th>col1</th><th>col2</th><th>col3</th></tr>
+                        </thead>
+                        <tbody id="rows"></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+                <script>
+                  let limit = 200;
+
+                  function esc(s) {
+                    return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+                  }
+
+                  function renderRows(items) {
+                    const body = document.getElementById("rows");
+                    body.innerHTML = items.map(r => `
+                      <tr>
+                        <td class="mono">${r.id}</td>
+                        <td>${esc(r.col1)}</td>
+                        <td>${esc(r.col2)}</td>
+                        <td class="mono">${r.col3}</td>
+                      </tr>
+                    `).join("");
+                    document.getElementById("visibleRows").textContent = items.length;
+                  }
+
+                  async function refresh() {
+                    const [countRes, rowsRes] = await Promise.all([
+                      fetch("/ingest/db/count"),
+                      fetch(`/ingest/db/rows?limit=${limit}`)
+                    ]);
+                    if (!countRes.ok || !rowsRes.ok) return;
+                    const count = await countRes.json();
+                    const rows = await rowsRes.json();
+                    document.getElementById("totalRows").textContent = count.totalRows || 0;
+                    renderRows(rows.rows || []);
+                    document.getElementById("refreshedAt").textContent = new Date().toLocaleTimeString();
+                  }
+
+                  document.getElementById("applyBtn").addEventListener("click", () => {
+                    const value = Number(document.getElementById("limit").value || "200");
+                    limit = Math.max(1, Math.min(2000, value));
+                    refresh().catch(console.error);
+                  });
+
+                  setInterval(() => refresh().catch(console.error), 2000);
+                  refresh().catch(console.error);
+                </script>
+                </body>
+                </html>
+                """;
+    }
+
     public record StartIngestionResponse(String jobId) {
     }
 
@@ -320,5 +451,14 @@ public class IngestionController {
             String jobId,
             IngestionJobStatus status,
             java.util.List<com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot> snapshots) {
+    }
+
+    public record DbCountResponse(int totalRows) {
+    }
+
+    public record DbRowsResponse(int limit, java.util.List<DbRow> rows) {
+    }
+
+    public record DbRow(long id, String col1, String col2, int col3) {
     }
 }

@@ -167,6 +167,18 @@ Shows all jobs in real time (RUNNING/SUCCEEDED/FAILED), live queue/rate stats, a
 open "http://localhost:8080/ingest/ui"
 ```
 
+### 6) Open DB live view
+`GET /ingest/ui/db`
+
+Shows live data from table `ingest_item` with:
+- total row count
+- configurable row limit
+- newest rows first (auto-refresh)
+
+```bash
+open "http://localhost:8080/ingest/ui/db"
+```
+
 ## Expected XLSX format
 - First sheet only is parsed.
 - Row `0` is treated as header and skipped.
