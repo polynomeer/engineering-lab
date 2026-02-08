@@ -134,6 +134,7 @@ public class IngestionController {
                     <div class="small">Job ID: <code id="jobId">%s</code></div>
                     <div class="small">Status: <span id="status">RUNNING</span></div>
                     <div class="small">Mode: <span id="mode">PIPELINE</span></div>
+                    <div class="small">Processing Time: <span id="elapsed">0.0s</span></div>
                   </div>
 
                   <div class="card grid">
@@ -172,6 +173,12 @@ public class IngestionController {
                     return `<polyline points="${pts}" stroke="${color}" fill="none" stroke-width="2"/>`;
                   }
 
+                  function fmtElapsed(ms) {
+                    const value = Math.max(0, Number(ms || 0));
+                    if (value < 1000) return `${value}ms`;
+                    return `${(value / 1000).toFixed(1)}s`;
+                  }
+
                   function renderCharts() {
                     const qRaw = timeline.map(s => s.rawQueueSize);
                     const qMapped = timeline.map(s => s.mappedQueueSize);
@@ -205,12 +212,14 @@ public class IngestionController {
                     document.getElementById("errors").textContent = job.validationErrorCount;
 
                     const latest = job.latestProgress || {};
+                    const elapsedMs = latest.elapsedMillis ?? Math.max(0, (job.updatedAtEpochMs || 0) - (job.createdAtEpochMs || 0));
                     document.getElementById("mapped").textContent = latest.mappedCount || 0;
                     document.getElementById("rawQ").textContent = latest.rawQueueSize || 0;
                     document.getElementById("mappedQ").textContent = latest.mappedQueueSize || 0;
                     document.getElementById("pr").textContent = latest.producedRatePerSec || 0;
                     document.getElementById("mr").textContent = latest.mappedRatePerSec || 0;
                     document.getElementById("ir").textContent = latest.insertedRatePerSec || 0;
+                    document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
 
                     renderCharts();
                   }
