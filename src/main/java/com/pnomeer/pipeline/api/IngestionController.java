@@ -27,11 +27,13 @@ public class IngestionController {
 
     @PostMapping(value = "/excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public StartIngestionResponse startExcelIngestion(@RequestParam("file") MultipartFile file) {
+    public StartIngestionResponse startExcelIngestion(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(defaultValue = "PIPELINE") com.pnomeer.pipeline.PipelineRunner.RunMode mode) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file must not be empty");
         }
-        return new StartIngestionResponse(ingestionService.startJob(file));
+        return new StartIngestionResponse(ingestionService.startJob(file, mode), mode);
     }
 
     @GetMapping("/jobs/{jobId}")
@@ -44,6 +46,7 @@ public class IngestionController {
                 state.getJobId(),
                 state.getStatus(),
                 state.getFileName(),
+                state.getRunMode(),
                 state.getCreatedAtEpochMs(),
                 state.getUpdatedAtEpochMs(),
                 state.getProducedCount(),
@@ -61,6 +64,7 @@ public class IngestionController {
                         state.getJobId(),
                         state.getStatus(),
                         state.getFileName(),
+                        state.getRunMode(),
                         state.getCreatedAtEpochMs(),
                         state.getUpdatedAtEpochMs(),
                         state.getProducedCount(),
@@ -129,6 +133,7 @@ public class IngestionController {
                   <div class="card">
                     <div class="small">Job ID: <code id="jobId">%s</code></div>
                     <div class="small">Status: <span id="status">RUNNING</span></div>
+                    <div class="small">Mode: <span id="mode">PIPELINE</span></div>
                   </div>
 
                   <div class="card grid">
@@ -194,6 +199,7 @@ public class IngestionController {
                     timeline = (t.snapshots || []).slice(-maxPoints);
 
                     document.getElementById("status").textContent = job.status;
+                    document.getElementById("mode").textContent = job.runMode || "PIPELINE";
                     document.getElementById("produced").textContent = job.producedCount;
                     document.getElementById("inserted").textContent = job.insertedCount;
                     document.getElementById("errors").textContent = job.validationErrorCount;
@@ -286,6 +292,7 @@ public class IngestionController {
                           <span class="badge ${j.status}">${j.status}</span>
                         </div>
                         <div class="row"><span>jobId</span><span>${j.jobId}</span></div>
+                        <div class="row"><span>mode</span><span>${j.runMode || "PIPELINE"}</span></div>
                         <div class="row"><span>produced / inserted / errors</span><span>${j.producedCount} / ${j.insertedCount} / ${j.validationErrorCount}</span></div>
                         <div class="row"><span>queues raw|mapped</span><span>${latest.rawQueueSize || 0} | ${latest.mappedQueueSize || 0}</span></div>
                         <div class="row"><span>rate p|m|i</span><span>${latest.producedRatePerSec || 0} | ${latest.mappedRatePerSec || 0} | ${latest.insertedRatePerSec || 0}</span></div>
@@ -427,13 +434,14 @@ public class IngestionController {
                 """;
     }
 
-    public record StartIngestionResponse(String jobId) {
+    public record StartIngestionResponse(String jobId, com.pnomeer.pipeline.PipelineRunner.RunMode mode) {
     }
 
     public record IngestionJobResponse(
             String jobId,
             IngestionJobStatus status,
             String fileName,
+            com.pnomeer.pipeline.PipelineRunner.RunMode runMode,
             long createdAtEpochMs,
             long updatedAtEpochMs,
             int producedCount,

@@ -80,12 +80,21 @@ Notes:
 - Content type: `multipart/form-data`
 - Form field name: `file`
 - Expected file type: `.xlsx`
+- Optional query param: `mode=PIPELINE|SINGLE_THREAD` (default `PIPELINE`)
 - Response: `202 Accepted`
 
 Example:
 
 ```bash
 curl -i -X POST "http://localhost:8080/ingest/excel" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@/absolute/path/to/sample.xlsx"
+```
+
+Single-thread baseline example:
+
+```bash
+curl -i -X POST "http://localhost:8080/ingest/excel?mode=SINGLE_THREAD" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@/absolute/path/to/sample.xlsx"
 ```

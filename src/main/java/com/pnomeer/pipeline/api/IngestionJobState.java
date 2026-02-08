@@ -12,6 +12,7 @@ public final class IngestionJobState {
 
     private final String jobId;
     private final String fileName;
+    private final com.pnomeer.pipeline.PipelineRunner.RunMode runMode;
     private final long createdAtEpochMs;
     private volatile long updatedAtEpochMs;
     private volatile IngestionJobStatus status;
@@ -23,9 +24,10 @@ public final class IngestionJobState {
     private volatile PipelineRunner.ProgressSnapshot latestProgress;
     private final CopyOnWriteArrayList<PipelineRunner.ProgressSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
 
-    public IngestionJobState(String jobId, String fileName) {
+    public IngestionJobState(String jobId, String fileName, com.pnomeer.pipeline.PipelineRunner.RunMode runMode) {
         this.jobId = jobId;
         this.fileName = fileName;
+        this.runMode = runMode;
         this.createdAtEpochMs = System.currentTimeMillis();
         this.updatedAtEpochMs = this.createdAtEpochMs;
         this.status = IngestionJobStatus.RUNNING;
@@ -42,6 +44,10 @@ public final class IngestionJobState {
 
     public String getFileName() {
         return fileName;
+    }
+
+    public com.pnomeer.pipeline.PipelineRunner.RunMode getRunMode() {
+        return runMode;
     }
 
     public long getCreatedAtEpochMs() {

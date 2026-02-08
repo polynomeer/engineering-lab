@@ -78,6 +78,41 @@ class PipelineRunnerIntegrationTest {
         assertTrue(result.getElapsedMillis() >= 500L);
     }
 
+    @Test
+    void pipelineAndSingleThreadModesProduceSameResult() throws Exception {
+        PipelineProperties properties = new PipelineProperties();
+        properties.getQueue().setRawCapacity(8);
+        properties.getQueue().setMappedCapacity(8);
+        properties.getThreads().setValidator(2);
+        properties.getThreads().setInserter(2);
+        properties.getInsert().setChunkSize(2);
+        properties.getBackpressure().setOfferTimeoutMs(200L);
+
+        byte[] xlsx = createTestWorkbook();
+
+        DataSource pipelineDs = createDataSource();
+        initializeSchema(pipelineDs);
+        JdbcTemplate pipelineJdbc = new JdbcTemplate(pipelineDs);
+        TransactionTemplate pipelineTx = new TransactionTemplate(new DataSourceTransactionManager(pipelineDs));
+        PipelineRunner pipelineRunner = new PipelineRunner(properties, pipelineJdbc, pipelineTx);
+        PipelineRunner.PipelineRunResult pipelineResult =
+                pipelineRunner.run(new ByteArrayInputStream(xlsx), PipelineRunner.RunMode.PIPELINE, null);
+
+        DataSource singleDs = createDataSource();
+        initializeSchema(singleDs);
+        JdbcTemplate singleJdbc = new JdbcTemplate(singleDs);
+        TransactionTemplate singleTx = new TransactionTemplate(new DataSourceTransactionManager(singleDs));
+        PipelineRunner singleRunner = new PipelineRunner(properties, singleJdbc, singleTx);
+        PipelineRunner.PipelineRunResult singleResult =
+                singleRunner.run(new ByteArrayInputStream(xlsx), PipelineRunner.RunMode.SINGLE_THREAD, null);
+
+        assertEquals(pipelineResult.getProducedCount(), singleResult.getProducedCount());
+        assertEquals(pipelineResult.getInsertedCount(), singleResult.getInsertedCount());
+        assertEquals(pipelineResult.getValidationErrors().size(), singleResult.getValidationErrors().size());
+        assertEquals(pipelineResult.getInsertedCount(), pipelineJdbc.queryForObject("select count(*) from ingest_item", Integer.class));
+        assertEquals(singleResult.getInsertedCount(), singleJdbc.queryForObject("select count(*) from ingest_item", Integer.class));
+    }
+
     private static byte[] createTestWorkbook() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {

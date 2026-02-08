@@ -29,11 +29,11 @@ public class IngestionService {
         this.taskExecutor = taskExecutor;
     }
 
-    public String startJob(MultipartFile file) {
+    public String startJob(MultipartFile file, PipelineRunner.RunMode runMode) {
         byte[] payload = readFile(file);
         String jobId = UUID.randomUUID().toString();
         String fileName = file.getOriginalFilename() == null ? "unknown.xlsx" : file.getOriginalFilename();
-        IngestionJobState state = new IngestionJobState(jobId, fileName);
+        IngestionJobState state = new IngestionJobState(jobId, fileName, runMode);
         jobs.put(jobId, state);
 
         taskExecutor.execute(() -> runJob(state, payload));
@@ -52,7 +52,7 @@ public class IngestionService {
 
     private void runJob(IngestionJobState state, byte[] payload) {
         try {
-            var result = pipelineRunner.run(new ByteArrayInputStream(payload), state::recordProgress);
+            var result = pipelineRunner.run(new ByteArrayInputStream(payload), state.getRunMode(), state::recordProgress);
             Map<String, Long> errorSummary = result.getValidationErrors().stream()
                     .map(ValidationError::getReason)
                     .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));

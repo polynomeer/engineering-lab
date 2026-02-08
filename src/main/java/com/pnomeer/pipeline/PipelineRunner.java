@@ -40,6 +40,11 @@ public class PipelineRunner {
     private final TransactionTemplate transactionTemplate;
     private final long insertDelayMs;
 
+    public enum RunMode {
+        PIPELINE,
+        SINGLE_THREAD
+    }
+
     public PipelineRunner(
             PipelineProperties properties,
             JdbcTemplate jdbcTemplate,
@@ -69,10 +74,26 @@ public class PipelineRunner {
     }
 
     public PipelineRunResult run(InputStream excelInputStream) throws InterruptedException, IOException {
-        return run(excelInputStream, null);
+        return run(excelInputStream, RunMode.PIPELINE, null);
     }
 
     public PipelineRunResult run(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
+            throws InterruptedException, IOException {
+        return run(excelInputStream, RunMode.PIPELINE, progressListener);
+    }
+
+    public PipelineRunResult run(
+            InputStream excelInputStream,
+            RunMode runMode,
+            Consumer<ProgressSnapshot> progressListener)
+            throws InterruptedException, IOException {
+        if (runMode == RunMode.SINGLE_THREAD) {
+            return runSingleThread(excelInputStream, progressListener);
+        }
+        return runPipelined(excelInputStream, progressListener);
+    }
+
+    private PipelineRunResult runPipelined(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
             throws InterruptedException, IOException {
         long startNanos = System.nanoTime();
         BoundedChannel<Envelope<RawRow>> rawChannel =
@@ -125,6 +146,84 @@ public class PipelineRunner {
             validatorPool.shutdownNow();
             inserterPool.shutdownNow();
         }
+    }
+
+    private PipelineRunResult runSingleThread(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
+            throws IOException, InterruptedException {
+        long startNanos = System.nanoTime();
+        int chunkSize = properties.getInsert().getChunkSize();
+        if (chunkSize <= 0) {
+            throw new IllegalArgumentException("insert.chunkSize must be > 0");
+        }
+
+        List<ValidationError> validationErrors = new ArrayList<>();
+        AtomicInteger producedCount = new AtomicInteger(0);
+        AtomicInteger mappedCount = new AtomicInteger(0);
+        AtomicInteger insertedCount = new AtomicInteger(0);
+        List<MappedRow> chunk = new ArrayList<>(chunkSize);
+
+        AtomicLong lastNanos = new AtomicLong(startNanos);
+        AtomicInteger lastProduced = new AtomicInteger(0);
+        AtomicInteger lastMapped = new AtomicInteger(0);
+        AtomicInteger lastInserted = new AtomicInteger(0);
+
+        excelReader.readFirstSheet(excelInputStream, rawRow -> {
+            producedCount.incrementAndGet();
+
+            String col1 = cellAt(rawRow, 0);
+            String col2 = cellAt(rawRow, 1);
+            String col3 = cellAt(rawRow, 2);
+            if (isBlank(col1)) {
+                validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col1 is required", rawRow));
+                emitSingleThreadProgress(
+                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                return;
+            }
+            if (isBlank(col2)) {
+                validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col2 is required", rawRow));
+                emitSingleThreadProgress(
+                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                return;
+            }
+
+            int col3Int;
+            try {
+                col3Int = Integer.parseInt(col3);
+            } catch (NumberFormatException ex) {
+                validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col3 must be integer", rawRow));
+                emitSingleThreadProgress(
+                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                return;
+            }
+
+            chunk.add(new MappedRow(rawRow.getRowIndex(), new IngestItem(col1, col2, col3Int)));
+            mappedCount.incrementAndGet();
+            if (chunk.size() >= chunkSize) {
+                try {
+                    flushChunk(chunk, insertedCount);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while flushing chunk", ex);
+                }
+            }
+            emitSingleThreadProgress(
+                    startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+        });
+
+        flushChunk(chunk, insertedCount);
+        emitSingleThreadProgress(
+                startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        return new PipelineRunResult(
+                producedCount.get(),
+                insertedCount.get(),
+                List.copyOf(validationErrors),
+                0L,
+                0L,
+                0L,
+                0L,
+                elapsedMillis);
     }
 
     private void produceFromExcel(
@@ -303,6 +402,49 @@ public class PipelineRunner {
             }
         }, 250, 250, TimeUnit.MILLISECONDS);
         return scheduler;
+    }
+
+    private static void emitSingleThreadProgress(
+            long startNanos,
+            AtomicLong lastNanos,
+            AtomicInteger producedCount,
+            AtomicInteger mappedCount,
+            AtomicInteger insertedCount,
+            AtomicInteger lastProduced,
+            AtomicInteger lastMapped,
+            AtomicInteger lastInserted,
+            Consumer<ProgressSnapshot> progressListener) {
+        if (progressListener == null) {
+            return;
+        }
+
+        long now = System.nanoTime();
+        long deltaNanos = now - lastNanos.get();
+        if (deltaNanos < TimeUnit.MILLISECONDS.toNanos(200)) {
+            return;
+        }
+        lastNanos.set(now);
+        double seconds = Math.max(0.001d, deltaNanos / 1_000_000_000.0d);
+
+        int produced = producedCount.get();
+        int mapped = mappedCount.get();
+        int inserted = insertedCount.get();
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
+
+        long producedRate = Math.round((produced - lastProduced.getAndSet(produced)) / seconds);
+        long mappedRate = Math.round((mapped - lastMapped.getAndSet(mapped)) / seconds);
+        long insertedRate = Math.round((inserted - lastInserted.getAndSet(inserted)) / seconds);
+
+        progressListener.accept(new ProgressSnapshot(
+                0,
+                0,
+                produced,
+                mapped,
+                inserted,
+                producedRate,
+                mappedRate,
+                insertedRate,
+                elapsedMillis));
     }
 
     private static int normalizeBatchUpdateCount(int[][] updated, int fallbackCount) {
