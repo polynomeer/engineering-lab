@@ -151,9 +151,9 @@ public class IngestionController {
                   </div>
 
                   <div class="card">
-                    <div class="k">Throughput (rows/sec)</div>
+                    <div class="k">Throughput</div>
                     <svg id="rateChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
-                    <div class="small">produced: <span id="pr">0</span>, mapped: <span id="mr">0</span>, inserted: <span id="ir">0</span></div>
+                    <div class="small">rows/sec: <span id="rowRate">0</span>, records/sec: <span id="recordRate">0</span>, batch/sec: <span id="batchRate">0</span></div>
                   </div>
                 </div>
 
@@ -183,16 +183,16 @@ public class IngestionController {
                     const qRaw = timeline.map(s => s.rawQueueSize);
                     const qMapped = timeline.map(s => s.mappedQueueSize);
                     const rP = timeline.map(s => s.producedRatePerSec);
-                    const rM = timeline.map(s => s.mappedRatePerSec);
                     const rI = timeline.map(s => s.insertedRatePerSec);
+                    const rB = timeline.map(s => s.batchRatePerSec);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
-                    const rMax = Math.max(1, ...rP, ...rM, ...rI);
+                    const rMax = Math.max(1, ...rP, ...rI, ...rB);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
                     document.getElementById("rateChart").innerHTML =
-                      toPath(rP, rMax, "#8be9fd") + toPath(rM, rMax, "#ffb86c") + toPath(rI, rMax, "#50fa7b");
+                      toPath(rP, rMax, "#8be9fd") + toPath(rI, rMax, "#50fa7b") + toPath(rB, rMax, "#ff79c6");
                   }
 
                   async function poll() {
@@ -216,9 +216,9 @@ public class IngestionController {
                     document.getElementById("mapped").textContent = latest.mappedCount || 0;
                     document.getElementById("rawQ").textContent = latest.rawQueueSize || 0;
                     document.getElementById("mappedQ").textContent = latest.mappedQueueSize || 0;
-                    document.getElementById("pr").textContent = latest.producedRatePerSec || 0;
-                    document.getElementById("mr").textContent = latest.mappedRatePerSec || 0;
-                    document.getElementById("ir").textContent = latest.insertedRatePerSec || 0;
+                    document.getElementById("rowRate").textContent = latest.producedRatePerSec || 0;
+                    document.getElementById("recordRate").textContent = latest.insertedRatePerSec || 0;
+                    document.getElementById("batchRate").textContent = latest.batchRatePerSec || 0;
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
 
                     renderCharts();
@@ -304,7 +304,7 @@ public class IngestionController {
                         <div class="row"><span>mode</span><span>${j.runMode || "PIPELINE"}</span></div>
                         <div class="row"><span>produced / inserted / errors</span><span>${j.producedCount} / ${j.insertedCount} / ${j.validationErrorCount}</span></div>
                         <div class="row"><span>queues raw|mapped</span><span>${latest.rawQueueSize || 0} | ${latest.mappedQueueSize || 0}</span></div>
-                        <div class="row"><span>rate p|m|i</span><span>${latest.producedRatePerSec || 0} | ${latest.mappedRatePerSec || 0} | ${latest.insertedRatePerSec || 0}</span></div>
+                        <div class="row"><span>rate rows|records|batch</span><span>${latest.producedRatePerSec || 0} | ${latest.insertedRatePerSec || 0} | ${latest.batchRatePerSec || 0}</span></div>
                         <div class="row"><span>updated</span><span>${fmtTime(j.updatedAtEpochMs)}</span></div>
                         ${failure}
                         <div class="bar"><div class="fill" style="width:${ratio(j.producedCount, j.insertedCount, j.validationErrorCount)}%"></div></div>

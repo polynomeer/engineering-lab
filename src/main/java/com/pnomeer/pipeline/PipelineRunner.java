@@ -108,6 +108,7 @@ public class PipelineRunner {
         var producedCount = new AtomicInteger(0);
         var mappedCount = new AtomicInteger(0);
         var insertedCount = new AtomicInteger(0);
+        var batchCount = new AtomicInteger(0);
 
         ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers);
         ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers);
@@ -117,12 +118,13 @@ public class PipelineRunner {
                 producedCount,
                 mappedCount,
                 insertedCount,
+                batchCount,
                 startNanos,
                 progressListener);
         try {
             List<Future<?>> validatorFutures = startValidatorMapWorkers(
                     validatorPool, validatorWorkers, rawChannel, mappedChannel, validationErrors, mappedCount);
-            List<Future<?>> inserterFutures = startInsertWorkers(inserterPool, inserterWorkers, mappedChannel, insertedCount);
+            List<Future<?>> inserterFutures = startInsertWorkers(inserterPool, inserterWorkers, mappedChannel, insertedCount, batchCount);
 
             produceFromExcel(excelInputStream, rawChannel, producedCount);
             ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
@@ -160,12 +162,14 @@ public class PipelineRunner {
         AtomicInteger producedCount = new AtomicInteger(0);
         AtomicInteger mappedCount = new AtomicInteger(0);
         AtomicInteger insertedCount = new AtomicInteger(0);
+        AtomicInteger batchCount = new AtomicInteger(0);
         List<MappedRow> chunk = new ArrayList<>(chunkSize);
 
         AtomicLong lastNanos = new AtomicLong(startNanos);
         AtomicInteger lastProduced = new AtomicInteger(0);
         AtomicInteger lastMapped = new AtomicInteger(0);
         AtomicInteger lastInserted = new AtomicInteger(0);
+        AtomicInteger lastBatches = new AtomicInteger(0);
 
         excelReader.readFirstSheet(excelInputStream, rawRow -> {
             producedCount.incrementAndGet();
@@ -176,13 +180,13 @@ public class PipelineRunner {
             if (isBlank(col1)) {
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col1 is required", rawRow));
                 emitSingleThreadProgress(
-                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
                 return;
             }
             if (isBlank(col2)) {
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col2 is required", rawRow));
                 emitSingleThreadProgress(
-                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
                 return;
             }
 
@@ -192,7 +196,7 @@ public class PipelineRunner {
             } catch (NumberFormatException ex) {
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col3 must be integer", rawRow));
                 emitSingleThreadProgress(
-                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
                 return;
             }
 
@@ -200,19 +204,19 @@ public class PipelineRunner {
             mappedCount.incrementAndGet();
             if (chunk.size() >= chunkSize) {
                 try {
-                    flushChunk(chunk, insertedCount);
+                    flushChunk(chunk, insertedCount, batchCount);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while flushing chunk", ex);
                 }
             }
             emitSingleThreadProgress(
-                    startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                    startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
         });
 
-        flushChunk(chunk, insertedCount);
+        flushChunk(chunk, insertedCount, batchCount);
         emitSingleThreadProgress(
-                startNanos, lastNanos, producedCount, mappedCount, insertedCount, lastProduced, lastMapped, lastInserted, progressListener);
+                startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
 
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         return new PipelineRunResult(
@@ -296,7 +300,8 @@ public class PipelineRunner {
             ExecutorService pool,
             int workerCount,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
-            AtomicInteger insertedCount) {
+            AtomicInteger insertedCount,
+            AtomicInteger batchCount) {
         int chunkSize = properties.getInsert().getChunkSize();
         if (chunkSize <= 0) {
             throw new IllegalArgumentException("insert.chunkSize must be > 0");
@@ -310,12 +315,12 @@ public class PipelineRunner {
                     while (true) {
                         Envelope<MappedRow> envelope = mappedChannel.take();
                         if (envelope.isEnd()) {
-                            flushChunk(chunk, insertedCount);
+                            flushChunk(chunk, insertedCount, batchCount);
                             return;
                         }
                         chunk.add(envelope.getPayload());
                         if (chunk.size() >= chunkSize) {
-                            flushChunk(chunk, insertedCount);
+                            flushChunk(chunk, insertedCount, batchCount);
                         }
                     }
                 } catch (InterruptedException ex) {
@@ -326,7 +331,8 @@ public class PipelineRunner {
         return futures;
     }
 
-    private void flushChunk(List<MappedRow> chunk, AtomicInteger insertedCount) throws InterruptedException {
+    private void flushChunk(List<MappedRow> chunk, AtomicInteger insertedCount, AtomicInteger batchCount)
+            throws InterruptedException {
         if (chunk.isEmpty()) {
             return;
         }
@@ -348,6 +354,7 @@ public class PipelineRunner {
             return normalizeBatchUpdateCount(updated, chunk.size());
         });
         insertedCount.addAndGet(inserted == null ? 0 : inserted);
+        batchCount.incrementAndGet();
         chunk.clear();
     }
 
@@ -357,6 +364,7 @@ public class PipelineRunner {
             AtomicInteger producedCount,
             AtomicInteger mappedCount,
             AtomicInteger insertedCount,
+            AtomicInteger batchCount,
             long startNanos,
             Consumer<ProgressSnapshot> progressListener) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -364,6 +372,7 @@ public class PipelineRunner {
         AtomicInteger lastProduced = new AtomicInteger(0);
         AtomicInteger lastMapped = new AtomicInteger(0);
         AtomicInteger lastInserted = new AtomicInteger(0);
+        AtomicInteger lastBatches = new AtomicInteger(0);
         scheduler.scheduleAtFixedRate(() -> {
             long now = System.nanoTime();
             long deltaNanos = now - lastNanos.getAndSet(now);
@@ -372,22 +381,25 @@ public class PipelineRunner {
             int produced = producedCount.get();
             int mapped = mappedCount.get();
             int inserted = insertedCount.get();
+            int batches = batchCount.get();
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
 
             double producedRate = (produced - lastProduced.getAndSet(produced)) / seconds;
             double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
             double insertedRate = (inserted - lastInserted.getAndSet(inserted)) / seconds;
+            double batchRate = (batches - lastBatches.getAndSet(batches)) / seconds;
 
             log.info(
-                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} rate/s[p={},m={},i={}]",
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}]",
                     rawChannel.size(),
                     mappedChannel.size(),
                     produced,
                     mapped,
                     inserted,
+                    batches,
                     Math.round(producedRate),
-                    Math.round(mappedRate),
-                    Math.round(insertedRate));
+                    Math.round(insertedRate),
+                    Math.round(batchRate));
             if (progressListener != null) {
                 progressListener.accept(new ProgressSnapshot(
                         rawChannel.size(),
@@ -395,9 +407,11 @@ public class PipelineRunner {
                         produced,
                         mapped,
                         inserted,
+                        batches,
                         Math.round(producedRate),
                         Math.round(mappedRate),
                         Math.round(insertedRate),
+                        Math.round(batchRate),
                         elapsedMillis));
             }
         }, 250, 250, TimeUnit.MILLISECONDS);
@@ -410,9 +424,11 @@ public class PipelineRunner {
             AtomicInteger producedCount,
             AtomicInteger mappedCount,
             AtomicInteger insertedCount,
+            AtomicInteger batchCount,
             AtomicInteger lastProduced,
             AtomicInteger lastMapped,
             AtomicInteger lastInserted,
+            AtomicInteger lastBatches,
             Consumer<ProgressSnapshot> progressListener) {
         if (progressListener == null) {
             return;
@@ -429,11 +445,13 @@ public class PipelineRunner {
         int produced = producedCount.get();
         int mapped = mappedCount.get();
         int inserted = insertedCount.get();
+        int batches = batchCount.get();
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
 
         long producedRate = Math.round((produced - lastProduced.getAndSet(produced)) / seconds);
         long mappedRate = Math.round((mapped - lastMapped.getAndSet(mapped)) / seconds);
         long insertedRate = Math.round((inserted - lastInserted.getAndSet(inserted)) / seconds);
+        long batchRate = Math.round((batches - lastBatches.getAndSet(batches)) / seconds);
 
         progressListener.accept(new ProgressSnapshot(
                 0,
@@ -441,9 +459,11 @@ public class PipelineRunner {
                 produced,
                 mapped,
                 inserted,
+                batches,
                 producedRate,
                 mappedRate,
                 insertedRate,
+                batchRate,
                 elapsedMillis));
     }
 
@@ -543,9 +563,11 @@ public class PipelineRunner {
             int producedCount,
             int mappedCount,
             int insertedCount,
+            int batchCount,
             long producedRatePerSec,
             long mappedRatePerSec,
             long insertedRatePerSec,
+            long batchRatePerSec,
             long elapsedMillis) {
     }
 }
