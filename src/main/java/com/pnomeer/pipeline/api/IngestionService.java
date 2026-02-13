@@ -51,6 +51,7 @@ public class IngestionService {
     }
 
     private void runJob(IngestionJobState state, byte[] payload) {
+        state.markStarted();
         try {
             var result = pipelineRunner.run(new ByteArrayInputStream(payload), state.getRunMode(), state::recordProgress);
             Map<String, Long> errorSummary = result.getValidationErrors().stream()

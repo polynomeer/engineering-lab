@@ -49,6 +49,9 @@ public class IngestionController {
                 state.getRunMode(),
                 state.getCreatedAtEpochMs(),
                 state.getUpdatedAtEpochMs(),
+                state.getStartedAtEpochMs(),
+                state.getCompletedAtEpochMs(),
+                state.getFirstProgressAtEpochMs(),
                 state.getProducedCount(),
                 state.getInsertedCount(),
                 state.getValidationErrorCount(),
@@ -67,6 +70,9 @@ public class IngestionController {
                         state.getRunMode(),
                         state.getCreatedAtEpochMs(),
                         state.getUpdatedAtEpochMs(),
+                        state.getStartedAtEpochMs(),
+                        state.getCompletedAtEpochMs(),
+                        state.getFirstProgressAtEpochMs(),
                         state.getProducedCount(),
                         state.getInsertedCount(),
                         state.getValidationErrorCount(),
@@ -138,6 +144,13 @@ public class IngestionController {
                   </div>
 
                   <div class="card grid">
+                    <div><div class="k">Total Processing Time</div><div class="v" id="totalProc">0.0s</div></div>
+                    <div><div class="k">Job Completion Time</div><div class="v small" id="completionTime">-</div></div>
+                    <div><div class="k">Time To Publish</div><div class="v" id="timeToPublish">0ms</div></div>
+                    <div><div class="k">Started At</div><div class="v small" id="startedAt">-</div></div>
+                  </div>
+
+                  <div class="card grid">
                     <div><div class="k">Produced</div><div class="v" id="produced">0</div></div>
                     <div><div class="k">Mapped</div><div class="v" id="mapped">0</div></div>
                     <div><div class="k">Inserted</div><div class="v" id="inserted">0</div></div>
@@ -177,6 +190,11 @@ public class IngestionController {
                     const value = Math.max(0, Number(ms || 0));
                     if (value < 1000) return `${value}ms`;
                     return `${(value / 1000).toFixed(1)}s`;
+                  }
+
+                  function fmtClock(ts) {
+                    if (!ts) return "-";
+                    return new Date(ts).toLocaleTimeString();
                   }
 
                   function renderCharts() {
@@ -220,6 +238,12 @@ public class IngestionController {
                     document.getElementById("recordRate").textContent = latest.insertedRatePerSec || 0;
                     document.getElementById("batchRate").textContent = latest.batchRatePerSec || 0;
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
+                    const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
+                    const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));
+                    document.getElementById("totalProc").textContent = fmtElapsed(totalProcessing);
+                    document.getElementById("completionTime").textContent = fmtClock(job.completedAtEpochMs);
+                    document.getElementById("timeToPublish").textContent = fmtElapsed(timeToPublish);
+                    document.getElementById("startedAt").textContent = fmtClock(job.startedAtEpochMs);
 
                     renderCharts();
                   }
@@ -303,6 +327,7 @@ public class IngestionController {
                         <div class="row"><span>jobId</span><span>${j.jobId}</span></div>
                         <div class="row"><span>mode</span><span>${j.runMode || "PIPELINE"}</span></div>
                         <div class="row"><span>produced / inserted / errors</span><span>${j.producedCount} / ${j.insertedCount} / ${j.validationErrorCount}</span></div>
+                        <div class="row"><span>total proc time</span><span>${Math.max(0, (j.completedAtEpochMs || Date.now()) - (j.startedAtEpochMs || j.createdAtEpochMs || Date.now()))}ms</span></div>
                         <div class="row"><span>queues raw|mapped</span><span>${latest.rawQueueSize || 0} | ${latest.mappedQueueSize || 0}</span></div>
                         <div class="row"><span>rate rows|records|batch</span><span>${latest.producedRatePerSec || 0} | ${latest.insertedRatePerSec || 0} | ${latest.batchRatePerSec || 0}</span></div>
                         <div class="row"><span>updated</span><span>${fmtTime(j.updatedAtEpochMs)}</span></div>
@@ -453,6 +478,9 @@ public class IngestionController {
             com.pnomeer.pipeline.PipelineRunner.RunMode runMode,
             long createdAtEpochMs,
             long updatedAtEpochMs,
+            long startedAtEpochMs,
+            long completedAtEpochMs,
+            long firstProgressAtEpochMs,
             int producedCount,
             int insertedCount,
             int validationErrorCount,

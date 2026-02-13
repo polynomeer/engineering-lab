@@ -15,6 +15,9 @@ public final class IngestionJobState {
     private final com.pnomeer.pipeline.PipelineRunner.RunMode runMode;
     private final long createdAtEpochMs;
     private volatile long updatedAtEpochMs;
+    private volatile long startedAtEpochMs;
+    private volatile long completedAtEpochMs;
+    private volatile long firstProgressAtEpochMs;
     private volatile IngestionJobStatus status;
     private volatile int producedCount;
     private volatile int insertedCount;
@@ -58,6 +61,18 @@ public final class IngestionJobState {
         return updatedAtEpochMs;
     }
 
+    public long getStartedAtEpochMs() {
+        return startedAtEpochMs;
+    }
+
+    public long getCompletedAtEpochMs() {
+        return completedAtEpochMs;
+    }
+
+    public long getFirstProgressAtEpochMs() {
+        return firstProgressAtEpochMs;
+    }
+
     public int getProducedCount() {
         return producedCount;
     }
@@ -86,7 +101,15 @@ public final class IngestionJobState {
         return new ArrayList<>(progressTimeline);
     }
 
+    public void markStarted() {
+        this.startedAtEpochMs = System.currentTimeMillis();
+        this.updatedAtEpochMs = this.startedAtEpochMs;
+    }
+
     public void recordProgress(PipelineRunner.ProgressSnapshot progressSnapshot) {
+        if (this.firstProgressAtEpochMs == 0L) {
+            this.firstProgressAtEpochMs = System.currentTimeMillis();
+        }
         this.latestProgress = progressSnapshot;
         progressTimeline.add(progressSnapshot);
         this.updatedAtEpochMs = System.currentTimeMillis();
@@ -102,12 +125,14 @@ public final class IngestionJobState {
         this.errorSummary = errorSummary;
         this.failureMessage = null;
         this.status = IngestionJobStatus.SUCCEEDED;
+        this.completedAtEpochMs = System.currentTimeMillis();
         this.updatedAtEpochMs = System.currentTimeMillis();
     }
 
     public void markFailed(String message) {
         this.failureMessage = message;
         this.status = IngestionJobStatus.FAILED;
+        this.completedAtEpochMs = System.currentTimeMillis();
         this.updatedAtEpochMs = System.currentTimeMillis();
     }
 }
