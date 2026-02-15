@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -109,6 +110,7 @@ public class PipelineRunner {
         var mappedCount = new AtomicInteger(0);
         var insertedCount = new AtomicInteger(0);
         var batchCount = new AtomicInteger(0);
+        var stageLatencyMetrics = new StageLatencyMetrics();
 
         ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers);
         ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers);
@@ -119,14 +121,27 @@ public class PipelineRunner {
                 mappedCount,
                 insertedCount,
                 batchCount,
+                stageLatencyMetrics,
                 startNanos,
                 progressListener);
         try {
             List<Future<?>> validatorFutures = startValidatorMapWorkers(
-                    validatorPool, validatorWorkers, rawChannel, mappedChannel, validationErrors, mappedCount);
-            List<Future<?>> inserterFutures = startInsertWorkers(inserterPool, inserterWorkers, mappedChannel, insertedCount, batchCount);
+                    validatorPool,
+                    validatorWorkers,
+                    rawChannel,
+                    mappedChannel,
+                    validationErrors,
+                    mappedCount,
+                    stageLatencyMetrics);
+            List<Future<?>> inserterFutures = startInsertWorkers(
+                    inserterPool,
+                    inserterWorkers,
+                    mappedChannel,
+                    insertedCount,
+                    batchCount,
+                    stageLatencyMetrics);
 
-            produceFromExcel(excelInputStream, rawChannel, producedCount);
+            produceFromExcel(excelInputStream, rawChannel, producedCount, stageLatencyMetrics);
             ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
 
             waitForWorkers(validatorFutures);
@@ -163,6 +178,7 @@ public class PipelineRunner {
         AtomicInteger mappedCount = new AtomicInteger(0);
         AtomicInteger insertedCount = new AtomicInteger(0);
         AtomicInteger batchCount = new AtomicInteger(0);
+        StageLatencyMetrics stageLatencyMetrics = new StageLatencyMetrics();
         List<MappedRow> chunk = new ArrayList<>(chunkSize);
 
         AtomicLong lastNanos = new AtomicLong(startNanos);
@@ -173,20 +189,48 @@ public class PipelineRunner {
 
         excelReader.readFirstSheet(excelInputStream, rawRow -> {
             producedCount.incrementAndGet();
+            long parseStart = System.nanoTime();
 
             String col1 = cellAt(rawRow, 0);
             String col2 = cellAt(rawRow, 1);
             String col3 = cellAt(rawRow, 2);
+            long validationStart = System.nanoTime();
             if (isBlank(col1)) {
+                stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col1 is required", rawRow));
+                stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
-                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
+                        startNanos,
+                        lastNanos,
+                        producedCount,
+                        mappedCount,
+                        insertedCount,
+                        batchCount,
+                        stageLatencyMetrics,
+                        lastProduced,
+                        lastMapped,
+                        lastInserted,
+                        lastBatches,
+                        progressListener);
                 return;
             }
             if (isBlank(col2)) {
+                stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col2 is required", rawRow));
+                stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
-                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
+                        startNanos,
+                        lastNanos,
+                        producedCount,
+                        mappedCount,
+                        insertedCount,
+                        batchCount,
+                        stageLatencyMetrics,
+                        lastProduced,
+                        lastMapped,
+                        lastInserted,
+                        lastBatches,
+                        progressListener);
                 return;
             }
 
@@ -194,29 +238,68 @@ public class PipelineRunner {
             try {
                 col3Int = Integer.parseInt(col3);
             } catch (NumberFormatException ex) {
+                stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col3 must be integer", rawRow));
+                stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
-                        startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
+                        startNanos,
+                        lastNanos,
+                        producedCount,
+                        mappedCount,
+                        insertedCount,
+                        batchCount,
+                        stageLatencyMetrics,
+                        lastProduced,
+                        lastMapped,
+                        lastInserted,
+                        lastBatches,
+                        progressListener);
                 return;
             }
+            stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
 
+            long mappingStart = System.nanoTime();
             chunk.add(new MappedRow(rawRow.getRowIndex(), new IngestItem(col1, col2, col3Int)));
             mappedCount.incrementAndGet();
+            stageLatencyMetrics.addMappingNanos(System.nanoTime() - mappingStart);
             if (chunk.size() >= chunkSize) {
                 try {
-                    flushChunk(chunk, insertedCount, batchCount);
+                    flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while flushing chunk", ex);
                 }
             }
+            stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
             emitSingleThreadProgress(
-                    startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
+                    startNanos,
+                    lastNanos,
+                    producedCount,
+                    mappedCount,
+                    insertedCount,
+                    batchCount,
+                    stageLatencyMetrics,
+                    lastProduced,
+                    lastMapped,
+                    lastInserted,
+                    lastBatches,
+                    progressListener);
         });
 
-        flushChunk(chunk, insertedCount, batchCount);
+        flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
         emitSingleThreadProgress(
-                startNanos, lastNanos, producedCount, mappedCount, insertedCount, batchCount, lastProduced, lastMapped, lastInserted, lastBatches, progressListener);
+                startNanos,
+                lastNanos,
+                producedCount,
+                mappedCount,
+                insertedCount,
+                batchCount,
+                stageLatencyMetrics,
+                lastProduced,
+                lastMapped,
+                lastInserted,
+                lastBatches,
+                progressListener);
 
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         return new PipelineRunResult(
@@ -233,12 +316,15 @@ public class PipelineRunner {
     private void produceFromExcel(
             InputStream excelInputStream,
             BoundedChannel<Envelope<RawRow>> rawChannel,
-            AtomicInteger producedCount)
+            AtomicInteger producedCount,
+            StageLatencyMetrics stageLatencyMetrics)
             throws IOException, InterruptedException {
         excelReader.readFirstSheet(excelInputStream, rawRow -> {
             try {
+                long parseStart = System.nanoTime();
                 rawChannel.put(Envelope.data(rawRow));
                 producedCount.incrementAndGet();
+                stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Interrupted while enqueueing raw row", ex);
@@ -252,7 +338,8 @@ public class PipelineRunner {
             BoundedChannel<Envelope<RawRow>> rawChannel,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             ConcurrentLinkedQueue<ValidationError> validationErrors,
-            AtomicInteger mappedCount) {
+            AtomicInteger mappedCount,
+            StageLatencyMetrics stageLatencyMetrics) {
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < workerCount; i++) {
             futures.add(pool.submit(() -> {
@@ -267,11 +354,14 @@ public class PipelineRunner {
                         String col1 = cellAt(row, 0);
                         String col2 = cellAt(row, 1);
                         String col3 = cellAt(row, 2);
+                        long validationStart = System.nanoTime();
                         if (isBlank(col1)) {
+                            stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                             validationErrors.add(new ValidationError(row.getRowIndex(), "col1 is required", row));
                             continue;
                         }
                         if (isBlank(col2)) {
+                            stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                             validationErrors.add(new ValidationError(row.getRowIndex(), "col2 is required", row));
                             continue;
                         }
@@ -280,13 +370,17 @@ public class PipelineRunner {
                         try {
                             col3Int = Integer.parseInt(col3);
                         } catch (NumberFormatException ex) {
+                            stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                             validationErrors.add(new ValidationError(row.getRowIndex(), "col3 must be integer", row));
                             continue;
                         }
+                        stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
 
+                        long mappingStart = System.nanoTime();
                         IngestItem item = new IngestItem(col1, col2, col3Int);
                         mappedChannel.put(Envelope.data(new MappedRow(row.getRowIndex(), item)));
                         mappedCount.incrementAndGet();
+                        stageLatencyMetrics.addMappingNanos(System.nanoTime() - mappingStart);
                     }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -301,7 +395,8 @@ public class PipelineRunner {
             int workerCount,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             AtomicInteger insertedCount,
-            AtomicInteger batchCount) {
+            AtomicInteger batchCount,
+            StageLatencyMetrics stageLatencyMetrics) {
         int chunkSize = properties.getInsert().getChunkSize();
         if (chunkSize <= 0) {
             throw new IllegalArgumentException("insert.chunkSize must be > 0");
@@ -315,12 +410,12 @@ public class PipelineRunner {
                     while (true) {
                         Envelope<MappedRow> envelope = mappedChannel.take();
                         if (envelope.isEnd()) {
-                            flushChunk(chunk, insertedCount, batchCount);
+                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
                             return;
                         }
                         chunk.add(envelope.getPayload());
                         if (chunk.size() >= chunkSize) {
-                            flushChunk(chunk, insertedCount, batchCount);
+                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
                         }
                     }
                 } catch (InterruptedException ex) {
@@ -331,11 +426,16 @@ public class PipelineRunner {
         return futures;
     }
 
-    private void flushChunk(List<MappedRow> chunk, AtomicInteger insertedCount, AtomicInteger batchCount)
+    private void flushChunk(
+            List<MappedRow> chunk,
+            AtomicInteger insertedCount,
+            AtomicInteger batchCount,
+            StageLatencyMetrics stageLatencyMetrics)
             throws InterruptedException {
         if (chunk.isEmpty()) {
             return;
         }
+        long insertStart = System.nanoTime();
         if (insertDelayMs > 0) {
             Thread.sleep(insertDelayMs);
         }
@@ -355,6 +455,7 @@ public class PipelineRunner {
         });
         insertedCount.addAndGet(inserted == null ? 0 : inserted);
         batchCount.incrementAndGet();
+        stageLatencyMetrics.addInsertNanos(System.nanoTime() - insertStart);
         chunk.clear();
     }
 
@@ -365,6 +466,7 @@ public class PipelineRunner {
             AtomicInteger mappedCount,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
+            StageLatencyMetrics stageLatencyMetrics,
             long startNanos,
             Consumer<ProgressSnapshot> progressListener) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -390,7 +492,7 @@ public class PipelineRunner {
             double batchRate = (batches - lastBatches.getAndSet(batches)) / seconds;
 
             log.info(
-                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}]",
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms]",
                     rawChannel.size(),
                     mappedChannel.size(),
                     produced,
@@ -399,7 +501,11 @@ public class PipelineRunner {
                     batches,
                     Math.round(producedRate),
                     Math.round(insertedRate),
-                    Math.round(batchRate));
+                    Math.round(batchRate),
+                    stageLatencyMetrics.avgParseMs(),
+                    stageLatencyMetrics.avgValidationMs(),
+                    stageLatencyMetrics.avgMappingMs(),
+                    stageLatencyMetrics.avgInsertMs());
             if (progressListener != null) {
                 progressListener.accept(new ProgressSnapshot(
                         rawChannel.size(),
@@ -412,6 +518,10 @@ public class PipelineRunner {
                         Math.round(mappedRate),
                         Math.round(insertedRate),
                         Math.round(batchRate),
+                        stageLatencyMetrics.avgParseMs(),
+                        stageLatencyMetrics.avgValidationMs(),
+                        stageLatencyMetrics.avgMappingMs(),
+                        stageLatencyMetrics.avgInsertMs(),
                         elapsedMillis));
             }
         }, 250, 250, TimeUnit.MILLISECONDS);
@@ -425,6 +535,7 @@ public class PipelineRunner {
             AtomicInteger mappedCount,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
+            StageLatencyMetrics stageLatencyMetrics,
             AtomicInteger lastProduced,
             AtomicInteger lastMapped,
             AtomicInteger lastInserted,
@@ -464,6 +575,10 @@ public class PipelineRunner {
                 mappedRate,
                 insertedRate,
                 batchRate,
+                stageLatencyMetrics.avgParseMs(),
+                stageLatencyMetrics.avgValidationMs(),
+                stageLatencyMetrics.avgMappingMs(),
+                stageLatencyMetrics.avgInsertMs(),
                 elapsedMillis));
     }
 
@@ -568,6 +683,65 @@ public class PipelineRunner {
             long mappedRatePerSec,
             long insertedRatePerSec,
             long batchRatePerSec,
+            double parseLatencyMs,
+            double validationLatencyMs,
+            double mappingLatencyMs,
+            double insertLatencyMs,
             long elapsedMillis) {
+    }
+
+    private static final class StageLatencyMetrics {
+        private final LongAdder parseNanos = new LongAdder();
+        private final LongAdder parseCount = new LongAdder();
+        private final LongAdder validationNanos = new LongAdder();
+        private final LongAdder validationCount = new LongAdder();
+        private final LongAdder mappingNanos = new LongAdder();
+        private final LongAdder mappingCount = new LongAdder();
+        private final LongAdder insertNanos = new LongAdder();
+        private final LongAdder insertCount = new LongAdder();
+
+        void addParseNanos(long nanos) {
+            parseNanos.add(Math.max(0L, nanos));
+            parseCount.increment();
+        }
+
+        void addValidationNanos(long nanos) {
+            validationNanos.add(Math.max(0L, nanos));
+            validationCount.increment();
+        }
+
+        void addMappingNanos(long nanos) {
+            mappingNanos.add(Math.max(0L, nanos));
+            mappingCount.increment();
+        }
+
+        void addInsertNanos(long nanos) {
+            insertNanos.add(Math.max(0L, nanos));
+            insertCount.increment();
+        }
+
+        double avgParseMs() {
+            return avgMs(parseNanos, parseCount);
+        }
+
+        double avgValidationMs() {
+            return avgMs(validationNanos, validationCount);
+        }
+
+        double avgMappingMs() {
+            return avgMs(mappingNanos, mappingCount);
+        }
+
+        double avgInsertMs() {
+            return avgMs(insertNanos, insertCount);
+        }
+
+        private static double avgMs(LongAdder nanos, LongAdder count) {
+            long c = count.sum();
+            if (c <= 0) {
+                return 0.0d;
+            }
+            return (nanos.sum() / 1_000_000.0d) / c;
+        }
     }
 }

@@ -168,6 +168,12 @@ public class IngestionController {
                     <svg id="rateChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
                     <div class="small">rows/sec: <span id="rowRate">0</span>, records/sec: <span id="recordRate">0</span>, batch/sec: <span id="batchRate">0</span></div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Stage Latency (ms)</div>
+                    <svg id="latencyChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">parse: <span id="parseLat">0.00</span>, validation: <span id="validationLat">0.00</span>, mapping: <span id="mappingLat">0.00</span>, insert: <span id="insertLat">0.00</span></div>
+                  </div>
                 </div>
 
                 <script>
@@ -203,14 +209,21 @@ public class IngestionController {
                     const rP = timeline.map(s => s.producedRatePerSec);
                     const rI = timeline.map(s => s.insertedRatePerSec);
                     const rB = timeline.map(s => s.batchRatePerSec);
+                    const lParse = timeline.map(s => s.parseLatencyMs || 0);
+                    const lVal = timeline.map(s => s.validationLatencyMs || 0);
+                    const lMap = timeline.map(s => s.mappingLatencyMs || 0);
+                    const lIns = timeline.map(s => s.insertLatencyMs || 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
+                    const lMax = Math.max(1, ...lParse, ...lVal, ...lMap, ...lIns);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
                     document.getElementById("rateChart").innerHTML =
                       toPath(rP, rMax, "#8be9fd") + toPath(rI, rMax, "#50fa7b") + toPath(rB, rMax, "#ff79c6");
+                    document.getElementById("latencyChart").innerHTML =
+                      toPath(lParse, lMax, "#8be9fd") + toPath(lVal, lMax, "#ffb86c") + toPath(lMap, lMax, "#bd93f9") + toPath(lIns, lMax, "#50fa7b");
                   }
 
                   async function poll() {
@@ -237,6 +250,10 @@ public class IngestionController {
                     document.getElementById("rowRate").textContent = latest.producedRatePerSec || 0;
                     document.getElementById("recordRate").textContent = latest.insertedRatePerSec || 0;
                     document.getElementById("batchRate").textContent = latest.batchRatePerSec || 0;
+                    document.getElementById("parseLat").textContent = (latest.parseLatencyMs || 0).toFixed(2);
+                    document.getElementById("validationLat").textContent = (latest.validationLatencyMs || 0).toFixed(2);
+                    document.getElementById("mappingLat").textContent = (latest.mappingLatencyMs || 0).toFixed(2);
+                    document.getElementById("insertLat").textContent = (latest.insertLatencyMs || 0).toFixed(2);
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
                     const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
                     const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));
