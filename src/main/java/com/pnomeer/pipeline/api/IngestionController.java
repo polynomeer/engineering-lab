@@ -160,7 +160,18 @@ public class IngestionController {
                   <div class="card">
                     <div class="k">Queue Sizes</div>
                     <svg id="queueChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
-                    <div class="small">rawQueue: <span id="rawQ">0</span>, mappedQueue: <span id="mappedQ">0</span></div>
+                    <div class="small">raw depth: <span id="rawQ">0</span>, mapped depth: <span id="mappedQ">0</span>, raw sat: <span id="rawSat">0</span>%%, mapped sat: <span id="mappedSat">0</span>%%</div>
+                  </div>
+
+                  <div class="card">
+                    <div class="k">Queue Wait/Latency (ms)</div>
+                    <svg id="queueMetricChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">
+                      raw enqueue wait: <span id="rawEnqMs">0.00</span>,
+                      mapped enqueue wait: <span id="mappedEnqMs">0.00</span>,
+                      raw dequeue latency: <span id="rawDeqMs">0.00</span>,
+                      mapped dequeue latency: <span id="mappedDeqMs">0.00</span>
+                    </div>
                   </div>
 
                   <div class="card">
@@ -213,10 +224,15 @@ public class IngestionController {
                     const lVal = timeline.map(s => s.validationLatencyMs || 0);
                     const lMap = timeline.map(s => s.mappingLatencyMs || 0);
                     const lIns = timeline.map(s => s.insertLatencyMs || 0);
+                    const qEnqRaw = timeline.map(s => s.rawEnqueueWaitMs || 0);
+                    const qEnqMapped = timeline.map(s => s.mappedEnqueueWaitMs || 0);
+                    const qDeqRaw = timeline.map(s => s.rawDequeueLatencyMs || 0);
+                    const qDeqMapped = timeline.map(s => s.mappedDequeueLatencyMs || 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
                     const lMax = Math.max(1, ...lParse, ...lVal, ...lMap, ...lIns);
+                    const qMetricMax = Math.max(1, ...qEnqRaw, ...qEnqMapped, ...qDeqRaw, ...qDeqMapped);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
@@ -224,6 +240,8 @@ public class IngestionController {
                       toPath(rP, rMax, "#8be9fd") + toPath(rI, rMax, "#50fa7b") + toPath(rB, rMax, "#ff79c6");
                     document.getElementById("latencyChart").innerHTML =
                       toPath(lParse, lMax, "#8be9fd") + toPath(lVal, lMax, "#ffb86c") + toPath(lMap, lMax, "#bd93f9") + toPath(lIns, lMax, "#50fa7b");
+                    document.getElementById("queueMetricChart").innerHTML =
+                      toPath(qEnqRaw, qMetricMax, "#8be9fd") + toPath(qEnqMapped, qMetricMax, "#ffb86c") + toPath(qDeqRaw, qMetricMax, "#ff79c6") + toPath(qDeqMapped, qMetricMax, "#50fa7b");
                   }
 
                   async function poll() {
@@ -247,6 +265,12 @@ public class IngestionController {
                     document.getElementById("mapped").textContent = latest.mappedCount || 0;
                     document.getElementById("rawQ").textContent = latest.rawQueueSize || 0;
                     document.getElementById("mappedQ").textContent = latest.mappedQueueSize || 0;
+                    document.getElementById("rawSat").textContent = (latest.rawQueueSaturationPct || 0).toFixed(1);
+                    document.getElementById("mappedSat").textContent = (latest.mappedQueueSaturationPct || 0).toFixed(1);
+                    document.getElementById("rawEnqMs").textContent = (latest.rawEnqueueWaitMs || 0).toFixed(2);
+                    document.getElementById("mappedEnqMs").textContent = (latest.mappedEnqueueWaitMs || 0).toFixed(2);
+                    document.getElementById("rawDeqMs").textContent = (latest.rawDequeueLatencyMs || 0).toFixed(2);
+                    document.getElementById("mappedDeqMs").textContent = (latest.mappedDequeueLatencyMs || 0).toFixed(2);
                     document.getElementById("rowRate").textContent = latest.producedRatePerSec || 0;
                     document.getElementById("recordRate").textContent = latest.insertedRatePerSec || 0;
                     document.getElementById("batchRate").textContent = latest.batchRatePerSec || 0;

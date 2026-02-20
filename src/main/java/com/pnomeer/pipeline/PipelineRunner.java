@@ -485,6 +485,14 @@ public class PipelineRunner {
             int inserted = insertedCount.get();
             int batches = batchCount.get();
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
+            int rawDepth = rawChannel.size();
+            int mappedDepth = mappedChannel.size();
+            double rawSaturationPct = percentage(rawDepth, rawChannel.capacity());
+            double mappedSaturationPct = percentage(mappedDepth, mappedChannel.capacity());
+            double rawEnqueueWaitMs = avgMillis(rawChannel.getCumulativeEnqueueWaitNanos(), rawChannel.getEnqueuedCount());
+            double mappedEnqueueWaitMs = avgMillis(mappedChannel.getCumulativeEnqueueWaitNanos(), mappedChannel.getEnqueuedCount());
+            double rawDequeueLatencyMs = avgMillis(rawChannel.getCumulativeDequeueWaitNanos(), rawChannel.getDequeuedCount());
+            double mappedDequeueLatencyMs = avgMillis(mappedChannel.getCumulativeDequeueWaitNanos(), mappedChannel.getDequeuedCount());
 
             double producedRate = (produced - lastProduced.getAndSet(produced)) / seconds;
             double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
@@ -492,9 +500,9 @@ public class PipelineRunner {
             double batchRate = (batches - lastBatches.getAndSet(batches)) / seconds;
 
             log.info(
-                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms]",
-                    rawChannel.size(),
-                    mappedChannel.size(),
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms]",
+                    rawDepth,
+                    mappedDepth,
                     produced,
                     mapped,
                     inserted,
@@ -505,11 +513,23 @@ public class PipelineRunner {
                     stageLatencyMetrics.avgParseMs(),
                     stageLatencyMetrics.avgValidationMs(),
                     stageLatencyMetrics.avgMappingMs(),
-                    stageLatencyMetrics.avgInsertMs());
+                    stageLatencyMetrics.avgInsertMs(),
+                    Math.round(rawSaturationPct),
+                    Math.round(mappedSaturationPct),
+                    rawEnqueueWaitMs,
+                    mappedEnqueueWaitMs,
+                    rawDequeueLatencyMs,
+                    mappedDequeueLatencyMs);
             if (progressListener != null) {
                 progressListener.accept(new ProgressSnapshot(
-                        rawChannel.size(),
-                        mappedChannel.size(),
+                        rawDepth,
+                        mappedDepth,
+                        rawSaturationPct,
+                        mappedSaturationPct,
+                        rawEnqueueWaitMs,
+                        mappedEnqueueWaitMs,
+                        rawDequeueLatencyMs,
+                        mappedDequeueLatencyMs,
                         produced,
                         mapped,
                         inserted,
@@ -567,6 +587,12 @@ public class PipelineRunner {
         progressListener.accept(new ProgressSnapshot(
                 0,
                 0,
+                0.0d,
+                0.0d,
+                0.0d,
+                0.0d,
+                0.0d,
+                0.0d,
                 produced,
                 mapped,
                 inserted,
@@ -580,6 +606,20 @@ public class PipelineRunner {
                 stageLatencyMetrics.avgMappingMs(),
                 stageLatencyMetrics.avgInsertMs(),
                 elapsedMillis));
+    }
+
+    private static double avgMillis(long cumulativeNanos, long count) {
+        if (count <= 0L) {
+            return 0.0d;
+        }
+        return (cumulativeNanos / 1_000_000.0d) / count;
+    }
+
+    private static double percentage(int value, int total) {
+        if (total <= 0) {
+            return 0.0d;
+        }
+        return (value * 100.0d) / total;
     }
 
     private static int normalizeBatchUpdateCount(int[][] updated, int fallbackCount) {
@@ -675,6 +715,12 @@ public class PipelineRunner {
     public record ProgressSnapshot(
             int rawQueueSize,
             int mappedQueueSize,
+            double rawQueueSaturationPct,
+            double mappedQueueSaturationPct,
+            double rawEnqueueWaitMs,
+            double mappedEnqueueWaitMs,
+            double rawDequeueLatencyMs,
+            double mappedDequeueLatencyMs,
             int producedCount,
             int mappedCount,
             int insertedCount,
