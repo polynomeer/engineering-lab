@@ -475,6 +475,11 @@ public class PipelineRunner {
         AtomicInteger lastMapped = new AtomicInteger(0);
         AtomicInteger lastInserted = new AtomicInteger(0);
         AtomicInteger lastBatches = new AtomicInteger(0);
+        AtomicLong lastRawEnqueueWaitNanos = new AtomicLong(0L);
+        AtomicLong lastMappedEnqueueWaitNanos = new AtomicLong(0L);
+        AtomicLong peakProducedRatePerSec = new AtomicLong(0L);
+        AtomicInteger stallEventCount = new AtomicInteger(0);
+        AtomicInteger wasStalled = new AtomicInteger(0);
         scheduler.scheduleAtFixedRate(() -> {
             long now = System.nanoTime();
             long deltaNanos = now - lastNanos.getAndSet(now);
@@ -498,9 +503,30 @@ public class PipelineRunner {
             double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
             double insertedRate = (inserted - lastInserted.getAndSet(inserted)) / seconds;
             double batchRate = (batches - lastBatches.getAndSet(batches)) / seconds;
+            long producedRateRounded = Math.round(producedRate);
+            peakProducedRatePerSec.accumulateAndGet(producedRateRounded, Math::max);
+            double producerSlowdownPct = peakProducedRatePerSec.get() <= 0L
+                    ? 0.0d
+                    : Math.max(0.0d, (1.0d - (producedRateRounded / (double) peakProducedRatePerSec.get())) * 100.0d);
+
+            long currentRawEnqNanos = rawChannel.getCumulativeEnqueueWaitNanos();
+            long currentMappedEnqNanos = mappedChannel.getCumulativeEnqueueWaitNanos();
+            double enqueueBlockingTimeMs = (Math.max(0L, currentRawEnqNanos - lastRawEnqueueWaitNanos.getAndSet(currentRawEnqNanos))
+                    + Math.max(0L, currentMappedEnqNanos - lastMappedEnqueueWaitNanos.getAndSet(currentMappedEnqNanos)))
+                    / 1_000_000.0d;
+
+            boolean stalled = (rawDepth > 0 || mappedDepth > 0) && producedRateRounded <= 0L && Math.round(insertedRate) <= 0L;
+            if (stalled && wasStalled.getAndSet(1) == 0) {
+                stallEventCount.incrementAndGet();
+            }
+            if (!stalled) {
+                wasStalled.set(0);
+            }
+            double elapsedMinutes = Math.max(1.0d / 60.0d, elapsedMillis / 60000.0d);
+            double stallFrequencyPerMin = stallEventCount.get() / elapsedMinutes;
 
             log.info(
-                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms]",
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms] backpressure[block={}ms,slowdown={}%%,stall/min={}]",
                     rawDepth,
                     mappedDepth,
                     produced,
@@ -519,7 +545,10 @@ public class PipelineRunner {
                     rawEnqueueWaitMs,
                     mappedEnqueueWaitMs,
                     rawDequeueLatencyMs,
-                    mappedDequeueLatencyMs);
+                    mappedDequeueLatencyMs,
+                    enqueueBlockingTimeMs,
+                    producerSlowdownPct,
+                    Math.round(stallFrequencyPerMin));
             if (progressListener != null) {
                 progressListener.accept(new ProgressSnapshot(
                         rawDepth,
@@ -530,6 +559,10 @@ public class PipelineRunner {
                         mappedEnqueueWaitMs,
                         rawDequeueLatencyMs,
                         mappedDequeueLatencyMs,
+                        enqueueBlockingTimeMs,
+                        producerSlowdownPct,
+                        stallFrequencyPerMin,
+                        stallEventCount.get(),
                         produced,
                         mapped,
                         inserted,
@@ -593,6 +626,10 @@ public class PipelineRunner {
                 0.0d,
                 0.0d,
                 0.0d,
+                0.0d,
+                0.0d,
+                0.0d,
+                0,
                 produced,
                 mapped,
                 inserted,
@@ -721,6 +758,10 @@ public class PipelineRunner {
             double mappedEnqueueWaitMs,
             double rawDequeueLatencyMs,
             double mappedDequeueLatencyMs,
+            double enqueueBlockingTimeMs,
+            double producerSlowdownPct,
+            double pipelineStallFrequencyPerMin,
+            int pipelineStallEventCount,
             int producedCount,
             int mappedCount,
             int insertedCount,

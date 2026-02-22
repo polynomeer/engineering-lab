@@ -185,6 +185,17 @@ public class IngestionController {
                     <svg id="latencyChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
                     <div class="small">parse: <span id="parseLat">0.00</span>, validation: <span id="validationLat">0.00</span>, mapping: <span id="mappingLat">0.00</span>, insert: <span id="insertLat">0.00</span></div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Backpressure Indicators</div>
+                    <svg id="backpressureChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">
+                      enqueue blocking: <span id="enqBlockMs">0.00</span>ms,
+                      producer slowdown: <span id="producerSlowdown">0.0</span>%%,
+                      stall frequency: <span id="stallFreq">0.00</span>/min,
+                      stall events: <span id="stallEvents">0</span>
+                    </div>
+                  </div>
                 </div>
 
                 <script>
@@ -228,11 +239,15 @@ public class IngestionController {
                     const qEnqMapped = timeline.map(s => s.mappedEnqueueWaitMs || 0);
                     const qDeqRaw = timeline.map(s => s.rawDequeueLatencyMs || 0);
                     const qDeqMapped = timeline.map(s => s.mappedDequeueLatencyMs || 0);
+                    const bpBlock = timeline.map(s => s.enqueueBlockingTimeMs || 0);
+                    const bpSlow = timeline.map(s => s.producerSlowdownPct || 0);
+                    const bpStall = timeline.map(s => s.pipelineStallFrequencyPerMin || 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
                     const lMax = Math.max(1, ...lParse, ...lVal, ...lMap, ...lIns);
                     const qMetricMax = Math.max(1, ...qEnqRaw, ...qEnqMapped, ...qDeqRaw, ...qDeqMapped);
+                    const bpMax = Math.max(1, ...bpBlock, ...bpSlow, ...bpStall);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
@@ -242,6 +257,8 @@ public class IngestionController {
                       toPath(lParse, lMax, "#8be9fd") + toPath(lVal, lMax, "#ffb86c") + toPath(lMap, lMax, "#bd93f9") + toPath(lIns, lMax, "#50fa7b");
                     document.getElementById("queueMetricChart").innerHTML =
                       toPath(qEnqRaw, qMetricMax, "#8be9fd") + toPath(qEnqMapped, qMetricMax, "#ffb86c") + toPath(qDeqRaw, qMetricMax, "#ff79c6") + toPath(qDeqMapped, qMetricMax, "#50fa7b");
+                    document.getElementById("backpressureChart").innerHTML =
+                      toPath(bpBlock, bpMax, "#ff79c6") + toPath(bpSlow, bpMax, "#8be9fd") + toPath(bpStall, bpMax, "#ffb86c");
                   }
 
                   async function poll() {
@@ -278,6 +295,10 @@ public class IngestionController {
                     document.getElementById("validationLat").textContent = (latest.validationLatencyMs || 0).toFixed(2);
                     document.getElementById("mappingLat").textContent = (latest.mappingLatencyMs || 0).toFixed(2);
                     document.getElementById("insertLat").textContent = (latest.insertLatencyMs || 0).toFixed(2);
+                    document.getElementById("enqBlockMs").textContent = (latest.enqueueBlockingTimeMs || 0).toFixed(2);
+                    document.getElementById("producerSlowdown").textContent = (latest.producerSlowdownPct || 0).toFixed(1);
+                    document.getElementById("stallFreq").textContent = (latest.pipelineStallFrequencyPerMin || 0).toFixed(2);
+                    document.getElementById("stallEvents").textContent = latest.pipelineStallEventCount || 0;
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
                     const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
                     const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));
