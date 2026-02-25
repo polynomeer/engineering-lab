@@ -196,6 +196,22 @@ public class IngestionController {
                       stall events: <span id="stallEvents">0</span>
                     </div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Resource Utilization</div>
+                    <svg id="resourceChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">
+                      heap usage: <span id="heapUsedMb">0.0</span>/<span id="heapMaxMb">0.0</span>MB,
+                      peak memory: <span id="peakHeapMb">0.0</span>MB,
+                      GC pause: <span id="gcPauseMs">0.0</span>ms
+                    </div>
+                    <div class="small">
+                      DB active connections: <span id="dbActive">0</span>,
+                      DB awaiting connections: <span id="dbAwaiting">0</span>,
+                      connection wait: <span id="dbConnWaitMs">0.00</span>ms,
+                      lock wait time: <span id="dbLockWaitMs">0.00</span>ms
+                    </div>
+                  </div>
                 </div>
 
                 <script>
@@ -242,12 +258,20 @@ public class IngestionController {
                     const bpBlock = timeline.map(s => s.enqueueBlockingTimeMs || 0);
                     const bpSlow = timeline.map(s => s.producerSlowdownPct || 0);
                     const bpStall = timeline.map(s => s.pipelineStallFrequencyPerMin || 0);
+                    const memHeap = timeline.map(s => s.heapUsedMb || 0);
+                    const memPeak = timeline.map(s => s.peakHeapMb || 0);
+                    const gcPause = timeline.map(s => s.gcPauseMs || 0);
+                    const dbActive = timeline.map(s => s.activeConnections || 0);
+                    const dbAwaiting = timeline.map(s => s.awaitingConnections || 0);
+                    const dbConnWait = timeline.map(s => s.connectionWaitMs || 0);
+                    const dbLockWait = timeline.map(s => s.lockWaitMs || 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
                     const lMax = Math.max(1, ...lParse, ...lVal, ...lMap, ...lIns);
                     const qMetricMax = Math.max(1, ...qEnqRaw, ...qEnqMapped, ...qDeqRaw, ...qDeqMapped);
                     const bpMax = Math.max(1, ...bpBlock, ...bpSlow, ...bpStall);
+                    const resourceMax = Math.max(1, ...memHeap, ...memPeak, ...gcPause, ...dbActive, ...dbAwaiting, ...dbConnWait, ...dbLockWait);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
@@ -259,6 +283,14 @@ public class IngestionController {
                       toPath(qEnqRaw, qMetricMax, "#8be9fd") + toPath(qEnqMapped, qMetricMax, "#ffb86c") + toPath(qDeqRaw, qMetricMax, "#ff79c6") + toPath(qDeqMapped, qMetricMax, "#50fa7b");
                     document.getElementById("backpressureChart").innerHTML =
                       toPath(bpBlock, bpMax, "#ff79c6") + toPath(bpSlow, bpMax, "#8be9fd") + toPath(bpStall, bpMax, "#ffb86c");
+                    document.getElementById("resourceChart").innerHTML =
+                      toPath(memHeap, resourceMax, "#8be9fd")
+                      + toPath(memPeak, resourceMax, "#bd93f9")
+                      + toPath(gcPause, resourceMax, "#ff79c6")
+                      + toPath(dbActive, resourceMax, "#50fa7b")
+                      + toPath(dbAwaiting, resourceMax, "#ffb86c")
+                      + toPath(dbConnWait, resourceMax, "#f1fa8c")
+                      + toPath(dbLockWait, resourceMax, "#ff5555");
                   }
 
                   async function poll() {
@@ -299,6 +331,14 @@ public class IngestionController {
                     document.getElementById("producerSlowdown").textContent = (latest.producerSlowdownPct || 0).toFixed(1);
                     document.getElementById("stallFreq").textContent = (latest.pipelineStallFrequencyPerMin || 0).toFixed(2);
                     document.getElementById("stallEvents").textContent = latest.pipelineStallEventCount || 0;
+                    document.getElementById("heapUsedMb").textContent = (latest.heapUsedMb || 0).toFixed(1);
+                    document.getElementById("heapMaxMb").textContent = (latest.heapMaxMb || 0).toFixed(1);
+                    document.getElementById("peakHeapMb").textContent = (latest.peakHeapMb || 0).toFixed(1);
+                    document.getElementById("gcPauseMs").textContent = (latest.gcPauseMs || 0).toFixed(1);
+                    document.getElementById("dbActive").textContent = latest.activeConnections || 0;
+                    document.getElementById("dbAwaiting").textContent = latest.awaitingConnections || 0;
+                    document.getElementById("dbConnWaitMs").textContent = (latest.connectionWaitMs || 0).toFixed(2);
+                    document.getElementById("dbLockWaitMs").textContent = (latest.lockWaitMs || 0).toFixed(2);
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
                     const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
                     const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));

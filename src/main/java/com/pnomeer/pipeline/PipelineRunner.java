@@ -9,11 +9,16 @@ import com.pnomeer.pipeline.queue.BoundedChannel;
 import com.pnomeer.pipeline.stage.Envelope;
 import com.pnomeer.pipeline.stage.ShutdownSignals;
 import com.pnomeer.pipeline.config.PipelineProperties;
+import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.HikariPoolMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -111,6 +116,7 @@ public class PipelineRunner {
         var insertedCount = new AtomicInteger(0);
         var batchCount = new AtomicInteger(0);
         var stageLatencyMetrics = new StageLatencyMetrics();
+        var resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
 
         ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers);
         ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers);
@@ -122,6 +128,7 @@ public class PipelineRunner {
                 insertedCount,
                 batchCount,
                 stageLatencyMetrics,
+                resourceMetricsTracker,
                 startNanos,
                 progressListener);
         try {
@@ -139,7 +146,8 @@ public class PipelineRunner {
                     mappedChannel,
                     insertedCount,
                     batchCount,
-                    stageLatencyMetrics);
+                    stageLatencyMetrics,
+                    resourceMetricsTracker);
 
             produceFromExcel(excelInputStream, rawChannel, producedCount, stageLatencyMetrics);
             ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
@@ -179,6 +187,7 @@ public class PipelineRunner {
         AtomicInteger insertedCount = new AtomicInteger(0);
         AtomicInteger batchCount = new AtomicInteger(0);
         StageLatencyMetrics stageLatencyMetrics = new StageLatencyMetrics();
+        ResourceMetricsTracker resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
         List<MappedRow> chunk = new ArrayList<>(chunkSize);
 
         AtomicLong lastNanos = new AtomicLong(startNanos);
@@ -207,6 +216,7 @@ public class PipelineRunner {
                         insertedCount,
                         batchCount,
                         stageLatencyMetrics,
+                        resourceMetricsTracker,
                         lastProduced,
                         lastMapped,
                         lastInserted,
@@ -226,6 +236,7 @@ public class PipelineRunner {
                         insertedCount,
                         batchCount,
                         stageLatencyMetrics,
+                        resourceMetricsTracker,
                         lastProduced,
                         lastMapped,
                         lastInserted,
@@ -249,6 +260,7 @@ public class PipelineRunner {
                         insertedCount,
                         batchCount,
                         stageLatencyMetrics,
+                        resourceMetricsTracker,
                         lastProduced,
                         lastMapped,
                         lastInserted,
@@ -264,7 +276,7 @@ public class PipelineRunner {
             stageLatencyMetrics.addMappingNanos(System.nanoTime() - mappingStart);
             if (chunk.size() >= chunkSize) {
                 try {
-                    flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
+                    flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while flushing chunk", ex);
@@ -279,6 +291,7 @@ public class PipelineRunner {
                     insertedCount,
                     batchCount,
                     stageLatencyMetrics,
+                    resourceMetricsTracker,
                     lastProduced,
                     lastMapped,
                     lastInserted,
@@ -286,7 +299,7 @@ public class PipelineRunner {
                     progressListener);
         });
 
-        flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
+        flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
         emitSingleThreadProgress(
                 startNanos,
                 lastNanos,
@@ -295,6 +308,7 @@ public class PipelineRunner {
                 insertedCount,
                 batchCount,
                 stageLatencyMetrics,
+                resourceMetricsTracker,
                 lastProduced,
                 lastMapped,
                 lastInserted,
@@ -396,7 +410,8 @@ public class PipelineRunner {
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
-            StageLatencyMetrics stageLatencyMetrics) {
+            StageLatencyMetrics stageLatencyMetrics,
+            ResourceMetricsTracker resourceMetricsTracker) {
         int chunkSize = properties.getInsert().getChunkSize();
         if (chunkSize <= 0) {
             throw new IllegalArgumentException("insert.chunkSize must be > 0");
@@ -410,12 +425,12 @@ public class PipelineRunner {
                     while (true) {
                         Envelope<MappedRow> envelope = mappedChannel.take();
                         if (envelope.isEnd()) {
-                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
+                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
                             return;
                         }
                         chunk.add(envelope.getPayload());
                         if (chunk.size() >= chunkSize) {
-                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics);
+                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
                         }
                     }
                 } catch (InterruptedException ex) {
@@ -430,17 +445,22 @@ public class PipelineRunner {
             List<MappedRow> chunk,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
-            StageLatencyMetrics stageLatencyMetrics)
+            StageLatencyMetrics stageLatencyMetrics,
+            ResourceMetricsTracker resourceMetricsTracker)
             throws InterruptedException {
         if (chunk.isEmpty()) {
             return;
         }
         long insertStart = System.nanoTime();
+        long connectionAcquireStart = System.nanoTime();
         if (insertDelayMs > 0) {
             Thread.sleep(insertDelayMs);
         }
 
         Integer inserted = transactionTemplate.execute(status -> {
+            long callbackStart = System.nanoTime();
+            resourceMetricsTracker.recordConnectionWaitNanos(Math.max(0L, callbackStart - connectionAcquireStart));
+            long dbBatchStart = System.nanoTime();
             int[][] updated = jdbcTemplate.batchUpdate(
                     INSERT_SQL,
                     chunk,
@@ -451,6 +471,7 @@ public class PipelineRunner {
                         ps.setString(2, item.getCol2());
                         ps.setInt(3, item.getCol3Int());
                     });
+            resourceMetricsTracker.recordLockWaitEstimateNanos(System.nanoTime() - dbBatchStart);
             return normalizeBatchUpdateCount(updated, chunk.size());
         });
         insertedCount.addAndGet(inserted == null ? 0 : inserted);
@@ -467,6 +488,7 @@ public class PipelineRunner {
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
             StageLatencyMetrics stageLatencyMetrics,
+            ResourceMetricsTracker resourceMetricsTracker,
             long startNanos,
             Consumer<ProgressSnapshot> progressListener) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -498,6 +520,7 @@ public class PipelineRunner {
             double mappedEnqueueWaitMs = avgMillis(mappedChannel.getCumulativeEnqueueWaitNanos(), mappedChannel.getEnqueuedCount());
             double rawDequeueLatencyMs = avgMillis(rawChannel.getCumulativeDequeueWaitNanos(), rawChannel.getDequeuedCount());
             double mappedDequeueLatencyMs = avgMillis(mappedChannel.getCumulativeDequeueWaitNanos(), mappedChannel.getDequeuedCount());
+            ResourceSnapshot resourceSnapshot = resourceMetricsTracker.sample();
 
             double producedRate = (produced - lastProduced.getAndSet(produced)) / seconds;
             double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
@@ -526,7 +549,7 @@ public class PipelineRunner {
             double stallFrequencyPerMin = stallEventCount.get() / elapsedMinutes;
 
             log.info(
-                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms] backpressure[block={}ms,slowdown={}%%,stall/min={}]",
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms] backpressure[block={}ms,slowdown={}%%,stall/min={}] resource[heap={}MB,peak={}MB,gcPause={}ms,dbActive={},dbAwaiting={},dbConnWait={}ms,dbLockWait={}ms]",
                     rawDepth,
                     mappedDepth,
                     produced,
@@ -548,7 +571,14 @@ public class PipelineRunner {
                     mappedDequeueLatencyMs,
                     enqueueBlockingTimeMs,
                     producerSlowdownPct,
-                    Math.round(stallFrequencyPerMin));
+                    Math.round(stallFrequencyPerMin),
+                    resourceSnapshot.heapUsedMb(),
+                    resourceSnapshot.peakHeapMb(),
+                    resourceSnapshot.gcPauseMs(),
+                    resourceSnapshot.activeConnections(),
+                    resourceSnapshot.awaitingConnections(),
+                    resourceSnapshot.connectionWaitMs(),
+                    resourceSnapshot.lockWaitMs());
             if (progressListener != null) {
                 progressListener.accept(new ProgressSnapshot(
                         rawDepth,
@@ -563,6 +593,14 @@ public class PipelineRunner {
                         producerSlowdownPct,
                         stallFrequencyPerMin,
                         stallEventCount.get(),
+                        resourceSnapshot.heapUsedMb(),
+                        resourceSnapshot.heapMaxMb(),
+                        resourceSnapshot.peakHeapMb(),
+                        resourceSnapshot.gcPauseMs(),
+                        resourceSnapshot.activeConnections(),
+                        resourceSnapshot.awaitingConnections(),
+                        resourceSnapshot.connectionWaitMs(),
+                        resourceSnapshot.lockWaitMs(),
                         produced,
                         mapped,
                         inserted,
@@ -589,6 +627,7 @@ public class PipelineRunner {
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
             StageLatencyMetrics stageLatencyMetrics,
+            ResourceMetricsTracker resourceMetricsTracker,
             AtomicInteger lastProduced,
             AtomicInteger lastMapped,
             AtomicInteger lastInserted,
@@ -630,6 +669,14 @@ public class PipelineRunner {
                 0.0d,
                 0.0d,
                 0,
+                resourceMetricsTracker.heapUsedMb(),
+                resourceMetricsTracker.heapMaxMb(),
+                resourceMetricsTracker.peakHeapMb(),
+                0.0d,
+                resourceMetricsTracker.activeConnections(),
+                resourceMetricsTracker.awaitingConnections(),
+                resourceMetricsTracker.connectionWaitMs(),
+                resourceMetricsTracker.lockWaitMs(),
                 produced,
                 mapped,
                 inserted,
@@ -762,6 +809,14 @@ public class PipelineRunner {
             double producerSlowdownPct,
             double pipelineStallFrequencyPerMin,
             int pipelineStallEventCount,
+            double heapUsedMb,
+            double heapMaxMb,
+            double peakHeapMb,
+            double gcPauseMs,
+            int activeConnections,
+            int awaitingConnections,
+            double connectionWaitMs,
+            double lockWaitMs,
             int producedCount,
             int mappedCount,
             int insertedCount,
@@ -775,6 +830,108 @@ public class PipelineRunner {
             double mappingLatencyMs,
             double insertLatencyMs,
             long elapsedMillis) {
+    }
+
+    private static final class ResourceMetricsTracker {
+        private final MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        private final List<GarbageCollectorMXBean> gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
+        private final HikariPoolMXBean poolMxBean;
+        private final AtomicLong peakHeapUsedBytes = new AtomicLong(0L);
+        private final AtomicLong lastGcTimeMs = new AtomicLong(0L);
+        private final LongAdder connectionWaitNanos = new LongAdder();
+        private final LongAdder connectionWaitCount = new LongAdder();
+        private final LongAdder lockWaitEstimateNanos = new LongAdder();
+        private final LongAdder lockWaitEstimateCount = new LongAdder();
+
+        private ResourceMetricsTracker(JdbcTemplate jdbcTemplate) {
+            HikariPoolMXBean candidate = null;
+            if (jdbcTemplate.getDataSource() instanceof HikariDataSource hikariDataSource) {
+                candidate = hikariDataSource.getHikariPoolMXBean();
+            }
+            this.poolMxBean = candidate;
+        }
+
+        void recordConnectionWaitNanos(long nanos) {
+            connectionWaitNanos.add(Math.max(0L, nanos));
+            connectionWaitCount.increment();
+        }
+
+        void recordLockWaitEstimateNanos(long nanos) {
+            lockWaitEstimateNanos.add(Math.max(0L, nanos));
+            lockWaitEstimateCount.increment();
+        }
+
+        ResourceSnapshot sample() {
+            long heapUsed = Math.max(0L, memoryMXBean.getHeapMemoryUsage().getUsed());
+            long heapMax = Math.max(0L, memoryMXBean.getHeapMemoryUsage().getMax());
+            peakHeapUsedBytes.accumulateAndGet(heapUsed, Math::max);
+            long gcTimeMsNow = gcBeans.stream().mapToLong(gc -> Math.max(0L, gc.getCollectionTime())).sum();
+            long gcPauseMs = Math.max(0L, gcTimeMsNow - lastGcTimeMs.getAndSet(gcTimeMsNow));
+
+            int activeConnections = poolMxBean == null ? 0 : poolMxBean.getActiveConnections();
+            int awaitingConnections = poolMxBean == null ? 0 : poolMxBean.getThreadsAwaitingConnection();
+
+            return new ResourceSnapshot(
+                    bytesToMb(heapUsed),
+                    bytesToMb(heapMax),
+                    bytesToMb(peakHeapUsedBytes.get()),
+                    gcPauseMs,
+                    activeConnections,
+                    awaitingConnections,
+                    averageMs(connectionWaitNanos, connectionWaitCount),
+                    averageMs(lockWaitEstimateNanos, lockWaitEstimateCount));
+        }
+
+        double heapUsedMb() {
+            return sample().heapUsedMb();
+        }
+
+        double heapMaxMb() {
+            return sample().heapMaxMb();
+        }
+
+        double peakHeapMb() {
+            return sample().peakHeapMb();
+        }
+
+        int activeConnections() {
+            return sample().activeConnections();
+        }
+
+        int awaitingConnections() {
+            return sample().awaitingConnections();
+        }
+
+        double connectionWaitMs() {
+            return sample().connectionWaitMs();
+        }
+
+        double lockWaitMs() {
+            return sample().lockWaitMs();
+        }
+
+        private static double bytesToMb(long bytes) {
+            return bytes / (1024.0d * 1024.0d);
+        }
+
+        private static double averageMs(LongAdder totalNanos, LongAdder count) {
+            long c = count.sum();
+            if (c <= 0L) {
+                return 0.0d;
+            }
+            return (totalNanos.sum() / 1_000_000.0d) / c;
+        }
+    }
+
+    private record ResourceSnapshot(
+            double heapUsedMb,
+            double heapMaxMb,
+            double peakHeapMb,
+            double gcPauseMs,
+            int activeConnections,
+            int awaitingConnections,
+            double connectionWaitMs,
+            double lockWaitMs) {
     }
 
     private static final class StageLatencyMetrics {
