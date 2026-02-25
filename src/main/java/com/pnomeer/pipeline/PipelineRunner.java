@@ -115,6 +115,8 @@ public class PipelineRunner {
         var mappedCount = new AtomicInteger(0);
         var insertedCount = new AtomicInteger(0);
         var batchCount = new AtomicInteger(0);
+        var failedRowCount = new AtomicInteger(0);
+        var retryCount = new AtomicInteger(0);
         var stageLatencyMetrics = new StageLatencyMetrics();
         var resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
 
@@ -127,6 +129,8 @@ public class PipelineRunner {
                 mappedCount,
                 insertedCount,
                 batchCount,
+                failedRowCount,
+                retryCount,
                 stageLatencyMetrics,
                 resourceMetricsTracker,
                 startNanos,
@@ -139,6 +143,7 @@ public class PipelineRunner {
                     mappedChannel,
                     validationErrors,
                     mappedCount,
+                    failedRowCount,
                     stageLatencyMetrics);
             List<Future<?>> inserterFutures = startInsertWorkers(
                     inserterPool,
@@ -186,6 +191,8 @@ public class PipelineRunner {
         AtomicInteger mappedCount = new AtomicInteger(0);
         AtomicInteger insertedCount = new AtomicInteger(0);
         AtomicInteger batchCount = new AtomicInteger(0);
+        AtomicInteger failedRowCount = new AtomicInteger(0);
+        AtomicInteger retryCount = new AtomicInteger(0);
         StageLatencyMetrics stageLatencyMetrics = new StageLatencyMetrics();
         ResourceMetricsTracker resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
         List<MappedRow> chunk = new ArrayList<>(chunkSize);
@@ -207,6 +214,7 @@ public class PipelineRunner {
             if (isBlank(col1)) {
                 stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col1 is required", rawRow));
+                failedRowCount.incrementAndGet();
                 stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
                         startNanos,
@@ -215,6 +223,8 @@ public class PipelineRunner {
                         mappedCount,
                         insertedCount,
                         batchCount,
+                        failedRowCount,
+                        retryCount,
                         stageLatencyMetrics,
                         resourceMetricsTracker,
                         lastProduced,
@@ -227,6 +237,7 @@ public class PipelineRunner {
             if (isBlank(col2)) {
                 stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col2 is required", rawRow));
+                failedRowCount.incrementAndGet();
                 stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
                         startNanos,
@@ -235,6 +246,8 @@ public class PipelineRunner {
                         mappedCount,
                         insertedCount,
                         batchCount,
+                        failedRowCount,
+                        retryCount,
                         stageLatencyMetrics,
                         resourceMetricsTracker,
                         lastProduced,
@@ -251,6 +264,7 @@ public class PipelineRunner {
             } catch (NumberFormatException ex) {
                 stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                 validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col3 must be integer", rawRow));
+                failedRowCount.incrementAndGet();
                 stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
                         startNanos,
@@ -259,6 +273,8 @@ public class PipelineRunner {
                         mappedCount,
                         insertedCount,
                         batchCount,
+                        failedRowCount,
+                        retryCount,
                         stageLatencyMetrics,
                         resourceMetricsTracker,
                         lastProduced,
@@ -290,6 +306,8 @@ public class PipelineRunner {
                     mappedCount,
                     insertedCount,
                     batchCount,
+                    failedRowCount,
+                    retryCount,
                     stageLatencyMetrics,
                     resourceMetricsTracker,
                     lastProduced,
@@ -307,6 +325,8 @@ public class PipelineRunner {
                 mappedCount,
                 insertedCount,
                 batchCount,
+                failedRowCount,
+                retryCount,
                 stageLatencyMetrics,
                 resourceMetricsTracker,
                 lastProduced,
@@ -353,6 +373,7 @@ public class PipelineRunner {
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             ConcurrentLinkedQueue<ValidationError> validationErrors,
             AtomicInteger mappedCount,
+            AtomicInteger failedRowCount,
             StageLatencyMetrics stageLatencyMetrics) {
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < workerCount; i++) {
@@ -372,11 +393,13 @@ public class PipelineRunner {
                         if (isBlank(col1)) {
                             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                             validationErrors.add(new ValidationError(row.getRowIndex(), "col1 is required", row));
+                            failedRowCount.incrementAndGet();
                             continue;
                         }
                         if (isBlank(col2)) {
                             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                             validationErrors.add(new ValidationError(row.getRowIndex(), "col2 is required", row));
+                            failedRowCount.incrementAndGet();
                             continue;
                         }
 
@@ -386,6 +409,7 @@ public class PipelineRunner {
                         } catch (NumberFormatException ex) {
                             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
                             validationErrors.add(new ValidationError(row.getRowIndex(), "col3 must be integer", row));
+                            failedRowCount.incrementAndGet();
                             continue;
                         }
                         stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
@@ -487,6 +511,8 @@ public class PipelineRunner {
             AtomicInteger mappedCount,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
+            AtomicInteger failedRowCount,
+            AtomicInteger retryCount,
             StageLatencyMetrics stageLatencyMetrics,
             ResourceMetricsTracker resourceMetricsTracker,
             long startNanos,
@@ -497,6 +523,7 @@ public class PipelineRunner {
         AtomicInteger lastMapped = new AtomicInteger(0);
         AtomicInteger lastInserted = new AtomicInteger(0);
         AtomicInteger lastBatches = new AtomicInteger(0);
+        AtomicInteger lastRetries = new AtomicInteger(0);
         AtomicLong lastRawEnqueueWaitNanos = new AtomicLong(0L);
         AtomicLong lastMappedEnqueueWaitNanos = new AtomicLong(0L);
         AtomicLong peakProducedRatePerSec = new AtomicLong(0L);
@@ -511,6 +538,8 @@ public class PipelineRunner {
             int mapped = mappedCount.get();
             int inserted = insertedCount.get();
             int batches = batchCount.get();
+            int failedRows = failedRowCount.get();
+            int retries = retryCount.get();
             long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
             int rawDepth = rawChannel.size();
             int mappedDepth = mappedChannel.size();
@@ -526,6 +555,8 @@ public class PipelineRunner {
             double mappedRate = (mapped - lastMapped.getAndSet(mapped)) / seconds;
             double insertedRate = (inserted - lastInserted.getAndSet(inserted)) / seconds;
             double batchRate = (batches - lastBatches.getAndSet(batches)) / seconds;
+            double retryRate = (retries - lastRetries.getAndSet(retries)) / seconds;
+            double validationErrorRatePct = produced <= 0 ? 0.0d : (failedRows * 100.0d) / produced;
             long producedRateRounded = Math.round(producedRate);
             peakProducedRatePerSec.accumulateAndGet(producedRateRounded, Math::max);
             double producerSlowdownPct = peakProducedRatePerSec.get() <= 0L
@@ -549,7 +580,7 @@ public class PipelineRunner {
             double stallFrequencyPerMin = stallEventCount.get() / elapsedMinutes;
 
             log.info(
-                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms] backpressure[block={}ms,slowdown={}%%,stall/min={}] resource[heap={}MB,peak={}MB,gcPause={}ms,dbActive={},dbAwaiting={},dbConnWait={}ms,dbLockWait={}ms]",
+                    "pipeline metrics rawQ={} mappedQ={} produced={} mapped={} inserted={} batches={} rate/s[rows={},records={},batch={}] errors[failedRows={},validationRate={}%%,retryRate={}s] latency[parse={}ms,validation={}ms,mapping={}ms,insert={}ms] queue[satRaw={}%%,satMapped={}%%,enqRaw={}ms,enqMapped={}ms,deqRaw={}ms,deqMapped={}ms] backpressure[block={}ms,slowdown={}%%,stall/min={}] resource[heap={}MB,peak={}MB,gcPause={}ms,dbActive={},dbAwaiting={},dbConnWait={}ms,dbLockWait={}ms]",
                     rawDepth,
                     mappedDepth,
                     produced,
@@ -559,6 +590,9 @@ public class PipelineRunner {
                     Math.round(producedRate),
                     Math.round(insertedRate),
                     Math.round(batchRate),
+                    failedRows,
+                    Math.round(validationErrorRatePct),
+                    Math.round(retryRate),
                     stageLatencyMetrics.avgParseMs(),
                     stageLatencyMetrics.avgValidationMs(),
                     stageLatencyMetrics.avgMappingMs(),
@@ -605,6 +639,10 @@ public class PipelineRunner {
                         mapped,
                         inserted,
                         batches,
+                        failedRows,
+                        validationErrorRatePct,
+                        retries,
+                        Math.round(retryRate),
                         Math.round(producedRate),
                         Math.round(mappedRate),
                         Math.round(insertedRate),
@@ -626,6 +664,8 @@ public class PipelineRunner {
             AtomicInteger mappedCount,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
+            AtomicInteger failedRowCount,
+            AtomicInteger retryCount,
             StageLatencyMetrics stageLatencyMetrics,
             ResourceMetricsTracker resourceMetricsTracker,
             AtomicInteger lastProduced,
@@ -649,12 +689,15 @@ public class PipelineRunner {
         int mapped = mappedCount.get();
         int inserted = insertedCount.get();
         int batches = batchCount.get();
+        int failedRows = failedRowCount.get();
+        int retries = retryCount.get();
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - startNanos);
 
         long producedRate = Math.round((produced - lastProduced.getAndSet(produced)) / seconds);
         long mappedRate = Math.round((mapped - lastMapped.getAndSet(mapped)) / seconds);
         long insertedRate = Math.round((inserted - lastInserted.getAndSet(inserted)) / seconds);
         long batchRate = Math.round((batches - lastBatches.getAndSet(batches)) / seconds);
+        double validationErrorRatePct = produced <= 0 ? 0.0d : (failedRows * 100.0d) / produced;
 
         progressListener.accept(new ProgressSnapshot(
                 0,
@@ -681,6 +724,10 @@ public class PipelineRunner {
                 mapped,
                 inserted,
                 batches,
+                failedRows,
+                validationErrorRatePct,
+                retries,
+                0L,
                 producedRate,
                 mappedRate,
                 insertedRate,
@@ -821,6 +868,10 @@ public class PipelineRunner {
             int mappedCount,
             int insertedCount,
             int batchCount,
+            int failedRowCount,
+            double validationErrorRatePct,
+            int retryCount,
+            long retryRatePerSec,
             long producedRatePerSec,
             long mappedRatePerSec,
             long insertedRatePerSec,

@@ -212,6 +212,17 @@ public class IngestionController {
                       lock wait time: <span id="dbLockWaitMs">0.00</span>ms
                     </div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Error Handling Metrics</div>
+                    <svg id="errorChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">
+                      validation error rate: <span id="validationErrRate">0.00</span>%%,
+                      retry rate: <span id="retryRate">0</span>/sec,
+                      failed row count: <span id="failedRows">0</span>,
+                      retry count: <span id="retryCount">0</span>
+                    </div>
+                  </div>
                 </div>
 
                 <script>
@@ -265,6 +276,9 @@ public class IngestionController {
                     const dbAwaiting = timeline.map(s => s.awaitingConnections || 0);
                     const dbConnWait = timeline.map(s => s.connectionWaitMs || 0);
                     const dbLockWait = timeline.map(s => s.lockWaitMs || 0);
+                    const eValRate = timeline.map(s => s.validationErrorRatePct || 0);
+                    const eRetryRate = timeline.map(s => s.retryRatePerSec || 0);
+                    const eFailed = timeline.map(s => s.failedRowCount || 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
@@ -272,6 +286,7 @@ public class IngestionController {
                     const qMetricMax = Math.max(1, ...qEnqRaw, ...qEnqMapped, ...qDeqRaw, ...qDeqMapped);
                     const bpMax = Math.max(1, ...bpBlock, ...bpSlow, ...bpStall);
                     const resourceMax = Math.max(1, ...memHeap, ...memPeak, ...gcPause, ...dbActive, ...dbAwaiting, ...dbConnWait, ...dbLockWait);
+                    const errorMax = Math.max(1, ...eValRate, ...eRetryRate, ...eFailed);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
@@ -291,6 +306,10 @@ public class IngestionController {
                       + toPath(dbAwaiting, resourceMax, "#ffb86c")
                       + toPath(dbConnWait, resourceMax, "#f1fa8c")
                       + toPath(dbLockWait, resourceMax, "#ff5555");
+                    document.getElementById("errorChart").innerHTML =
+                      toPath(eValRate, errorMax, "#ff79c6")
+                      + toPath(eRetryRate, errorMax, "#8be9fd")
+                      + toPath(eFailed, errorMax, "#ffb86c");
                   }
 
                   async function poll() {
@@ -339,6 +358,10 @@ public class IngestionController {
                     document.getElementById("dbAwaiting").textContent = latest.awaitingConnections || 0;
                     document.getElementById("dbConnWaitMs").textContent = (latest.connectionWaitMs || 0).toFixed(2);
                     document.getElementById("dbLockWaitMs").textContent = (latest.lockWaitMs || 0).toFixed(2);
+                    document.getElementById("validationErrRate").textContent = (latest.validationErrorRatePct || 0).toFixed(2);
+                    document.getElementById("retryRate").textContent = latest.retryRatePerSec || 0;
+                    document.getElementById("failedRows").textContent = latest.failedRowCount || 0;
+                    document.getElementById("retryCount").textContent = latest.retryCount || 0;
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
                     const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
                     const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));
