@@ -24,6 +24,8 @@ public final class IngestionJobState {
     private volatile int validationErrorCount;
     private volatile Map<String, Long> errorSummary;
     private volatile String failureMessage;
+    private volatile boolean oomExists;
+    private volatile boolean dbDeadlock;
     private volatile PipelineRunner.ProgressSnapshot latestProgress;
     private final CopyOnWriteArrayList<PipelineRunner.ProgressSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
 
@@ -93,6 +95,14 @@ public final class IngestionJobState {
         return failureMessage;
     }
 
+    public boolean isOomExists() {
+        return oomExists;
+    }
+
+    public boolean isDbDeadlock() {
+        return dbDeadlock;
+    }
+
     public PipelineRunner.ProgressSnapshot getLatestProgress() {
         return latestProgress;
     }
@@ -124,13 +134,17 @@ public final class IngestionJobState {
         this.validationErrorCount = validationErrorCount;
         this.errorSummary = errorSummary;
         this.failureMessage = null;
+        this.oomExists = false;
+        this.dbDeadlock = false;
         this.status = IngestionJobStatus.SUCCEEDED;
         this.completedAtEpochMs = System.currentTimeMillis();
         this.updatedAtEpochMs = System.currentTimeMillis();
     }
 
-    public void markFailed(String message) {
+    public void markFailed(String message, boolean oomExists, boolean dbDeadlock) {
         this.failureMessage = message;
+        this.oomExists = oomExists;
+        this.dbDeadlock = dbDeadlock;
         this.status = IngestionJobStatus.FAILED;
         this.completedAtEpochMs = System.currentTimeMillis();
         this.updatedAtEpochMs = System.currentTimeMillis();

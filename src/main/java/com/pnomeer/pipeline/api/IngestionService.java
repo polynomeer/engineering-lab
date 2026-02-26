@@ -17,6 +17,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Comparator;
+import java.util.Locale;
 
 @Service
 public class IngestionService {
@@ -64,10 +65,45 @@ public class IngestionService {
                     errorSummary);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            state.markFailed("Job interrupted");
+            state.markFailed("Job interrupted", false, false);
+        } catch (OutOfMemoryError error) {
+            state.markFailed("Out of memory", true, false);
         } catch (Exception ex) {
-            state.markFailed(ex.getMessage() == null ? "Pipeline failed" : ex.getMessage());
+            state.markFailed(
+                    ex.getMessage() == null ? "Pipeline failed" : ex.getMessage(),
+                    containsOutOfMemory(ex),
+                    containsDeadlock(ex));
         }
+    }
+
+    private static boolean containsOutOfMemory(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof OutOfMemoryError) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase(Locale.ROOT).contains("outofmemory")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean containsDeadlock(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase(Locale.ROOT);
+                if (lower.contains("deadlock") || lower.contains("sqlstate 40001")) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private static byte[] readFile(MultipartFile file) {

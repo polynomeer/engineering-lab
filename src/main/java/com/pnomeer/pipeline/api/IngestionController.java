@@ -57,6 +57,8 @@ public class IngestionController {
                 state.getValidationErrorCount(),
                 state.getErrorSummary(),
                 state.getFailureMessage(),
+                state.isOomExists(),
+                state.isDbDeadlock(),
                 state.getLatestProgress());
     }
 
@@ -78,6 +80,8 @@ public class IngestionController {
                         state.getValidationErrorCount(),
                         state.getErrorSummary(),
                         state.getFailureMessage(),
+                        state.isOomExists(),
+                        state.isDbDeadlock(),
                         state.getLatestProgress()))
                 .toList();
         return new IngestionJobsResponse(jobs);
@@ -223,12 +227,24 @@ public class IngestionController {
                       retry count: <span id="retryCount">0</span>
                     </div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Stability Metrics</div>
+                    <svg id="stabilityChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">
+                      job success rate: <span id="jobSuccessRate">0.0</span>%%,
+                      retry count: <span id="stabilityRetryCount">0</span>,
+                      OOM exists: <span id="oomExists">NO</span>,
+                      DB deadlock: <span id="dbDeadlock">NO</span>
+                    </div>
+                  </div>
                 </div>
 
                 <script>
                   const jobId = "%s";
                   const maxPoints = 120;
                   let timeline = [];
+                  let stabilityTimeline = [];
 
                   function toPath(data, yMax, color) {
                     if (!data.length || yMax <= 0) return `<path d="" stroke="${color}" fill="none" stroke-width="2"/>`;
@@ -279,6 +295,10 @@ public class IngestionController {
                     const eValRate = timeline.map(s => s.validationErrorRatePct || 0);
                     const eRetryRate = timeline.map(s => s.retryRatePerSec || 0);
                     const eFailed = timeline.map(s => s.failedRowCount || 0);
+                    const successRate = stabilityTimeline.map(s => s.successRatePct || 0);
+                    const retryCountSeries = stabilityTimeline.map(s => s.retryCount || 0);
+                    const oomSeries = stabilityTimeline.map(s => s.oomExists ? 100 : 0);
+                    const deadlockSeries = stabilityTimeline.map(s => s.dbDeadlock ? 100 : 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
@@ -287,6 +307,7 @@ public class IngestionController {
                     const bpMax = Math.max(1, ...bpBlock, ...bpSlow, ...bpStall);
                     const resourceMax = Math.max(1, ...memHeap, ...memPeak, ...gcPause, ...dbActive, ...dbAwaiting, ...dbConnWait, ...dbLockWait);
                     const errorMax = Math.max(1, ...eValRate, ...eRetryRate, ...eFailed);
+                    const stabilityMax = Math.max(1, ...successRate, ...retryCountSeries, ...oomSeries, ...deadlockSeries);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
@@ -310,17 +331,28 @@ public class IngestionController {
                       toPath(eValRate, errorMax, "#ff79c6")
                       + toPath(eRetryRate, errorMax, "#8be9fd")
                       + toPath(eFailed, errorMax, "#ffb86c");
+                    document.getElementById("stabilityChart").innerHTML =
+                      toPath(successRate, stabilityMax, "#50fa7b")
+                      + toPath(retryCountSeries, stabilityMax, "#8be9fd")
+                      + toPath(oomSeries, stabilityMax, "#ff5555")
+                      + toPath(deadlockSeries, stabilityMax, "#ffb86c");
                   }
 
                   async function poll() {
-                    const [jobRes, timelineRes] = await Promise.all([
+                    const [jobRes, timelineRes, jobsRes] = await Promise.all([
                       fetch(`/ingest/jobs/${jobId}`),
-                      fetch(`/ingest/jobs/${jobId}/timeline`)
+                      fetch(`/ingest/jobs/${jobId}/timeline`),
+                      fetch(`/ingest/jobs`)
                     ]);
                     if (!jobRes.ok) throw new Error("job not found");
                     const job = await jobRes.json();
                     const t = timelineRes.ok ? await timelineRes.json() : { snapshots: [] };
+                    const jobsPayload = jobsRes.ok ? await jobsRes.json() : { jobs: [] };
                     timeline = (t.snapshots || []).slice(-maxPoints);
+                    const jobs = jobsPayload.jobs || [];
+                    const completed = jobs.filter(j => j.status === "SUCCEEDED" || j.status === "FAILED");
+                    const succeeded = completed.filter(j => j.status === "SUCCEEDED").length;
+                    const successRatePct = completed.length === 0 ? 0 : (succeeded * 100) / completed.length;
 
                     document.getElementById("status").textContent = job.status;
                     document.getElementById("mode").textContent = job.runMode || "PIPELINE";
@@ -362,6 +394,10 @@ public class IngestionController {
                     document.getElementById("retryRate").textContent = latest.retryRatePerSec || 0;
                     document.getElementById("failedRows").textContent = latest.failedRowCount || 0;
                     document.getElementById("retryCount").textContent = latest.retryCount || 0;
+                    document.getElementById("jobSuccessRate").textContent = successRatePct.toFixed(1);
+                    document.getElementById("stabilityRetryCount").textContent = latest.retryCount || 0;
+                    document.getElementById("oomExists").textContent = job.oomExists ? "YES" : "NO";
+                    document.getElementById("dbDeadlock").textContent = job.dbDeadlock ? "YES" : "NO";
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
                     const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
                     const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));
@@ -369,6 +405,15 @@ public class IngestionController {
                     document.getElementById("completionTime").textContent = fmtClock(job.completedAtEpochMs);
                     document.getElementById("timeToPublish").textContent = fmtElapsed(timeToPublish);
                     document.getElementById("startedAt").textContent = fmtClock(job.startedAtEpochMs);
+                    stabilityTimeline.push({
+                      successRatePct,
+                      retryCount: latest.retryCount || 0,
+                      oomExists: Boolean(job.oomExists),
+                      dbDeadlock: Boolean(job.dbDeadlock)
+                    });
+                    if (stabilityTimeline.length > maxPoints) {
+                      stabilityTimeline = stabilityTimeline.slice(-maxPoints);
+                    }
 
                     renderCharts();
                   }
@@ -611,6 +656,8 @@ public class IngestionController {
             int validationErrorCount,
             java.util.Map<String, Long> errorSummary,
             String failureMessage,
+            boolean oomExists,
+            boolean dbDeadlock,
             com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot latestProgress) {
     }
 
