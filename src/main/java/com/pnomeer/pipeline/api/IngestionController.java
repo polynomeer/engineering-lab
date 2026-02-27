@@ -238,6 +238,17 @@ public class IngestionController {
                       DB deadlock: <span id="dbDeadlock">NO</span>
                     </div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Scalability</div>
+                    <svg id="scalabilityChart" viewBox="0 0 1000 180" preserveAspectRatio="none"></svg>
+                    <div class="small">
+                      current rows/sec: <span id="currentRowsPerSec">0</span>,
+                      pipeline avg rows/sec: <span id="pipelineAvgRowsPerSec">0.0</span>,
+                      single-thread avg rows/sec: <span id="singleAvgRowsPerSec">0.0</span>,
+                      speedup: <span id="speedupRatio">n/a</span>
+                    </div>
+                  </div>
                 </div>
 
                 <script>
@@ -245,6 +256,7 @@ public class IngestionController {
                   const maxPoints = 120;
                   let timeline = [];
                   let stabilityTimeline = [];
+                  let scalabilityTimeline = [];
 
                   function toPath(data, yMax, color) {
                     if (!data.length || yMax <= 0) return `<path d="" stroke="${color}" fill="none" stroke-width="2"/>`;
@@ -299,6 +311,10 @@ public class IngestionController {
                     const retryCountSeries = stabilityTimeline.map(s => s.retryCount || 0);
                     const oomSeries = stabilityTimeline.map(s => s.oomExists ? 100 : 0);
                     const deadlockSeries = stabilityTimeline.map(s => s.dbDeadlock ? 100 : 0);
+                    const currentRateSeries = scalabilityTimeline.map(s => s.currentRowsPerSec || 0);
+                    const pipelineAvgSeries = scalabilityTimeline.map(s => s.pipelineAvgRowsPerSec || 0);
+                    const singleAvgSeries = scalabilityTimeline.map(s => s.singleAvgRowsPerSec || 0);
+                    const speedupSeries = scalabilityTimeline.map(s => s.speedupRatio || 0);
 
                     const qMax = Math.max(1, ...qRaw, ...qMapped);
                     const rMax = Math.max(1, ...rP, ...rI, ...rB);
@@ -308,6 +324,7 @@ public class IngestionController {
                     const resourceMax = Math.max(1, ...memHeap, ...memPeak, ...gcPause, ...dbActive, ...dbAwaiting, ...dbConnWait, ...dbLockWait);
                     const errorMax = Math.max(1, ...eValRate, ...eRetryRate, ...eFailed);
                     const stabilityMax = Math.max(1, ...successRate, ...retryCountSeries, ...oomSeries, ...deadlockSeries);
+                    const scalabilityMax = Math.max(1, ...currentRateSeries, ...pipelineAvgSeries, ...singleAvgSeries, ...speedupSeries);
 
                     document.getElementById("queueChart").innerHTML =
                       toPath(qRaw, qMax, "#8be9fd") + toPath(qMapped, qMax, "#ffb86c");
@@ -336,6 +353,11 @@ public class IngestionController {
                       + toPath(retryCountSeries, stabilityMax, "#8be9fd")
                       + toPath(oomSeries, stabilityMax, "#ff5555")
                       + toPath(deadlockSeries, stabilityMax, "#ffb86c");
+                    document.getElementById("scalabilityChart").innerHTML =
+                      toPath(currentRateSeries, scalabilityMax, "#8be9fd")
+                      + toPath(pipelineAvgSeries, scalabilityMax, "#50fa7b")
+                      + toPath(singleAvgSeries, scalabilityMax, "#bd93f9")
+                      + toPath(speedupSeries, scalabilityMax, "#ff79c6");
                   }
 
                   async function poll() {
@@ -353,6 +375,21 @@ public class IngestionController {
                     const completed = jobs.filter(j => j.status === "SUCCEEDED" || j.status === "FAILED");
                     const succeeded = completed.filter(j => j.status === "SUCCEEDED").length;
                     const successRatePct = completed.length === 0 ? 0 : (succeeded * 100) / completed.length;
+                    const pipelineCompleted = completed.filter(j => j.runMode === "PIPELINE");
+                    const singleCompleted = completed.filter(j => j.runMode === "SINGLE_THREAD");
+                    const avgRowsPerSec = (list) => {
+                      const usable = list.filter(j => (j.producedCount || 0) > 0 && (j.startedAtEpochMs || 0) > 0
+                              && (j.completedAtEpochMs || 0) > (j.startedAtEpochMs || 0));
+                      if (!usable.length) return 0;
+                      const sum = usable.reduce((acc, j) => {
+                        const elapsedSec = (j.completedAtEpochMs - j.startedAtEpochMs) / 1000.0;
+                        return acc + ((j.producedCount || 0) / Math.max(0.001, elapsedSec));
+                      }, 0);
+                      return sum / usable.length;
+                    };
+                    const pipelineAvgRowsPerSec = avgRowsPerSec(pipelineCompleted);
+                    const singleAvgRowsPerSec = avgRowsPerSec(singleCompleted);
+                    const speedupRatio = singleAvgRowsPerSec <= 0 ? 0 : pipelineAvgRowsPerSec / singleAvgRowsPerSec;
 
                     document.getElementById("status").textContent = job.status;
                     document.getElementById("mode").textContent = job.runMode || "PIPELINE";
@@ -398,6 +435,10 @@ public class IngestionController {
                     document.getElementById("stabilityRetryCount").textContent = latest.retryCount || 0;
                     document.getElementById("oomExists").textContent = job.oomExists ? "YES" : "NO";
                     document.getElementById("dbDeadlock").textContent = job.dbDeadlock ? "YES" : "NO";
+                    document.getElementById("currentRowsPerSec").textContent = latest.producedRatePerSec || 0;
+                    document.getElementById("pipelineAvgRowsPerSec").textContent = pipelineAvgRowsPerSec.toFixed(1);
+                    document.getElementById("singleAvgRowsPerSec").textContent = singleAvgRowsPerSec.toFixed(1);
+                    document.getElementById("speedupRatio").textContent = speedupRatio <= 0 ? "n/a" : `${speedupRatio.toFixed(2)}x`;
                     document.getElementById("elapsed").textContent = fmtElapsed(elapsedMs);
                     const totalProcessing = Math.max(0, (job.completedAtEpochMs || Date.now()) - (job.startedAtEpochMs || job.createdAtEpochMs || Date.now()));
                     const timeToPublish = Math.max(0, (job.firstProgressAtEpochMs || 0) - (job.createdAtEpochMs || 0));
@@ -413,6 +454,15 @@ public class IngestionController {
                     });
                     if (stabilityTimeline.length > maxPoints) {
                       stabilityTimeline = stabilityTimeline.slice(-maxPoints);
+                    }
+                    scalabilityTimeline.push({
+                      currentRowsPerSec: latest.producedRatePerSec || 0,
+                      pipelineAvgRowsPerSec,
+                      singleAvgRowsPerSec,
+                      speedupRatio: speedupRatio <= 0 ? 0 : speedupRatio
+                    });
+                    if (scalabilityTimeline.length > maxPoints) {
+                      scalabilityTimeline = scalabilityTimeline.slice(-maxPoints);
                     }
 
                     renderCharts();
