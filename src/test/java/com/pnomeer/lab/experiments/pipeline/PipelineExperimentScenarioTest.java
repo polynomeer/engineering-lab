@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline.experiment;
+package com.pnomeer.lab.experiments.pipeline;
 
 import com.pnomeer.pipeline.PipelineRunner;
 import org.junit.jupiter.api.Test;
