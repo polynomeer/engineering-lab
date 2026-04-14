@@ -45,6 +45,8 @@ public class IngestionController {
         return new IngestionJobResponse(
                 state.getJobId(),
                 state.getStatus(),
+                state.getExperimentType(),
+                state.getScenarioId(),
                 state.getFileName(),
                 state.getRunMode(),
                 state.getCreatedAtEpochMs(),
@@ -68,6 +70,8 @@ public class IngestionController {
                 .map(state -> new IngestionJobResponse(
                         state.getJobId(),
                         state.getStatus(),
+                        state.getExperimentType(),
+                        state.getScenarioId(),
                         state.getFileName(),
                         state.getRunMode(),
                         state.getCreatedAtEpochMs(),
@@ -94,6 +98,19 @@ public class IngestionController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "job not found");
         }
         return new IngestionTimelineResponse(state.getJobId(), state.getStatus(), state.getProgressTimeline());
+    }
+
+    @GetMapping("/jobs/{jobId}/metrics")
+    public IngestionMetricTimelineResponse getJobMetricTimeline(@PathVariable String jobId) {
+        IngestionJobState state = ingestionService.getJob(jobId);
+        if (state == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "job not found");
+        }
+        return new IngestionMetricTimelineResponse(
+                state.getJobId(),
+                state.getExperimentType(),
+                state.getScenarioId(),
+                state.getMetricTimeline());
     }
 
     @GetMapping("/db/count")
@@ -694,6 +711,8 @@ public class IngestionController {
     public record IngestionJobResponse(
             String jobId,
             IngestionJobStatus status,
+            String experimentType,
+            String scenarioId,
             String fileName,
             com.pnomeer.pipeline.PipelineRunner.RunMode runMode,
             long createdAtEpochMs,
@@ -718,6 +737,13 @@ public class IngestionController {
             String jobId,
             IngestionJobStatus status,
             java.util.List<com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot> snapshots) {
+    }
+
+    public record IngestionMetricTimelineResponse(
+            String jobId,
+            String experimentType,
+            String scenarioId,
+            java.util.List<com.pnomeer.lab.core.MetricPoint> snapshots) {
     }
 
     public record DbCountResponse(int totalRows) {

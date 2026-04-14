@@ -1,5 +1,8 @@
 package com.pnomeer.pipeline.api;
 
+import com.pnomeer.lab.core.ExperimentExecutionState;
+import com.pnomeer.lab.core.ExperimentStatus;
+import com.pnomeer.lab.core.MetricPoint;
 import com.pnomeer.pipeline.PipelineRunner;
 
 import java.util.ArrayList;
@@ -9,42 +12,34 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class IngestionJobState {
     private static final int MAX_PROGRESS_POINTS = 200;
+    private static final String EXPERIMENT_TYPE = "pipeline.excel-ingestion";
 
-    private final String jobId;
     private final String fileName;
     private final com.pnomeer.pipeline.PipelineRunner.RunMode runMode;
-    private final long createdAtEpochMs;
-    private volatile long updatedAtEpochMs;
-    private volatile long startedAtEpochMs;
-    private volatile long completedAtEpochMs;
-    private volatile long firstProgressAtEpochMs;
-    private volatile IngestionJobStatus status;
+    private final ExperimentExecutionState executionState;
     private volatile int producedCount;
     private volatile int insertedCount;
     private volatile int validationErrorCount;
     private volatile Map<String, Long> errorSummary;
-    private volatile String failureMessage;
     private volatile boolean oomExists;
     private volatile boolean dbDeadlock;
     private volatile PipelineRunner.ProgressSnapshot latestProgress;
     private final CopyOnWriteArrayList<PipelineRunner.ProgressSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<MetricPoint> metricTimeline = new CopyOnWriteArrayList<>();
 
     public IngestionJobState(String jobId, String fileName, com.pnomeer.pipeline.PipelineRunner.RunMode runMode) {
-        this.jobId = jobId;
         this.fileName = fileName;
         this.runMode = runMode;
-        this.createdAtEpochMs = System.currentTimeMillis();
-        this.updatedAtEpochMs = this.createdAtEpochMs;
-        this.status = IngestionJobStatus.RUNNING;
+        this.executionState = new ExperimentExecutionState(jobId, EXPERIMENT_TYPE, runMode.name());
         this.errorSummary = Map.of();
     }
 
     public String getJobId() {
-        return jobId;
+        return executionState.getJobId();
     }
 
     public IngestionJobStatus getStatus() {
-        return status;
+        return toIngestionStatus(executionState.getStatus());
     }
 
     public String getFileName() {
@@ -56,23 +51,31 @@ public final class IngestionJobState {
     }
 
     public long getCreatedAtEpochMs() {
-        return createdAtEpochMs;
+        return executionState.getCreatedAtEpochMs();
     }
 
     public long getUpdatedAtEpochMs() {
-        return updatedAtEpochMs;
+        return executionState.getUpdatedAtEpochMs();
     }
 
     public long getStartedAtEpochMs() {
-        return startedAtEpochMs;
+        return executionState.getStartedAtEpochMs();
     }
 
     public long getCompletedAtEpochMs() {
-        return completedAtEpochMs;
+        return executionState.getCompletedAtEpochMs();
     }
 
     public long getFirstProgressAtEpochMs() {
-        return firstProgressAtEpochMs;
+        return executionState.getFirstMetricAtEpochMs();
+    }
+
+    public String getExperimentType() {
+        return executionState.getExperimentType();
+    }
+
+    public String getScenarioId() {
+        return executionState.getScenarioId();
     }
 
     public int getProducedCount() {
@@ -92,7 +95,7 @@ public final class IngestionJobState {
     }
 
     public String getFailureMessage() {
-        return failureMessage;
+        return executionState.getFailureMessage();
     }
 
     public boolean isOomExists() {
@@ -111,20 +114,22 @@ public final class IngestionJobState {
         return new ArrayList<>(progressTimeline);
     }
 
+    public List<MetricPoint> getMetricTimeline() {
+        return new ArrayList<>(metricTimeline);
+    }
+
     public void markStarted() {
-        this.startedAtEpochMs = System.currentTimeMillis();
-        this.updatedAtEpochMs = this.startedAtEpochMs;
+        executionState.markStarted();
     }
 
     public void recordProgress(PipelineRunner.ProgressSnapshot progressSnapshot) {
-        if (this.firstProgressAtEpochMs == 0L) {
-            this.firstProgressAtEpochMs = System.currentTimeMillis();
-        }
+        executionState.recordMetricPublished();
         this.latestProgress = progressSnapshot;
         progressTimeline.add(progressSnapshot);
-        this.updatedAtEpochMs = System.currentTimeMillis();
+        metricTimeline.add(PipelineMetricPointMapper.fromProgressSnapshot(progressSnapshot));
         if (progressTimeline.size() > MAX_PROGRESS_POINTS) {
             progressTimeline.removeFirst();
+            metricTimeline.removeFirst();
         }
     }
 
@@ -133,20 +138,22 @@ public final class IngestionJobState {
         this.insertedCount = insertedCount;
         this.validationErrorCount = validationErrorCount;
         this.errorSummary = errorSummary;
-        this.failureMessage = null;
         this.oomExists = false;
         this.dbDeadlock = false;
-        this.status = IngestionJobStatus.SUCCEEDED;
-        this.completedAtEpochMs = System.currentTimeMillis();
-        this.updatedAtEpochMs = System.currentTimeMillis();
+        executionState.markSucceeded();
     }
 
     public void markFailed(String message, boolean oomExists, boolean dbDeadlock) {
-        this.failureMessage = message;
         this.oomExists = oomExists;
         this.dbDeadlock = dbDeadlock;
-        this.status = IngestionJobStatus.FAILED;
-        this.completedAtEpochMs = System.currentTimeMillis();
-        this.updatedAtEpochMs = System.currentTimeMillis();
+        executionState.markFailed(message);
+    }
+
+    private static IngestionJobStatus toIngestionStatus(ExperimentStatus status) {
+        return switch (status) {
+            case RUNNING -> IngestionJobStatus.RUNNING;
+            case SUCCEEDED -> IngestionJobStatus.SUCCEEDED;
+            case FAILED -> IngestionJobStatus.FAILED;
+        };
     }
 }
