@@ -1,25 +1,34 @@
-# excel-pipeline
+# engineering-lab
 
-Parallel Excel ingestion pipeline with bounded queues, worker pools, streaming XLSX parsing, validation/mapping, and chunked JDBC inserts.
+`engineering-lab` is a hands-on experimentation workspace for backend engineering topics.
 
-## What this service does
-- Accepts an uploaded `.xlsx` file.
-- Reads the first sheet in streaming mode (header row skipped).
-- Validates each row (`col1` and `col2` required).
-- Maps valid rows to domain objects.
-- Inserts rows in chunks into `ingest_item(col1, col2, col3)`.
-- Tracks async job state in an in-memory job store.
+The current implemented experiment is an Excel ingestion pipeline with:
+- bounded queues for backpressure
+- fixed worker pools
+- streaming XLSX parsing
+- validation and mapping
+- chunked JDBC inserts
+- live dashboards and benchmark-style metrics
+
+The repository is being restructured so experiments live under shared platform code:
+- `com.pnomeer.lab.app.*` for the app and dashboards
+- `com.pnomeer.lab.core.*` for shared execution contracts
+- `com.pnomeer.lab.metrics.*` for reusable runtime metrics
+- `com.pnomeer.lab.experiments.pipeline.*` for the Excel pipeline experiment
 
 ## Prerequisites
 - JDK `25` (project toolchain is set to Java 25 in `build.gradle`).
 - macOS/Linux shell (examples below use `bash`/`zsh`).
 - `curl` for API testing.
 
-## Project layout (important files)
-- `src/main/java/com/polynomeer/excelpipeline/api` : REST API + in-memory job tracking
-- `src/main/java/com/pnomeer/pipeline` : pipeline runner/stages
-- `src/main/resources/application.yml` : pipeline configuration defaults
-- `src/main/resources/schema.sql` : DB schema for runtime startup
+## Current layout
+- `src/main/java/com/pnomeer/lab/app/ingest` : REST API, job state, live dashboards
+- `src/main/java/com/pnomeer/lab/core` : shared experiment contracts and execution state
+- `src/main/java/com/pnomeer/lab/metrics` : reusable execution metric snapshot types
+- `src/main/java/com/pnomeer/lab/experiments/pipeline` : Excel ingestion experiment
+- `src/main/java/com/pnomeer/pipeline/ExcelPipelineApplication.java` : Spring Boot entrypoint
+- `src/main/resources/application.yml` : app and pipeline defaults
+- `src/main/resources/schema.sql` : runtime DB schema
 
 ## Configuration
 Default config in `application.yml`:
@@ -71,8 +80,11 @@ Meaning:
 Notes:
 - Runtime DB is H2 (in-memory).
 - Schema is auto-initialized from `src/main/resources/schema.sql`.
+- The Spring Boot entrypoint class is still named `ExcelPipelineApplication` while the project is being migrated.
 
-## API manual
+## Current experiment API
+
+The current HTTP API is for the Excel ingestion experiment.
 
 ### 1) Start ingestion
 `POST /ingest/excel`
@@ -103,7 +115,8 @@ Response body:
 
 ```json
 {
-  "jobId": "f9d8d1d1-9f0c-47ec-8f5f-86b41c3f8f27"
+  "jobId": "f9d8d1d1-9f0c-47ec-8f5f-86b41c3f8f27",
+  "mode": "PIPELINE"
 }
 ```
 
@@ -122,6 +135,8 @@ Response shape:
 {
   "jobId": "f9d8d1d1-9f0c-47ec-8f5f-86b41c3f8f27",
   "status": "SUCCEEDED",
+  "experimentType": "pipeline.excel-ingestion",
+  "scenarioId": "PIPELINE",
   "producedCount": 1200,
   "insertedCount": 1180,
   "validationErrorCount": 20,
@@ -153,7 +168,18 @@ Example:
 curl -s "http://localhost:8080/ingest/jobs/<jobId>/timeline"
 ```
 
-### 4) Open live visualization page
+### 4) View shared metric timeline
+`GET /ingest/jobs/{jobId}/metrics`
+
+Returns generic metric points that can be reused by future experiments.
+
+Example:
+
+```bash
+curl -s "http://localhost:8080/ingest/jobs/<jobId>/metrics"
+```
+
+### 5) Open live visualization page
 `GET /ingest/ui/{jobId}`
 
 This page polls status + timeline endpoints and renders:
@@ -167,7 +193,7 @@ Open in browser:
 open "http://localhost:8080/ingest/ui/<jobId>"
 ```
 
-### 5) Open all-jobs live dashboard
+### 6) Open all-jobs live dashboard
 `GET /ingest/ui`
 
 Shows all jobs in real time (RUNNING/SUCCEEDED/FAILED), live queue/rate stats, and links to per-job detail charts.
@@ -176,7 +202,7 @@ Shows all jobs in real time (RUNNING/SUCCEEDED/FAILED), live queue/rate stats, a
 open "http://localhost:8080/ingest/ui"
 ```
 
-### 6) Open DB live view
+### 7) Open DB live view
 `GET /ingest/ui/db`
 
 Shows live data from table `ingest_item` with:
@@ -233,7 +259,9 @@ Examples:
 ./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500
 ```
 
-## Limitations (current)
+## Current limitations
 - Job store is in-memory (`ConcurrentHashMap`), so job history is lost on restart.
-- No authentication/authorization on endpoints.
+- Only the Excel pipeline experiment is implemented so far.
+- No authentication or authorization on endpoints.
 - No persistence of validation-error details beyond aggregated summary in status payload.
+- Some legacy names remain during the migration, especially the Spring Boot application class and the `pipeline.*` property prefix.

@@ -6,7 +6,7 @@ plugins {
 
 group = 'com.polynomeer'
 version = '0.0.1-SNAPSHOT'
-description = 'excel-pipeline'
+description = 'engineering-lab'
 
 java {
     toolchain {
