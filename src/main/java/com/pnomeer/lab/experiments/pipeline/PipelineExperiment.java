@@ -3,9 +3,9 @@ package com.pnomeer.lab.experiments.pipeline;
 import com.pnomeer.lab.core.Experiment;
 import com.pnomeer.lab.core.ExperimentSummary;
 import com.pnomeer.lab.core.MetricPoint;
+import com.pnomeer.lab.app.ingest.PipelineMetricPointMapper;
 import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.pipeline.PipelineRunner;
-import com.pnomeer.pipeline.api.PipelineMetricPointMapper;
 import com.pnomeer.pipeline.model.ValidationError;
 import org.springframework.stereotype.Component;
 
