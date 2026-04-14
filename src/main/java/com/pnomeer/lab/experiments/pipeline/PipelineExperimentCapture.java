@@ -1,7 +1,5 @@
 package com.pnomeer.lab.experiments.pipeline;
 
-import com.pnomeer.pipeline.PipelineRunner;
-
 public final class PipelineExperimentCapture {
     private volatile PipelineRunner.PipelineRunResult runResult;
 

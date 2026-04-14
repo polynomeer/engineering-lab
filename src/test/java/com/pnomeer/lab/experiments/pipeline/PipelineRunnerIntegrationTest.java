@@ -1,6 +1,6 @@
-package com.pnomeer.pipeline;
+package com.pnomeer.lab.experiments.pipeline;
 
-import com.pnomeer.pipeline.config.PipelineProperties;
+import com.pnomeer.lab.experiments.pipeline.config.PipelineProperties;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;

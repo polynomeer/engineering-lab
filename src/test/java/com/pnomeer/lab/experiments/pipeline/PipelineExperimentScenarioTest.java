@@ -1,6 +1,5 @@
 package com.pnomeer.lab.experiments.pipeline;
 
-import com.pnomeer.pipeline.PipelineRunner;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

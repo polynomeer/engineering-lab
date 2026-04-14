@@ -1,5 +1,6 @@
 package com.pnomeer.lab.app.ingest;
 
+import com.pnomeer.lab.experiments.pipeline.PipelineRunner;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,7 +30,7 @@ public class IngestionController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public StartIngestionResponse startExcelIngestion(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(defaultValue = "PIPELINE") com.pnomeer.pipeline.PipelineRunner.RunMode mode) {
+            @RequestParam(defaultValue = "PIPELINE") PipelineRunner.RunMode mode) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file must not be empty");
         }
@@ -705,7 +706,7 @@ public class IngestionController {
                 """;
     }
 
-    public record StartIngestionResponse(String jobId, com.pnomeer.pipeline.PipelineRunner.RunMode mode) {
+    public record StartIngestionResponse(String jobId, PipelineRunner.RunMode mode) {
     }
 
     public record IngestionJobResponse(
@@ -714,7 +715,7 @@ public class IngestionController {
             String experimentType,
             String scenarioId,
             String fileName,
-            com.pnomeer.pipeline.PipelineRunner.RunMode runMode,
+            PipelineRunner.RunMode runMode,
             long createdAtEpochMs,
             long updatedAtEpochMs,
             long startedAtEpochMs,

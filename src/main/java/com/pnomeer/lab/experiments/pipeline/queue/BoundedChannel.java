@@ -1,6 +1,6 @@
 package com.pnomeer.lab.experiments.pipeline.queue;
 
-import com.pnomeer.pipeline.config.PipelineProperties;
+import com.pnomeer.lab.experiments.pipeline.config.PipelineProperties;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;

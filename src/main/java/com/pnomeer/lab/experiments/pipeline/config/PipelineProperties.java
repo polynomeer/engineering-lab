@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline.config;
+package com.pnomeer.lab.experiments.pipeline.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

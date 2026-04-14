@@ -1,6 +1,6 @@
 package com.pnomeer.pipeline;
 
-import com.pnomeer.pipeline.config.PipelineProperties;
+import com.pnomeer.lab.experiments.pipeline.config.PipelineProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

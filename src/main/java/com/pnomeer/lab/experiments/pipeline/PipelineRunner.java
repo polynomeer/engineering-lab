@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline;
+package com.pnomeer.lab.experiments.pipeline;
 
 import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.lab.experiments.pipeline.model.IngestItem;
@@ -9,7 +9,7 @@ import com.pnomeer.lab.experiments.pipeline.parse.ExcelStreamingReader;
 import com.pnomeer.lab.experiments.pipeline.queue.BoundedChannel;
 import com.pnomeer.lab.experiments.pipeline.stage.Envelope;
 import com.pnomeer.lab.experiments.pipeline.stage.ShutdownSignals;
-import com.pnomeer.pipeline.config.PipelineProperties;
+import com.pnomeer.lab.experiments.pipeline.config.PipelineProperties;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import org.slf4j.Logger;

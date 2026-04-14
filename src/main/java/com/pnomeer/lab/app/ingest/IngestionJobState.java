@@ -3,6 +3,7 @@ package com.pnomeer.lab.app.ingest;
 import com.pnomeer.lab.core.ExperimentExecutionState;
 import com.pnomeer.lab.core.ExperimentStatus;
 import com.pnomeer.lab.core.MetricPoint;
+import com.pnomeer.lab.experiments.pipeline.PipelineRunner;
 import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ public final class IngestionJobState {
     private static final String EXPERIMENT_TYPE = "pipeline.excel-ingestion";
 
     private final String fileName;
-    private final com.pnomeer.pipeline.PipelineRunner.RunMode runMode;
+    private final PipelineRunner.RunMode runMode;
     private final ExperimentExecutionState executionState;
     private volatile int producedCount;
     private volatile int insertedCount;
@@ -27,7 +28,7 @@ public final class IngestionJobState {
     private final CopyOnWriteArrayList<ExecutionMetricsSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<MetricPoint> metricTimeline = new CopyOnWriteArrayList<>();
 
-    public IngestionJobState(String jobId, String fileName, com.pnomeer.pipeline.PipelineRunner.RunMode runMode) {
+    public IngestionJobState(String jobId, String fileName, PipelineRunner.RunMode runMode) {
         this.fileName = fileName;
         this.runMode = runMode;
         this.executionState = new ExperimentExecutionState(jobId, EXPERIMENT_TYPE, runMode.name());
@@ -46,7 +47,7 @@ public final class IngestionJobState {
         return fileName;
     }
 
-    public com.pnomeer.pipeline.PipelineRunner.RunMode getRunMode() {
+    public PipelineRunner.RunMode getRunMode() {
         return runMode;
     }
 

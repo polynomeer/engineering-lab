@@ -1,8 +1,8 @@
-package com.pnomeer.pipeline.config;
+package com.pnomeer.lab.experiments.pipeline.config;
 
 import com.pnomeer.lab.core.ExperimentRunner;
 import com.pnomeer.lab.core.LocalExperimentRunner;
-import com.pnomeer.pipeline.PipelineRunner;
+import com.pnomeer.lab.experiments.pipeline.PipelineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
