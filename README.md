@@ -16,6 +16,9 @@ The repository is being restructured so experiments live under shared platform c
 - `com.pnomeer.lab.metrics.*` for reusable runtime metrics
 - `com.pnomeer.lab.experiments.pipeline.*` for the Excel pipeline experiment
 
+There is also a second non-pipeline experiment now:
+- `com.pnomeer.lab.experiments.concurrency.*` for queue contention benchmarking
+
 ## Prerequisites
 - JDK `25` (project toolchain is set to Java 25 in `build.gradle`).
 - macOS/Linux shell (examples below use `bash`/`zsh`).
@@ -26,6 +29,7 @@ The repository is being restructured so experiments live under shared platform c
 - `src/main/java/com/pnomeer/lab/core` : shared experiment contracts and execution state
 - `src/main/java/com/pnomeer/lab/metrics` : reusable execution metric snapshot types
 - `src/main/java/com/pnomeer/lab/experiments/pipeline` : Excel ingestion experiment
+- `src/main/java/com/pnomeer/lab/experiments/concurrency` : queue contention experiment
 - `src/main/java/com/pnomeer/pipeline/ExcelPipelineApplication.java` : Spring Boot entrypoint
 - `src/main/resources/application.yml` : app and pipeline defaults
 - `src/main/resources/schema.sql` : runtime DB schema
@@ -82,9 +86,11 @@ Notes:
 - Schema is auto-initialized from `src/main/resources/schema.sql`.
 - The Spring Boot entrypoint class is still named `ExcelPipelineApplication` while the project is being migrated.
 
-## Current experiment API
+## Current HTTP API
 
-The current HTTP API is for the Excel ingestion experiment.
+The app now exposes two experiment surfaces:
+- `/ingest/*` for the Excel ingestion experiment
+- `/experiments/*` for generic experiment jobs
 
 ### 1) Start ingestion
 `POST /ingest/excel`
@@ -212,6 +218,72 @@ Shows live data from table `ingest_item` with:
 
 ```bash
 open "http://localhost:8080/ingest/ui/db"
+```
+
+## Generic experiment API
+
+### 1) Start queue contention
+`POST /experiments/concurrency/queue-contention`
+
+Request body:
+
+```json
+{
+  "scenarioId": "queue-contention-demo",
+  "queueCapacity": 2,
+  "producerThreads": 2,
+  "consumerThreads": 1,
+  "itemsPerProducer": 100,
+  "consumerDelayMs": 2
+}
+```
+
+Example:
+
+```bash
+curl -s -X POST "http://localhost:8080/experiments/concurrency/queue-contention" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenarioId":"queue-contention-demo",
+    "queueCapacity":2,
+    "producerThreads":2,
+    "consumerThreads":1,
+    "itemsPerProducer":100,
+    "consumerDelayMs":2
+  }'
+```
+
+### 2) List experiment jobs
+`GET /experiments/jobs`
+
+```bash
+curl -s "http://localhost:8080/experiments/jobs"
+```
+
+### 3) Get experiment job
+`GET /experiments/jobs/{jobId}`
+
+```bash
+curl -s "http://localhost:8080/experiments/jobs/<jobId>"
+```
+
+### 4) Get experiment metrics
+`GET /experiments/jobs/{jobId}/metrics`
+
+```bash
+curl -s "http://localhost:8080/experiments/jobs/<jobId>/metrics"
+```
+
+### 5) Open experiment dashboard
+`GET /experiments/ui`
+
+This page lets you:
+- start a queue contention job
+- see all generic experiment jobs live
+- open per-job metric detail pages
+
+```bash
+open "http://localhost:8080/experiments/ui"
 ```
 
 ## Expected XLSX format
