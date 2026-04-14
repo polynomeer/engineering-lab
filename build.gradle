@@ -39,3 +39,31 @@ tasks.register('generateTestXlsx', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.pnomeer.pipeline.tools.TestWorkbookGenerator'
 }
+
+tasks.register('runBlockingEchoServer', JavaExec) {
+    group = 'application'
+    description = 'Run the blocking echo server lab.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.pnomeer.lab.experiments.io.BlockingEchoServer'
+}
+
+tasks.register('runVirtualThreadEchoServer', JavaExec) {
+    group = 'application'
+    description = 'Run the virtual-thread echo server lab.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.pnomeer.lab.experiments.io.VirtualThreadEchoServer'
+}
+
+tasks.register('runNioSelectorEchoServer', JavaExec) {
+    group = 'application'
+    description = 'Run the selector-based NIO echo server lab.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.pnomeer.lab.experiments.io.NioSelectorEchoServer'
+}
+
+tasks.register('runIoLoadTest', JavaExec) {
+    group = 'application'
+    description = 'Run the IO lab load-test client. Pass args with --args="host port clients messagesPerClient".'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.pnomeer.lab.experiments.io.LoadTestClient'
+}

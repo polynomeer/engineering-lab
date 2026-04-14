@@ -18,6 +18,7 @@ The repository is being restructured so experiments live under shared platform c
 
 There is also a second non-pipeline experiment now:
 - `com.pnomeer.lab.experiments.concurrency.*` for queue contention benchmarking
+- `com.pnomeer.lab.experiments.io.*` for blocking, virtual-thread, and selector IO labs
 
 ## Prerequisites
 - JDK `25` (project toolchain is set to Java 25 in `build.gradle`).
@@ -30,6 +31,7 @@ There is also a second non-pipeline experiment now:
 - `src/main/java/com/pnomeer/lab/metrics` : reusable execution metric snapshot types
 - `src/main/java/com/pnomeer/lab/experiments/pipeline` : Excel ingestion experiment
 - `src/main/java/com/pnomeer/lab/experiments/concurrency` : queue contention experiment
+- `src/main/java/com/pnomeer/lab/experiments/io` : blocking IO / virtual thread / selector IO lab
 - `src/main/java/com/pnomeer/pipeline/ExcelPipelineApplication.java` : Spring Boot entrypoint
 - `src/main/resources/application.yml` : app and pipeline defaults
 - `src/main/resources/schema.sql` : runtime DB schema
@@ -284,6 +286,51 @@ This page lets you:
 
 ```bash
 open "http://localhost:8080/experiments/ui"
+```
+
+## IO lab
+
+The repository also includes standalone IO comparison code based on:
+- blocking socket server
+- virtual-thread socket server
+- selector-based NIO server
+- simple concurrent load client
+
+Classes:
+- `com.pnomeer.lab.experiments.io.BlockingEchoServer`
+- `com.pnomeer.lab.experiments.io.VirtualThreadEchoServer`
+- `com.pnomeer.lab.experiments.io.NioSelectorEchoServer`
+- `com.pnomeer.lab.experiments.io.LoadTestClient`
+
+Run with Gradle:
+
+```bash
+./gradlew runBlockingEchoServer
+./gradlew runVirtualThreadEchoServer
+./gradlew runNioSelectorEchoServer
+./gradlew runIoLoadTest --args="127.0.0.1 7031 300 30"
+```
+
+Default ports:
+- blocking: `7031`
+- virtual thread: `7032`
+- selector NIO: `7033`
+
+Example comparisons:
+
+```bash
+./gradlew runBlockingEchoServer
+./gradlew runIoLoadTest --args="127.0.0.1 7031 300 30"
+```
+
+```bash
+./gradlew runVirtualThreadEchoServer
+./gradlew runIoLoadTest --args="127.0.0.1 7032 300 30"
+```
+
+```bash
+./gradlew runNioSelectorEchoServer
+./gradlew runIoLoadTest --args="127.0.0.1 7033 300 30"
 ```
 
 ## Expected XLSX format
