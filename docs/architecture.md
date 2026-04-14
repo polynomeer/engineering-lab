@@ -1,45 +1,92 @@
 # Architecture
 
 ## Goal
-Build a parallel Excel ingestion pipeline that is fast, memory-bounded, and reliable under load.
+Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
 
-## Pipeline
-1. Parse: stream rows from workbook sheets.
-2. Validate: apply required-field and type checks.
-3. Map: transform validated rows into DB-ready records.
-4. Insert: write records using chunked batch inserts.
+## Top-Level Direction
+- Treat each domain as an experiment package, not as the project identity.
+- Keep dashboards, metrics, scenario execution, and benchmark reporting reusable.
+- Allow unrelated practice code to coexist without polluting shared runtime infrastructure.
 
-Each stage communicates through a bounded blocking queue.
-Current parser contract: XLSX is read from an `InputStream` (first sheet only, header row skipped).
+## Target Structure
+```text
+engineering-lab
+  app/                    # Spring Boot entrypoint, REST API, web UI
+  lab-core/               # shared experiment contracts and execution model
+  lab-metrics/            # throughput, latency, resource, error metrics
+  lab-dashboard/          # reusable dashboard models and rendering helpers
+  fixtures/               # test data generators and sample inputs
+  experiments/
+    pipeline/             # current Excel ingestion work
+    concurrency/          # queues, threads, locks, backpressure exercises
+    database/             # batch insert, indexing, lock contention, tx tests
+    parsing/              # CSV/XLSX/JSON streaming experiments
+    algorithms/           # caches, rate limiters, data structures, etc.
+```
 
-## Concurrency Model
-- Fixed thread pools per stage (`parse`, `validate/map`, `insert`).
-- Bounded queues enforce backpressure: producers block when downstream is saturated.
-- No unbounded buffers in memory.
+## Responsibility Boundaries
 
-## Insert Strategy
-- Insert workers build chunks up to `batch_size`.
-- Flush a chunk when:
-  - size reaches `batch_size`, or
-  - max wait time is reached.
-- Use one transaction per chunk.
+### `app`
+- Hosts HTTP endpoints and live dashboards.
+- Starts experiments asynchronously.
+- Persists only lightweight job state and result summaries.
 
-## Shutdown
-- Use poison-pill sentinels for orderly termination.
-- Producers send poison pills downstream after input completion.
-- Consumers drain queued work, flush final partial chunks, then exit.
+### `lab-core`
+- Defines common contracts:
+  - `Experiment`
+  - `Scenario`
+  - `ExperimentRunner`
+  - `ExperimentResult`
+  - `TimelinePoint`
+- Owns job lifecycle, execution flow, and result publication.
 
-### Shutdown Mechanism
-- Channels carry `Envelope<T>` values with `DATA` and `END` kinds.
-- Stages process `DATA` envelopes normally and stop their run loop when receiving `END`.
-- For `N` workers on a stage, publish exactly `N` `END` envelopes so each worker can terminate gracefully.
-- END propagation happens after upstream data production completes, preserving FIFO ordering and clean drains.
+### `lab-metrics`
+- Provides reusable collectors for:
+  - throughput
+  - latency
+  - queue depth and backpressure
+  - memory and GC
+  - DB connection and lock wait
+  - failure and retry signals
+- Must not depend on a specific experiment type.
 
-## Failure Policy
-- Validation and mapping failures are handled at row level.
-- Row errors are collected with row identifier and reason.
-- Valid rows continue through the pipeline.
-- Insert retries are bounded; exhausted failures are recorded in job summary.
+### `lab-dashboard`
+- Converts experiment results into a common dashboard model.
+- Reuses the same charting and status panels across experiments.
+- Experiment-specific pages extend shared widgets rather than duplicating them.
 
-## Operational Signals
-Track queue depth, stage throughput, insert latency, batch size, retry count, and row-error count.
+### `fixtures`
+- Generates XLSX/CSV/JSON samples and synthetic workloads.
+- Supplies repeatable inputs for tests, demos, and benchmarks.
+
+### `experiments/*`
+- Contains topic-specific logic only.
+- Implements shared `lab-core` contracts.
+- Can add domain-specific metrics, but should publish through the shared result model.
+
+## Package Naming
+Use `com.pnomeer.lab` as the base package.
+
+Recommended package layout:
+```text
+com.pnomeer.lab.app
+com.pnomeer.lab.core
+com.pnomeer.lab.metrics
+com.pnomeer.lab.dashboard
+com.pnomeer.lab.experiments.pipeline
+com.pnomeer.lab.experiments.database
+com.pnomeer.lab.experiments.concurrency
+```
+
+## Reuse Model
+- Shared infrastructure lives outside experiment packages.
+- New experiments should only need:
+  - scenario definition
+  - execution logic
+  - optional domain-specific result fields
+- Benchmark runners and dashboards consume common result types, so pipeline code is only one client of the platform.
+
+## Migration Principle
+- Move reusable concerns first: job execution, metrics, dashboard models.
+- Move pipeline-specific code under `experiments.pipeline` second.
+- Add a second non-pipeline experiment early to validate that the platform boundaries are real.
