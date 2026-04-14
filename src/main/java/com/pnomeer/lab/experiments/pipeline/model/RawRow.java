@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline.model;
+package com.pnomeer.lab.experiments.pipeline.model;
 
 import java.util.List;
 import java.util.Objects;

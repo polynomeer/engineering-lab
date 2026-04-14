@@ -1,14 +1,14 @@
 package com.pnomeer.pipeline;
 
 import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
-import com.pnomeer.pipeline.model.IngestItem;
-import com.pnomeer.pipeline.model.MappedRow;
-import com.pnomeer.pipeline.model.RawRow;
-import com.pnomeer.pipeline.model.ValidationError;
-import com.pnomeer.pipeline.parse.ExcelStreamingReader;
-import com.pnomeer.pipeline.queue.BoundedChannel;
-import com.pnomeer.pipeline.stage.Envelope;
-import com.pnomeer.pipeline.stage.ShutdownSignals;
+import com.pnomeer.lab.experiments.pipeline.model.IngestItem;
+import com.pnomeer.lab.experiments.pipeline.model.MappedRow;
+import com.pnomeer.lab.experiments.pipeline.model.RawRow;
+import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
+import com.pnomeer.lab.experiments.pipeline.parse.ExcelStreamingReader;
+import com.pnomeer.lab.experiments.pipeline.queue.BoundedChannel;
+import com.pnomeer.lab.experiments.pipeline.stage.Envelope;
+import com.pnomeer.lab.experiments.pipeline.stage.ShutdownSignals;
 import com.pnomeer.pipeline.config.PipelineProperties;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;

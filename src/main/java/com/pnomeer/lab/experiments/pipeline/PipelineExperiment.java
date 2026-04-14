@@ -6,7 +6,7 @@ import com.pnomeer.lab.core.MetricPoint;
 import com.pnomeer.lab.app.ingest.PipelineMetricPointMapper;
 import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.pipeline.PipelineRunner;
-import com.pnomeer.pipeline.model.ValidationError;
+import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;

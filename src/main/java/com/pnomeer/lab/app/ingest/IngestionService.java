@@ -7,7 +7,7 @@ import com.pnomeer.lab.experiments.pipeline.PipelineExperiment;
 import com.pnomeer.lab.experiments.pipeline.PipelineExperimentCapture;
 import com.pnomeer.lab.experiments.pipeline.PipelineExperimentScenario;
 import com.pnomeer.pipeline.PipelineRunner;
-import com.pnomeer.pipeline.model.ValidationError;
+import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;

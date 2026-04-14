@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline.stage;
+package com.pnomeer.lab.experiments.pipeline.stage;
 
 public interface Stage {
     String name();

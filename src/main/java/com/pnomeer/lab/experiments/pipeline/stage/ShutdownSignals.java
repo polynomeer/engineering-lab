@@ -1,6 +1,6 @@
-package com.pnomeer.pipeline.stage;
+package com.pnomeer.lab.experiments.pipeline.stage;
 
-import com.pnomeer.pipeline.queue.BoundedChannel;
+import com.pnomeer.lab.experiments.pipeline.queue.BoundedChannel;
 
 public final class ShutdownSignals {
     private ShutdownSignals() {

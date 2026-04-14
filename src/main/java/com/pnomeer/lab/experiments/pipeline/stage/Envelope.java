@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline.stage;
+package com.pnomeer.lab.experiments.pipeline.stage;
 
 import java.util.Objects;
 

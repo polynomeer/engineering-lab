@@ -1,4 +1,4 @@
-package com.pnomeer.pipeline.queue;
+package com.pnomeer.lab.experiments.pipeline.queue;
 
 import com.pnomeer.pipeline.config.PipelineProperties;
 
