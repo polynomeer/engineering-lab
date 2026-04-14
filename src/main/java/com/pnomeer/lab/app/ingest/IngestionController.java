@@ -1,8 +1,5 @@
-package com.pnomeer.pipeline.api;
+package com.pnomeer.lab.app.ingest;
 
-import com.pnomeer.lab.app.ingest.IngestionJobState;
-import com.pnomeer.lab.app.ingest.IngestionJobStatus;
-import com.pnomeer.lab.app.ingest.IngestionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
