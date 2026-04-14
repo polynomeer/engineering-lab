@@ -3,6 +3,7 @@ package com.pnomeer.pipeline.experiment;
 import com.pnomeer.lab.core.Experiment;
 import com.pnomeer.lab.core.ExperimentSummary;
 import com.pnomeer.lab.core.MetricPoint;
+import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.pipeline.PipelineRunner;
 import com.pnomeer.pipeline.api.PipelineMetricPointMapper;
 import com.pnomeer.pipeline.model.ValidationError;
@@ -41,7 +42,7 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
     private static void publishProgress(
             PipelineExperimentScenario scenario,
             Consumer<MetricPoint> timelineListener,
-            PipelineRunner.ProgressSnapshot progressSnapshot) {
+            ExecutionMetricsSnapshot progressSnapshot) {
         scenario.progressListener().accept(progressSnapshot);
         timelineListener.accept(PipelineMetricPointMapper.fromProgressSnapshot(progressSnapshot));
     }

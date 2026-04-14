@@ -727,7 +727,7 @@ public class IngestionController {
             String failureMessage,
             boolean oomExists,
             boolean dbDeadlock,
-            com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot latestProgress) {
+            com.pnomeer.lab.metrics.ExecutionMetricsSnapshot latestProgress) {
     }
 
     public record IngestionJobsResponse(java.util.List<IngestionJobResponse> jobs) {
@@ -736,7 +736,7 @@ public class IngestionController {
     public record IngestionTimelineResponse(
             String jobId,
             IngestionJobStatus status,
-            java.util.List<com.pnomeer.pipeline.PipelineRunner.ProgressSnapshot> snapshots) {
+            java.util.List<com.pnomeer.lab.metrics.ExecutionMetricsSnapshot> snapshots) {
     }
 
     public record IngestionMetricTimelineResponse(

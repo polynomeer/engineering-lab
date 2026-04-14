@@ -3,7 +3,7 @@ package com.pnomeer.pipeline.api;
 import com.pnomeer.lab.core.ExperimentExecutionState;
 import com.pnomeer.lab.core.ExperimentStatus;
 import com.pnomeer.lab.core.MetricPoint;
-import com.pnomeer.pipeline.PipelineRunner;
+import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,8 +23,8 @@ public final class IngestionJobState {
     private volatile Map<String, Long> errorSummary;
     private volatile boolean oomExists;
     private volatile boolean dbDeadlock;
-    private volatile PipelineRunner.ProgressSnapshot latestProgress;
-    private final CopyOnWriteArrayList<PipelineRunner.ProgressSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
+    private volatile ExecutionMetricsSnapshot latestProgress;
+    private final CopyOnWriteArrayList<ExecutionMetricsSnapshot> progressTimeline = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<MetricPoint> metricTimeline = new CopyOnWriteArrayList<>();
 
     public IngestionJobState(String jobId, String fileName, com.pnomeer.pipeline.PipelineRunner.RunMode runMode) {
@@ -106,11 +106,11 @@ public final class IngestionJobState {
         return dbDeadlock;
     }
 
-    public PipelineRunner.ProgressSnapshot getLatestProgress() {
+    public ExecutionMetricsSnapshot getLatestProgress() {
         return latestProgress;
     }
 
-    public List<PipelineRunner.ProgressSnapshot> getProgressTimeline() {
+    public List<ExecutionMetricsSnapshot> getProgressTimeline() {
         return new ArrayList<>(progressTimeline);
     }
 
@@ -122,7 +122,7 @@ public final class IngestionJobState {
         executionState.markStarted();
     }
 
-    public void recordProgress(PipelineRunner.ProgressSnapshot progressSnapshot) {
+    public void recordProgress(ExecutionMetricsSnapshot progressSnapshot) {
         executionState.recordMetricPublished();
         this.latestProgress = progressSnapshot;
         progressTimeline.add(progressSnapshot);

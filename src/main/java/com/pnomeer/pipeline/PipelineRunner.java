@@ -1,5 +1,6 @@
 package com.pnomeer.pipeline;
 
+import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.pipeline.model.IngestItem;
 import com.pnomeer.pipeline.model.MappedRow;
 import com.pnomeer.pipeline.model.RawRow;
@@ -83,7 +84,7 @@ public class PipelineRunner {
         return run(excelInputStream, RunMode.PIPELINE, null);
     }
 
-    public PipelineRunResult run(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
+    public PipelineRunResult run(InputStream excelInputStream, Consumer<ExecutionMetricsSnapshot> progressListener)
             throws InterruptedException, IOException {
         return run(excelInputStream, RunMode.PIPELINE, progressListener);
     }
@@ -91,7 +92,7 @@ public class PipelineRunner {
     public PipelineRunResult run(
             InputStream excelInputStream,
             RunMode runMode,
-            Consumer<ProgressSnapshot> progressListener)
+            Consumer<ExecutionMetricsSnapshot> progressListener)
             throws InterruptedException, IOException {
         if (runMode == RunMode.SINGLE_THREAD) {
             return runSingleThread(excelInputStream, progressListener);
@@ -99,7 +100,7 @@ public class PipelineRunner {
         return runPipelined(excelInputStream, progressListener);
     }
 
-    private PipelineRunResult runPipelined(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
+    private PipelineRunResult runPipelined(InputStream excelInputStream, Consumer<ExecutionMetricsSnapshot> progressListener)
             throws InterruptedException, IOException {
         long startNanos = System.nanoTime();
         BoundedChannel<Envelope<RawRow>> rawChannel =
@@ -178,7 +179,9 @@ public class PipelineRunner {
         }
     }
 
-    private PipelineRunResult runSingleThread(InputStream excelInputStream, Consumer<ProgressSnapshot> progressListener)
+    private PipelineRunResult runSingleThread(
+            InputStream excelInputStream,
+            Consumer<ExecutionMetricsSnapshot> progressListener)
             throws IOException, InterruptedException {
         long startNanos = System.nanoTime();
         int chunkSize = properties.getInsert().getChunkSize();
@@ -516,7 +519,7 @@ public class PipelineRunner {
             StageLatencyMetrics stageLatencyMetrics,
             ResourceMetricsTracker resourceMetricsTracker,
             long startNanos,
-            Consumer<ProgressSnapshot> progressListener) {
+            Consumer<ExecutionMetricsSnapshot> progressListener) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         AtomicLong lastNanos = new AtomicLong(System.nanoTime());
         AtomicInteger lastProduced = new AtomicInteger(0);
@@ -614,7 +617,7 @@ public class PipelineRunner {
                     resourceSnapshot.connectionWaitMs(),
                     resourceSnapshot.lockWaitMs());
             if (progressListener != null) {
-                progressListener.accept(new ProgressSnapshot(
+                progressListener.accept(new ExecutionMetricsSnapshot(
                         rawDepth,
                         mappedDepth,
                         rawSaturationPct,
@@ -672,7 +675,7 @@ public class PipelineRunner {
             AtomicInteger lastMapped,
             AtomicInteger lastInserted,
             AtomicInteger lastBatches,
-            Consumer<ProgressSnapshot> progressListener) {
+            Consumer<ExecutionMetricsSnapshot> progressListener) {
         if (progressListener == null) {
             return;
         }
@@ -699,7 +702,7 @@ public class PipelineRunner {
         long batchRate = Math.round((batches - lastBatches.getAndSet(batches)) / seconds);
         double validationErrorRatePct = produced <= 0 ? 0.0d : (failedRows * 100.0d) / produced;
 
-        progressListener.accept(new ProgressSnapshot(
+        progressListener.accept(new ExecutionMetricsSnapshot(
                 0,
                 0,
                 0.0d,
@@ -841,46 +844,6 @@ public class PipelineRunner {
         public long getElapsedMillis() {
             return elapsedMillis;
         }
-    }
-
-    public record ProgressSnapshot(
-            int rawQueueSize,
-            int mappedQueueSize,
-            double rawQueueSaturationPct,
-            double mappedQueueSaturationPct,
-            double rawEnqueueWaitMs,
-            double mappedEnqueueWaitMs,
-            double rawDequeueLatencyMs,
-            double mappedDequeueLatencyMs,
-            double enqueueBlockingTimeMs,
-            double producerSlowdownPct,
-            double pipelineStallFrequencyPerMin,
-            int pipelineStallEventCount,
-            double heapUsedMb,
-            double heapMaxMb,
-            double peakHeapMb,
-            double gcPauseMs,
-            int activeConnections,
-            int awaitingConnections,
-            double connectionWaitMs,
-            double lockWaitMs,
-            int producedCount,
-            int mappedCount,
-            int insertedCount,
-            int batchCount,
-            int failedRowCount,
-            double validationErrorRatePct,
-            int retryCount,
-            long retryRatePerSec,
-            long producedRatePerSec,
-            long mappedRatePerSec,
-            long insertedRatePerSec,
-            long batchRatePerSec,
-            double parseLatencyMs,
-            double validationLatencyMs,
-            double mappingLatencyMs,
-            double insertLatencyMs,
-            long elapsedMillis) {
     }
 
     private static final class ResourceMetricsTracker {

@@ -1,7 +1,7 @@
 package com.pnomeer.pipeline.api;
 
+import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.lab.core.MetricPoint;
-import com.pnomeer.pipeline.PipelineRunner;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class PipelineMetricPointMapperTest {
     @Test
     void mapsPipelineProgressSnapshotToGenericMetricPoint() {
-        PipelineRunner.ProgressSnapshot snapshot = new PipelineRunner.ProgressSnapshot(
+        ExecutionMetricsSnapshot snapshot = new ExecutionMetricsSnapshot(
                 3, 2, 30.0d, 20.0d, 1.5d, 2.5d, 0.4d, 0.5d,
                 4.0d, 12.0d, 1.2d, 1, 64.0d, 256.0d, 80.0d, 5.0d,
                 2, 1, 3.0d, 7.0d, 100, 95, 90, 6, 10, 10.0d,

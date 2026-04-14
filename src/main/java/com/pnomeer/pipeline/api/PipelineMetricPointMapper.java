@@ -1,7 +1,7 @@
 package com.pnomeer.pipeline.api;
 
 import com.pnomeer.lab.core.MetricPoint;
-import com.pnomeer.pipeline.PipelineRunner;
+import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 
 import java.util.Map;
 
@@ -9,7 +9,7 @@ public final class PipelineMetricPointMapper {
     private PipelineMetricPointMapper() {
     }
 
-    public static MetricPoint fromProgressSnapshot(PipelineRunner.ProgressSnapshot snapshot) {
+    public static MetricPoint fromProgressSnapshot(ExecutionMetricsSnapshot snapshot) {
         return new MetricPoint(
                 System.currentTimeMillis(),
                 Map.ofEntries(
