@@ -1,13 +1,18 @@
 package com.pnomeer.pipeline.api;
 
+import com.pnomeer.lab.core.ExperimentResult;
+import com.pnomeer.lab.core.ExperimentRunner;
+import com.pnomeer.lab.core.ExperimentStatus;
 import com.pnomeer.pipeline.PipelineRunner;
+import com.pnomeer.pipeline.experiment.PipelineExperiment;
+import com.pnomeer.pipeline.experiment.PipelineExperimentCapture;
+import com.pnomeer.pipeline.experiment.PipelineExperimentScenario;
 import com.pnomeer.pipeline.model.ValidationError;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
@@ -21,12 +26,17 @@ import java.util.Locale;
 
 @Service
 public class IngestionService {
-    private final PipelineRunner pipelineRunner;
+    private final ExperimentRunner experimentRunner;
+    private final PipelineExperiment pipelineExperiment;
     private final TaskExecutor taskExecutor;
     private final ConcurrentHashMap<String, IngestionJobState> jobs = new ConcurrentHashMap<>();
 
-    public IngestionService(PipelineRunner pipelineRunner, @Qualifier("ingestTaskExecutor") TaskExecutor taskExecutor) {
-        this.pipelineRunner = pipelineRunner;
+    public IngestionService(
+            ExperimentRunner experimentRunner,
+            PipelineExperiment pipelineExperiment,
+            @Qualifier("ingestTaskExecutor") TaskExecutor taskExecutor) {
+        this.experimentRunner = experimentRunner;
+        this.pipelineExperiment = pipelineExperiment;
         this.taskExecutor = taskExecutor;
     }
 
@@ -54,7 +64,23 @@ public class IngestionService {
     private void runJob(IngestionJobState state, byte[] payload) {
         state.markStarted();
         try {
-            var result = pipelineRunner.run(new ByteArrayInputStream(payload), state.getRunMode(), state::recordProgress);
+            PipelineExperimentCapture capture = new PipelineExperimentCapture();
+            PipelineExperimentScenario scenario =
+                    new PipelineExperimentScenario(payload, state.getRunMode(), state::recordProgress, capture);
+            ExperimentResult experimentResult = experimentRunner.run(pipelineExperiment, scenario);
+            if (experimentResult.status() == ExperimentStatus.FAILED) {
+                state.markFailed(
+                        experimentResult.failureMessage() == null ? "Pipeline failed" : experimentResult.failureMessage(),
+                        false,
+                        containsDeadlock(experimentResult.failureMessage()));
+                return;
+            }
+
+            var result = capture.getRunResult();
+            if (result == null) {
+                state.markFailed("Pipeline produced no result", false, false);
+                return;
+            }
             Map<String, Long> errorSummary = result.getValidationErrors().stream()
                     .map(ValidationError::getReason)
                     .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
@@ -63,17 +89,22 @@ public class IngestionService {
                     result.getInsertedCount(),
                     result.getValidationErrors().size(),
                     errorSummary);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            state.markFailed("Job interrupted", false, false);
         } catch (OutOfMemoryError error) {
             state.markFailed("Out of memory", true, false);
         } catch (Exception ex) {
             state.markFailed(
-                    ex.getMessage() == null ? "Pipeline failed" : ex.getMessage(),
-                    containsOutOfMemory(ex),
-                    containsDeadlock(ex));
+                ex.getMessage() == null ? "Pipeline failed" : ex.getMessage(),
+                containsOutOfMemory(ex),
+                containsDeadlock(ex));
         }
+    }
+
+    private static boolean containsDeadlock(String message) {
+        if (message == null) {
+            return false;
+        }
+        String lower = message.toLowerCase(Locale.ROOT);
+        return lower.contains("deadlock") || lower.contains("sqlstate 40001");
     }
 
     private static boolean containsOutOfMemory(Throwable throwable) {

@@ -1,5 +1,7 @@
 package com.pnomeer.pipeline.config;
 
+import com.pnomeer.lab.core.ExperimentRunner;
+import com.pnomeer.lab.core.LocalExperimentRunner;
 import com.pnomeer.pipeline.PipelineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +12,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
 public class PipelineRuntimeConfig {
+
+    @Bean
+    public ExperimentRunner experimentRunner() {
+        return new LocalExperimentRunner();
+    }
 
     @Bean
     public PipelineRunner pipelineRunner(
