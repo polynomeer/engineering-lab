@@ -37,4 +37,15 @@ public class PipelineRuntimeConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "experimentTaskExecutor")
+    public TaskExecutor experimentTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("experiment-job-");
+        executor.initialize();
+        return executor;
+    }
 }
