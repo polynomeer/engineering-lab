@@ -88,6 +88,17 @@ Notes:
 - Schema is auto-initialized from `src/main/resources/schema.sql`.
 - The Spring Boot entrypoint class is still named `ExcelPipelineApplication` while the project is being migrated.
 
+Home dashboard:
+
+```bash
+open "http://localhost:8080/ui"
+```
+
+This page links the current lab surfaces:
+- pipeline ingestion
+- generic experiment jobs
+- IO comparison lab
+
 ## Current HTTP API
 
 The app now exposes two experiment surfaces:
