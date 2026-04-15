@@ -350,6 +350,18 @@ curl "http://localhost:8080/lab/io/reactive/echo?msg=hello&delayMs=100"
 The virtual-thread endpoint keeps blocking-style code and dispatches work onto a dedicated virtual-thread executor.
 The reactive endpoint uses `Mono.delay(...)` to demonstrate non-blocking wait semantics inside the Spring app.
 
+Browser dashboard:
+
+```bash
+open "http://localhost:8080/lab/io/ui"
+```
+
+This page runs a lightweight sequential benchmark from the browser and compares:
+- average latency
+- total elapsed time
+- requests per second
+- per-request latency samples
+
 ## Expected XLSX format
 - First sheet only is parsed.
 - Row `0` is treated as header and skipped.
