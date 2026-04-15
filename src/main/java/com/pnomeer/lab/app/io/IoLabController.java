@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 @RequestMapping("/lab/io")
 public class IoLabController {
     private static final Object PIN_LOCK = new Object();
+    private static final String HISTORY_STORAGE_KEY = "engineering-lab.io-history";
 
     private final ExecutorService ioVirtualThreadExecutor;
 
@@ -111,7 +112,10 @@ public class IoLabController {
                         <div><label for="pinning">Pinning (0/1)</label><input id="pinning" type="number" min="0" max="1" value="0" /></div>
                         <div><label for="pinDelayMs">Pin Delay (ms)</label><input id="pinDelayMs" type="number" min="0" value="100" /></div>
                       </div>
-                      <div style="margin-top: 12px;"><button id="runBtn">Run Comparison</button></div>
+                      <div style="margin-top: 12px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <button id="runBtn">Run Comparison</button>
+                        <button id="clearBtn" style="background: linear-gradient(90deg, #ffb86c, #ff5555);">Clear History</button>
+                      </div>
                       <div class="sub" id="runState">Idle</div>
                     </div>
                     <div class="card stats">
@@ -150,7 +154,7 @@ public class IoLabController {
 
                   <div class="card">
                     <div class="k">Run History</div>
-                    <div class="small">Latest comparisons are kept in-memory in the browser for quick side-by-side review.</div>
+                    <div class="small">Latest comparisons are stored in your browser so they survive refresh until cleared.</div>
                     <div class="table-wrap" style="margin-top:12px;">
                       <table>
                         <thead>
@@ -173,6 +177,7 @@ public class IoLabController {
 
                 <script>
                   let history = [];
+                  const historyStorageKey = "%s";
 
                   function toPath(data, yMax, color) {
                     if (!data.length || yMax <= 0) return "";
@@ -222,6 +227,32 @@ public class IoLabController {
                     `).join("");
                   }
 
+                  function saveHistory() {
+                    window.localStorage.setItem(historyStorageKey, JSON.stringify(history));
+                  }
+
+                  function loadHistory() {
+                    try {
+                      const raw = window.localStorage.getItem(historyStorageKey);
+                      if (!raw) {
+                        history = [];
+                        return;
+                      }
+                      const parsed = JSON.parse(raw);
+                      history = Array.isArray(parsed) ? parsed.slice(0, 12) : [];
+                    } catch (error) {
+                      console.error(error);
+                      history = [];
+                    }
+                  }
+
+                  function clearHistory() {
+                    history = [];
+                    window.localStorage.removeItem(historyStorageKey);
+                    renderHistory();
+                    document.getElementById("runState").textContent = "History cleared.";
+                  }
+
                   async function runComparison() {
                     const msg = document.getElementById("msg").value;
                     const delayMs = Number(document.getElementById("delayMs").value);
@@ -254,6 +285,7 @@ public class IoLabController {
                       winner
                     });
                     history = history.slice(0, 12);
+                    saveHistory();
                     renderHistory();
 
                     const yMax = Math.max(1, ...virtualMetrics.samples, ...reactiveMetrics.samples);
@@ -269,10 +301,12 @@ public class IoLabController {
                     console.error(err);
                     document.getElementById("runState").textContent = "Failed to run comparison.";
                   }));
+                  document.getElementById("clearBtn").addEventListener("click", clearHistory);
+                  loadHistory();
                   renderHistory();
                 </script>
                 </body>
                 </html>
-                """.formatted(safeMsg);
+                """.formatted(safeMsg, HISTORY_STORAGE_KEY);
     }
 }
