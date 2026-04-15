@@ -324,10 +324,23 @@ Run with Gradle:
 ./gradlew runIoLoadTest --args="127.0.0.1 7031 300 30"
 ```
 
+Run with extra options:
+
+```bash
+./gradlew runBlockingEchoServer --args="7031 100"
+./gradlew runVirtualThreadEchoServer --args="7032 100"
+./gradlew runNioSelectorEchoServer --args="7033 false"
+```
+
 Default ports:
 - blocking: `7031`
 - virtual thread: `7032`
 - selector NIO: `7033`
+
+Extra args:
+- blocking server: `port delayMs`
+- virtual-thread server: `port delayMs`
+- selector NIO server: `port preserveMessageBoundaries`
 
 Example comparisons:
 
@@ -345,6 +358,17 @@ Example comparisons:
 ./gradlew runNioSelectorEchoServer
 ./gradlew runIoLoadTest --args="127.0.0.1 7033 300 30"
 ```
+
+Message-boundary break experiment:
+
+```bash
+./gradlew runNioSelectorEchoServer --args="7033 false"
+```
+
+With `false`, the selector server intentionally stops accumulating partial lines correctly. This makes it easier to observe:
+- one logical line arriving in multiple chunks
+- multiple lines arriving together
+- why frameworks need explicit framing and buffering logic
 
 Spring-based comparison endpoints:
 

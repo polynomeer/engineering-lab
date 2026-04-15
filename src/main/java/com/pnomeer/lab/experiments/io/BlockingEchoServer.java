@@ -20,14 +20,15 @@ public final class BlockingEchoServer {
 
     public static void main(String[] args) {
         int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-        System.out.println("[BlockingEchoServer] starting on port " + port);
+        long delayMs = args.length > 1 ? Long.parseLong(args[1]) : 0L;
+        System.out.println("[BlockingEchoServer] starting on port " + port + ", delayMs=" + delayMs);
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 Socket socket = serverSocket.accept();
                 int connId = CONNECTION_COUNT.incrementAndGet();
 
-                Thread thread = new Thread(() -> handle(socket, connId));
+                Thread thread = new Thread(() -> handle(socket, connId, delayMs));
                 thread.setName("blocking-worker-" + connId);
                 thread.start();
             }
@@ -36,7 +37,7 @@ public final class BlockingEchoServer {
         }
     }
 
-    private static void handle(Socket socket, int connId) {
+    private static void handle(Socket socket, int connId, long delayMs) {
         System.out.printf("[%s] connected: #%d, thread=%s%n",
                 LocalTime.now(), connId, Thread.currentThread().getName());
 
@@ -48,6 +49,7 @@ public final class BlockingEchoServer {
 
             String line;
             while ((line = reader.readLine()) != null) {
+                sleep(delayMs);
                 String response = "[blocking] echo: " + line + "\n";
                 writer.write(response);
                 writer.flush();
@@ -57,6 +59,12 @@ public final class BlockingEchoServer {
                     LocalTime.now(), connId, e.getMessage());
         } finally {
             System.out.printf("[%s] disconnected: #%d%n", LocalTime.now(), connId);
+        }
+    }
+
+    private static void sleep(long delayMs) throws InterruptedException {
+        if (delayMs > 0L) {
+            Thread.sleep(delayMs);
         }
     }
 }

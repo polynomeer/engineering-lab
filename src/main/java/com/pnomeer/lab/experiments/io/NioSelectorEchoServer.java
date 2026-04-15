@@ -23,7 +23,9 @@ public final class NioSelectorEchoServer {
 
     public static void main(String[] args) {
         int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-        System.out.println("[NioSelectorEchoServer] starting on port " + port);
+        boolean preserveMessageBoundaries = args.length <= 1 || Boolean.parseBoolean(args[1]);
+        System.out.println("[NioSelectorEchoServer] starting on port " + port
+                + ", preserveMessageBoundaries=" + preserveMessageBoundaries);
 
         try (Selector selector = Selector.open();
              ServerSocketChannel serverChannel = ServerSocketChannel.open()) {
@@ -47,7 +49,7 @@ public final class NioSelectorEchoServer {
                         if (key.isAcceptable()) {
                             accept(selector, serverChannel);
                         } else if (key.isReadable()) {
-                            read(key);
+                            read(key, preserveMessageBoundaries);
                         } else if (key.isWritable()) {
                             write(key);
                         }
@@ -72,7 +74,7 @@ public final class NioSelectorEchoServer {
         System.out.printf("[%s] accepted: %s%n", LocalTime.now(), client.getRemoteAddress());
     }
 
-    private static void read(SelectionKey key) throws IOException {
+    private static void read(SelectionKey key, boolean preserveMessageBoundaries) throws IOException {
         SocketChannel channel = (SocketChannel) key.channel();
         ClientState state = (ClientState) key.attachment();
 
@@ -87,7 +89,18 @@ public final class NioSelectorEchoServer {
         }
 
         readBuffer.flip();
-        state.incoming.append(StandardCharsets.UTF_8.decode(readBuffer));
+        String incoming = StandardCharsets.UTF_8.decode(readBuffer).toString();
+        if (!preserveMessageBoundaries) {
+            String line = incoming.replace("\n", "").trim();
+            if (!line.isEmpty()) {
+                String response = "[nio-broken] echo: " + line + "\n";
+                state.outgoing.add(ByteBuffer.wrap(response.getBytes(StandardCharsets.UTF_8)));
+            }
+            key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            return;
+        }
+
+        state.incoming.append(incoming);
 
         while (true) {
             int newlineIndex = state.incoming.indexOf("\n");

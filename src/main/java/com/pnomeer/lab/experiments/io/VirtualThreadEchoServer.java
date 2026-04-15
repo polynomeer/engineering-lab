@@ -21,7 +21,8 @@ public final class VirtualThreadEchoServer {
 
     public static void main(String[] args) {
         int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-        System.out.println("[VirtualThreadEchoServer] starting on port " + port);
+        long delayMs = args.length > 1 ? Long.parseLong(args[1]) : 0L;
+        System.out.println("[VirtualThreadEchoServer] starting on port " + port + ", delayMs=" + delayMs);
 
         try (ServerSocket serverSocket = new ServerSocket(port);
              var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -29,14 +30,14 @@ public final class VirtualThreadEchoServer {
             while (true) {
                 Socket socket = serverSocket.accept();
                 int connId = CONNECTION_COUNT.incrementAndGet();
-                executor.submit(() -> handle(socket, connId));
+                executor.submit(() -> handle(socket, connId, delayMs));
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void handle(Socket socket, int connId) {
+    private static void handle(Socket socket, int connId, long delayMs) {
         System.out.printf("[%s] connected: #%d, thread=%s, isVirtual=%s%n",
                 LocalTime.now(),
                 connId,
@@ -51,6 +52,7 @@ public final class VirtualThreadEchoServer {
 
             String line;
             while ((line = reader.readLine()) != null) {
+                sleep(delayMs);
                 String response = "[virtual] echo: " + line + "\n";
                 writer.write(response);
                 writer.flush();
@@ -60,6 +62,12 @@ public final class VirtualThreadEchoServer {
                     LocalTime.now(), connId, e.getMessage());
         } finally {
             System.out.printf("[%s] disconnected: #%d%n", LocalTime.now(), connId);
+        }
+    }
+
+    private static void sleep(long delayMs) throws InterruptedException {
+        if (delayMs > 0L) {
+            Thread.sleep(delayMs);
         }
     }
 }
