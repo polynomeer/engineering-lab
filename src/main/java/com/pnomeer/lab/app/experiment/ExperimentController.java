@@ -117,6 +117,7 @@ public class ExperimentController {
                     .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-top: 8px; }
                     .comparison { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
                     .metric-box { background: #171a24; border: 1px solid #44475a; border-radius: 10px; padding: 12px; }
+                    svg { width: 100%%; height: 220px; background: #171a24; border-radius: 10px; border: 1px solid #44475a; }
                     .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; border: 1px solid; font-weight: 700; }
                     .RUNNING { color: #ffb86c; border-color: #ffb86c; }
                     .SUCCEEDED { color: #50fa7b; border-color: #50fa7b; }
@@ -208,6 +209,11 @@ public class ExperimentController {
                         <div class="sub" id="compareDelta">Pick two succeeded jobs.</div>
                       </div>
                     </div>
+                    <div style="margin-top:14px;">
+                      <div class="k">Timeline Overlay</div>
+                      <svg id="comparisonChart" viewBox="0 0 1000 220" preserveAspectRatio="none"></svg>
+                      <div class="sub" id="comparisonLegend">cyan/green: Job A primary/secondary, orange/red: Job B primary/secondary</div>
+                    </div>
                   </div>
 
                   <div id="jobs" class="jobs"></div>
@@ -215,9 +221,21 @@ public class ExperimentController {
 
                 <script>
                   let allJobs = [];
+                  let comparisonMetrics = new Map();
 
                   function esc(value) {
                     return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+                  }
+
+                  function toPath(values, yMax, color) {
+                    if (!values.length || yMax <= 0) return "";
+                    const step = 1000 / Math.max(1, values.length - 1);
+                    const points = values.map((value, index) => {
+                      const x = index * step;
+                      const y = 210 - (Math.max(0, value) / yMax) * 190;
+                      return `${x.toFixed(2)},${y.toFixed(2)}`;
+                    }).join(" ");
+                    return `<polyline points="${points}" stroke="${color}" fill="none" stroke-width="2"/>`;
                   }
 
                   function summarizeJob(job) {
@@ -252,6 +270,40 @@ public class ExperimentController {
 ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSecondary)} vs ${formatMetric(summaryB.secondary, summaryB.unitSecondary)} | delta ${secondaryDelta >= 0 ? "+" : ""}${secondaryDelta.toFixed(2)}${summaryA.unitSecondary}`;
                   }
 
+                  function metricSeries(job, snapshots) {
+                    if (job.experimentType === "io.endpoint-comparison") {
+                      return {
+                        primaryLabel: "total throughput",
+                        secondaryLabel: "virtual avg latency",
+                        primary: snapshots.map(s => s.gauges?.["throughput.totalRequestsPerSec"] ?? 0),
+                        secondary: snapshots.map(s => s.gauges?.["virtual.avgLatencyMs"] ?? 0)
+                      };
+                    }
+                    return {
+                      primaryLabel: "throughput",
+                      secondaryLabel: "avg enqueue wait",
+                      primary: snapshots.map(s => s.gauges?.["throughput.itemsPerSec"] ?? 0),
+                      secondary: snapshots.map(s => s.gauges?.["queue.avgEnqueueWaitMs"] ?? 0)
+                    };
+                  }
+
+                  async function loadComparisonMetrics(jobId) {
+                    if (!jobId) {
+                      return [];
+                    }
+                    if (comparisonMetrics.has(jobId)) {
+                      return comparisonMetrics.get(jobId);
+                    }
+                    const res = await fetch(`/experiments/jobs/${jobId}/metrics`);
+                    if (!res.ok) {
+                      return [];
+                    }
+                    const data = await res.json();
+                    const snapshots = data.snapshots || [];
+                    comparisonMetrics.set(jobId, snapshots);
+                    return snapshots;
+                  }
+
                   function populateComparisonSelectors(jobs) {
                     const succeeded = jobs.filter(job => job.status === "SUCCEEDED");
                     const options = succeeded.map(job =>
@@ -267,7 +319,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     }
                   }
 
-                  function renderComparison() {
+                  async function renderComparison() {
                     const jobA = allJobs.find(job => job.jobId === document.getElementById("compareA").value);
                     const jobB = allJobs.find(job => job.jobId === document.getElementById("compareB").value);
                     document.getElementById("compareAType").textContent = jobA?.experimentType ?? "-";
@@ -276,11 +328,32 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     document.getElementById("compareBScenario").textContent = jobB?.scenarioId ?? "-";
                     if (!jobA || !jobB) {
                       document.getElementById("compareDelta").textContent = "Pick two succeeded jobs.";
+                      document.getElementById("comparisonChart").innerHTML = "";
+                      document.getElementById("comparisonLegend").textContent = "cyan/green: Job A primary/secondary, orange/red: Job B primary/secondary";
                       return;
                     }
                     const summaryA = summarizeJob(jobA);
                     const summaryB = summarizeJob(jobB);
                     document.getElementById("compareDelta").textContent = comparisonLabel(summaryA, summaryB);
+                    const [snapshotsA, snapshotsB] = await Promise.all([
+                      loadComparisonMetrics(jobA.jobId),
+                      loadComparisonMetrics(jobB.jobId)
+                    ]);
+                    const seriesA = metricSeries(jobA, snapshotsA);
+                    const seriesB = metricSeries(jobB, snapshotsB);
+                    const yMax = Math.max(
+                      1,
+                      ...seriesA.primary,
+                      ...seriesA.secondary,
+                      ...seriesB.primary,
+                      ...seriesB.secondary);
+                    document.getElementById("comparisonChart").innerHTML =
+                      toPath(seriesA.primary, yMax, "#8be9fd") +
+                      toPath(seriesA.secondary, yMax, "#50fa7b") +
+                      toPath(seriesB.primary, yMax, "#ffb86c") +
+                      toPath(seriesB.secondary, yMax, "#ff5555");
+                    document.getElementById("comparisonLegend").textContent =
+                      `A ${seriesA.primaryLabel} / ${seriesA.secondaryLabel}, B ${seriesB.primaryLabel} / ${seriesB.secondaryLabel}`;
                   }
 
                   function renderJob(job) {
@@ -329,7 +402,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     document.getElementById("total").textContent = allJobs.length;
                     document.getElementById("jobs").innerHTML = jobs.map(renderJob).join("");
                     populateComparisonSelectors(allJobs);
-                    renderComparison();
+                    renderComparison().catch(console.error);
                   }
 
                   async function startQueueExperiment() {
@@ -380,8 +453,8 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                   document.getElementById("runQueueBtn").addEventListener("click", () => startQueueExperiment().catch(console.error));
                   document.getElementById("runIoBtn").addEventListener("click", () => startIoExperiment().catch(console.error));
                   document.getElementById("jobFilter").addEventListener("change", () => refreshJobs().catch(console.error));
-                  document.getElementById("compareA").addEventListener("change", renderComparison);
-                  document.getElementById("compareB").addEventListener("change", renderComparison);
+                  document.getElementById("compareA").addEventListener("change", () => renderComparison().catch(console.error));
+                  document.getElementById("compareB").addEventListener("change", () => renderComparison().catch(console.error));
                   setInterval(() => refreshJobs().catch(console.error), 1000);
                   refreshJobs().catch(console.error);
                 </script>

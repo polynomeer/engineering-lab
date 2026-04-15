@@ -13,6 +13,8 @@ class ExperimentControllerTest {
 
         assertTrue(html.contains("Experiment Type Filter"));
         assertTrue(html.contains("Comparison View"));
+        assertTrue(html.contains("Timeline Overlay"));
+        assertTrue(html.contains("comparisonChart"));
         assertTrue(html.contains("compareA"));
         assertTrue(html.contains("compareB"));
         assertTrue(html.contains("All experiments"));
