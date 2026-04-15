@@ -292,11 +292,41 @@ curl -s "http://localhost:8080/experiments/jobs/<jobId>/metrics"
 
 This page lets you:
 - start a queue contention job
+- start an IO endpoint comparison job
 - see all generic experiment jobs live
 - open per-job metric detail pages
 
 ```bash
 open "http://localhost:8080/experiments/ui"
+```
+
+### 6) Start IO endpoint comparison
+`POST /experiments/io/endpoint-comparison`
+
+Request body:
+
+```json
+{
+  "scenarioId": "io-comparison-demo",
+  "requests": 12,
+  "delayMs": 20,
+  "pinning": false,
+  "pinDelayMs": 20
+}
+```
+
+Example:
+
+```bash
+curl -s -X POST "http://localhost:8080/experiments/io/endpoint-comparison" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenarioId":"io-comparison-demo",
+    "requests":12,
+    "delayMs":20,
+    "pinning":false,
+    "pinDelayMs":20
+  }'
 ```
 
 ## IO lab
