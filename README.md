@@ -295,6 +295,8 @@ The repository also includes standalone IO comparison code based on:
 - virtual-thread socket server
 - selector-based NIO server
 - simple concurrent load client
+- Spring MVC style virtual-thread endpoint
+- Spring reactive endpoint
 
 Classes:
 - `com.pnomeer.lab.experiments.io.BlockingEchoServer`
@@ -332,6 +334,21 @@ Example comparisons:
 ./gradlew runNioSelectorEchoServer
 ./gradlew runIoLoadTest --args="127.0.0.1 7033 300 30"
 ```
+
+Spring-based comparison endpoints:
+
+- `GET /lab/io/virtual-thread/echo?msg=hello&delayMs=100`
+- `GET /lab/io/reactive/echo?msg=hello&delayMs=100`
+
+Examples:
+
+```bash
+curl "http://localhost:8080/lab/io/virtual-thread/echo?msg=hello&delayMs=100"
+curl "http://localhost:8080/lab/io/reactive/echo?msg=hello&delayMs=100"
+```
+
+The virtual-thread endpoint keeps blocking-style code and dispatches work onto a dedicated virtual-thread executor.
+The reactive endpoint uses `Mono.delay(...)` to demonstrate non-blocking wait semantics inside the Spring app.
 
 ## Expected XLSX format
 - First sheet only is parsed.
