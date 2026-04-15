@@ -12,8 +12,17 @@ class IoLabControllerTest {
     void returnsVirtualThreadEchoResponse() throws Exception {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             IoLabController controller = new IoLabController(executor);
-            String response = controller.virtualThreadEcho("hello", 1).get();
+            String response = controller.virtualThreadEcho("hello", 1, false, 1).get();
             assertTrue(response.contains("[virtual-thread] hello"));
+        }
+    }
+
+    @Test
+    void returnsPinnedVirtualThreadEchoResponse() throws Exception {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            IoLabController controller = new IoLabController(executor);
+            String response = controller.virtualThreadEcho("hello", 1, true, 1).get();
+            assertTrue(response.contains("pinning=true"));
         }
     }
 
@@ -35,6 +44,7 @@ class IoLabControllerTest {
             assertTrue(html.contains("IO Lab"));
             assertTrue(html.contains("/lab/io/virtual-thread/echo"));
             assertTrue(html.contains("/lab/io/reactive/echo"));
+            assertTrue(html.contains("Pinning (0/1)"));
         }
     }
 }

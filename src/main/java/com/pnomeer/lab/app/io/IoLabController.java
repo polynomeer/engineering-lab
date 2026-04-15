@@ -16,6 +16,8 @@ import java.util.concurrent.ExecutorService;
 @RestController
 @RequestMapping("/lab/io")
 public class IoLabController {
+    private static final Object PIN_LOCK = new Object();
+
     private final ExecutorService ioVirtualThreadExecutor;
 
     public IoLabController(@Qualifier("ioVirtualThreadExecutor") ExecutorService ioVirtualThreadExecutor) {
@@ -25,16 +27,26 @@ public class IoLabController {
     @GetMapping(value = "/virtual-thread/echo", produces = MediaType.TEXT_PLAIN_VALUE)
     public CompletableFuture<String> virtualThreadEcho(
             @RequestParam String msg,
-            @RequestParam(defaultValue = "100") long delayMs) {
+            @RequestParam(defaultValue = "100") long delayMs,
+            @RequestParam(defaultValue = "false") boolean pinning,
+            @RequestParam(defaultValue = "100") long pinDelayMs) {
         long safeDelayMs = Math.max(0L, delayMs);
+        long safePinDelayMs = Math.max(0L, pinDelayMs);
         return CompletableFuture.supplyAsync(() -> {
             try {
+                if (pinning) {
+                    synchronized (PIN_LOCK) {
+                        Thread.sleep(safePinDelayMs);
+                    }
+                }
                 Thread.sleep(safeDelayMs);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("virtual-thread echo interrupted", ex);
             }
-            return "[virtual-thread] " + msg + " | thread=" + Thread.currentThread();
+            return "[virtual-thread] " + msg
+                    + " | pinning=" + pinning
+                    + " | thread=" + Thread.currentThread();
         }, ioVirtualThreadExecutor);
     }
 
@@ -91,6 +103,8 @@ public class IoLabController {
                         <div><label for="msg">Message</label><input id="msg" value="%s" /></div>
                         <div><label for="delayMs">Delay (ms)</label><input id="delayMs" type="number" min="0" value="100" /></div>
                         <div><label for="requests">Requests</label><input id="requests" type="number" min="1" value="30" /></div>
+                        <div><label for="pinning">Pinning (0/1)</label><input id="pinning" type="number" min="0" max="1" value="0" /></div>
+                        <div><label for="pinDelayMs">Pin Delay (ms)</label><input id="pinDelayMs" type="number" min="0" value="100" /></div>
                       </div>
                       <div style="margin-top: 12px;"><button id="runBtn">Run Comparison</button></div>
                       <div class="sub" id="runState">Idle</div>
@@ -142,12 +156,12 @@ public class IoLabController {
                     return `<polyline points="${pts}" stroke="${color}" fill="none" stroke-width="2"/>`;
                   }
 
-                  async function runSeries(path, requests, delayMs, msg) {
+                  async function runSeries(path, requests, delayMs, msg, extraParams = "") {
                     const samples = [];
                     const started = performance.now();
                     for (let i = 0; i < requests; i++) {
                       const t1 = performance.now();
-                      const res = await fetch(`${path}?msg=${encodeURIComponent(msg)}&delayMs=${delayMs}`);
+                      const res = await fetch(`${path}?msg=${encodeURIComponent(msg)}&delayMs=${delayMs}${extraParams}`);
                       await res.text();
                       samples.push(performance.now() - t1);
                     }
@@ -167,10 +181,12 @@ public class IoLabController {
                     const msg = document.getElementById("msg").value;
                     const delayMs = Number(document.getElementById("delayMs").value);
                     const requests = Number(document.getElementById("requests").value);
+                    const pinning = Number(document.getElementById("pinning").value) === 1;
+                    const pinDelayMs = Number(document.getElementById("pinDelayMs").value);
                     document.getElementById("runState").textContent = "Running comparison...";
 
                     const [virtualMetrics, reactiveMetrics] = await Promise.all([
-                      runSeries("/lab/io/virtual-thread/echo", requests, delayMs, msg),
+                      runSeries("/lab/io/virtual-thread/echo", requests, delayMs, msg, `&pinning=${pinning}&pinDelayMs=${pinDelayMs}`),
                       runSeries("/lab/io/reactive/echo", requests, delayMs, msg)
                     ]);
 
@@ -187,7 +203,9 @@ public class IoLabController {
                     document.getElementById("chart").innerHTML =
                       toPath(virtualMetrics.samples, yMax, "#8be9fd") +
                       toPath(reactiveMetrics.samples, yMax, "#50fa7b");
-                    document.getElementById("runState").textContent = "Completed.";
+                    document.getElementById("runState").textContent = pinning
+                      ? `Completed with pinning enabled (${pinDelayMs}ms).`
+                      : "Completed.";
                   }
 
                   document.getElementById("runBtn").addEventListener("click", () => runComparison().catch(err => {

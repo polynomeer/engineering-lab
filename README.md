@@ -349,17 +349,20 @@ Example comparisons:
 Spring-based comparison endpoints:
 
 - `GET /lab/io/virtual-thread/echo?msg=hello&delayMs=100`
+- `GET /lab/io/virtual-thread/echo?msg=hello&delayMs=100&pinning=true&pinDelayMs=100`
 - `GET /lab/io/reactive/echo?msg=hello&delayMs=100`
 
 Examples:
 
 ```bash
 curl "http://localhost:8080/lab/io/virtual-thread/echo?msg=hello&delayMs=100"
+curl "http://localhost:8080/lab/io/virtual-thread/echo?msg=hello&delayMs=100&pinning=true&pinDelayMs=100"
 curl "http://localhost:8080/lab/io/reactive/echo?msg=hello&delayMs=100"
 ```
 
 The virtual-thread endpoint keeps blocking-style code and dispatches work onto a dedicated virtual-thread executor.
 The reactive endpoint uses `Mono.delay(...)` to demonstrate non-blocking wait semantics inside the Spring app.
+If you set `pinning=true`, the virtual-thread endpoint enters a `synchronized` block and sleeps inside it, which makes it easier to observe carrier-thread pinning behavior.
 
 Browser dashboard:
 
@@ -372,6 +375,7 @@ This page runs a lightweight sequential benchmark from the browser and compares:
 - total elapsed time
 - requests per second
 - per-request latency samples
+- optional virtual-thread pinning mode
 
 ## Expected XLSX format
 - First sheet only is parsed.
