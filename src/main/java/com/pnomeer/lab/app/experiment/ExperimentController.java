@@ -223,6 +223,10 @@ public class ExperimentController {
                     </div>
                     <div style="margin-top:14px;">
                       <div class="k">Timeline Overlay</div>
+                      <div class="preset-row" style="margin-top:10px;">
+                        <button class="preset-btn" id="exportComparisonJson">Export JSON</button>
+                        <button class="preset-btn" id="exportComparisonCsv">Export CSV</button>
+                      </div>
                       <svg id="comparisonChart" viewBox="0 0 1000 220" preserveAspectRatio="none"></svg>
                       <div class="sub" id="comparisonLegend">cyan/green: Job A primary/secondary, orange/red: Job B primary/secondary</div>
                     </div>
@@ -382,6 +386,18 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     };
                   }
 
+                  function exportBlob(filename, content, type) {
+                    const blob = new Blob([content], { type });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    URL.revokeObjectURL(url);
+                  }
+
                   async function loadComparisonMetrics(jobId) {
                     if (!jobId) {
                       return [];
@@ -397,6 +413,88 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     const snapshots = data.snapshots || [];
                     comparisonMetrics.set(jobId, snapshots);
                     return snapshots;
+                  }
+
+                  async function buildComparisonExportData() {
+                    const jobA = allJobs.find(job => job.jobId === document.getElementById("compareA").value);
+                    const jobB = allJobs.find(job => job.jobId === document.getElementById("compareB").value);
+                    if (!jobA || !jobB) {
+                      document.getElementById("runResult").textContent = "Select two succeeded jobs before export.";
+                      return null;
+                    }
+                    const [snapshotsA, snapshotsB] = await Promise.all([
+                      loadComparisonMetrics(jobA.jobId),
+                      loadComparisonMetrics(jobB.jobId)
+                    ]);
+                    return {
+                      exportedAt: new Date().toISOString(),
+                      jobA: {
+                        jobId: jobA.jobId,
+                        experimentType: jobA.experimentType,
+                        scenarioId: jobA.scenarioId,
+                        counters: jobA.counters,
+                        gauges: jobA.gauges,
+                        details: jobA.details,
+                        snapshots: snapshotsA
+                      },
+                      jobB: {
+                        jobId: jobB.jobId,
+                        experimentType: jobB.experimentType,
+                        scenarioId: jobB.scenarioId,
+                        counters: jobB.counters,
+                        gauges: jobB.gauges,
+                        details: jobB.details,
+                        snapshots: snapshotsB
+                      }
+                    };
+                  }
+
+                  async function exportComparisonJson() {
+                    const payload = await buildComparisonExportData();
+                    if (!payload) {
+                      return;
+                    }
+                    exportBlob(
+                      `experiment-comparison-${payload.jobA.jobId}-${payload.jobB.jobId}.json`,
+                      JSON.stringify(payload, null, 2),
+                      "application/json");
+                    document.getElementById("runResult").textContent = "Comparison JSON exported.";
+                  }
+
+                  async function exportComparisonCsv() {
+                    const payload = await buildComparisonExportData();
+                    if (!payload) {
+                      return;
+                    }
+                    const rows = [
+                      ["job_role", "job_id", "experiment_type", "scenario_id", "timestamp", "primary_value", "secondary_value"]
+                    ];
+                    [
+                      ["A", payload.jobA],
+                      ["B", payload.jobB]
+                    ].forEach(([role, job]) => {
+                      const series = metricSeries(job, job.snapshots);
+                      const size = Math.max(job.snapshots.length, series.primary.length, series.secondary.length);
+                      for (let index = 0; index < size; index++) {
+                        rows.push([
+                          role,
+                          job.jobId,
+                          job.experimentType,
+                          job.scenarioId,
+                          job.snapshots[index]?.timestampEpochMs ?? "",
+                          series.primary[index] ?? "",
+                          series.secondary[index] ?? ""
+                        ]);
+                      }
+                    });
+                    const csv = rows.map(row =>
+                      row.map(value => `"${String(value ?? "").replaceAll("\"", "\"\"")}"`).join(",")
+                    ).join("\\n");
+                    exportBlob(
+                      `experiment-comparison-${payload.jobA.jobId}-${payload.jobB.jobId}.csv`,
+                      csv,
+                      "text/csv;charset=utf-8");
+                    document.getElementById("runResult").textContent = "Comparison CSV exported.";
                   }
 
                   function populateComparisonSelectors(jobs) {
@@ -595,6 +693,8 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     pinning: false,
                     pinDelayMs: 20
                   }));
+                  document.getElementById("exportComparisonJson").addEventListener("click", () => exportComparisonJson().catch(console.error));
+                  document.getElementById("exportComparisonCsv").addEventListener("click", () => exportComparisonCsv().catch(console.error));
                   ["scenarioId", "queueCapacity", "producerThreads", "consumerThreads", "itemsPerProducer", "consumerDelayMs",
                    "ioScenarioId", "ioRequests", "ioDelayMs", "ioPinning", "ioPinDelayMs"]
                     .forEach(id => document.getElementById(id).addEventListener("input", saveDashboardState));

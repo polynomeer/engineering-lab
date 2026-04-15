@@ -18,6 +18,8 @@ class ExperimentControllerTest {
         assertTrue(html.contains("Backpressure Stress"));
         assertTrue(html.contains("Pinned Virtual Thread"));
         assertTrue(html.contains("comparisonChart"));
+        assertTrue(html.contains("Export JSON"));
+        assertTrue(html.contains("Export CSV"));
         assertTrue(html.contains("compareA"));
         assertTrue(html.contains("compareB"));
         assertTrue(html.contains("All experiments"));
