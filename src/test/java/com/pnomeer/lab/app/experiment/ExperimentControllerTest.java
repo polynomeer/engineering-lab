@@ -20,6 +20,8 @@ class ExperimentControllerTest {
         assertTrue(html.contains("comparisonChart"));
         assertTrue(html.contains("Export JSON"));
         assertTrue(html.contains("Export CSV"));
+        assertTrue(html.contains("Recent Preset History"));
+        assertTrue(html.contains("presetHistoryRows"));
         assertTrue(html.contains("compareA"));
         assertTrue(html.contains("compareB"));
         assertTrue(html.contains("All experiments"));

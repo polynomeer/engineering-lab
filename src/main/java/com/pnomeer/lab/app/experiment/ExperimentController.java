@@ -119,6 +119,11 @@ public class ExperimentController {
                     .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-top: 8px; }
                     .comparison { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
                     .metric-box { background: #171a24; border: 1px solid #44475a; border-radius: 10px; padding: 12px; }
+                    .table-wrap { overflow: auto; border: 1px solid #44475a; border-radius: 10px; }
+                    table { width: 100%%; border-collapse: collapse; font-size: 12px; }
+                    thead th { background: #171a24; color: #8be9fd; text-align: left; padding: 10px; }
+                    tbody td { border-top: 1px solid #383b4c; padding: 9px 10px; }
+                    tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
                     svg { width: 100%%; height: 220px; background: #171a24; border-radius: 10px; border: 1px solid #44475a; }
                     .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; border: 1px solid; font-weight: 700; }
                     .RUNNING { color: #ffb86c; border-color: #ffb86c; }
@@ -232,13 +237,34 @@ public class ExperimentController {
                     </div>
                   </div>
 
+                  <div class="card">
+                    <div class="k">Recent Preset History</div>
+                    <div class="sub">Tracks preset applications and experiment starts from this browser.</div>
+                    <div class="table-wrap" style="margin-top:12px;">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>time</th>
+                            <th>kind</th>
+                            <th>name</th>
+                            <th>mode</th>
+                            <th>details</th>
+                          </tr>
+                        </thead>
+                        <tbody id="presetHistoryRows"></tbody>
+                      </table>
+                    </div>
+                  </div>
+
                   <div id="jobs" class="jobs"></div>
                 </div>
 
                 <script>
                   let allJobs = [];
                   let comparisonMetrics = new Map();
+                  let presetHistory = [];
                   const dashboardStorageKey = "engineering-lab.experiments.dashboard";
+                  const presetHistoryStorageKey = "engineering-lab.experiments.preset-history";
 
                   function esc(value) {
                     return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
@@ -281,6 +307,10 @@ public class ExperimentController {
                     window.localStorage.setItem(dashboardStorageKey, JSON.stringify(state));
                   }
 
+                  function savePresetHistory() {
+                    window.localStorage.setItem(presetHistoryStorageKey, JSON.stringify(presetHistory));
+                  }
+
                   function loadDashboardState() {
                     try {
                       const raw = window.localStorage.getItem(dashboardStorageKey);
@@ -305,6 +335,40 @@ public class ExperimentController {
                     }
                   }
 
+                  function loadPresetHistory() {
+                    try {
+                      const raw = window.localStorage.getItem(presetHistoryStorageKey);
+                      if (!raw) {
+                        presetHistory = [];
+                        return;
+                      }
+                      const parsed = JSON.parse(raw);
+                      presetHistory = Array.isArray(parsed) ? parsed.slice(0, 12) : [];
+                    } catch (error) {
+                      console.error(error);
+                      presetHistory = [];
+                    }
+                  }
+
+                  function renderPresetHistory() {
+                    document.getElementById("presetHistoryRows").innerHTML = presetHistory.map(item => `
+                      <tr>
+                        <td>${esc(item.time)}</td>
+                        <td>${esc(item.kind)}</td>
+                        <td>${esc(item.name)}</td>
+                        <td>${esc(item.mode)}</td>
+                        <td>${esc(item.details)}</td>
+                      </tr>
+                    `).join("");
+                  }
+
+                  function pushPresetHistory(entry) {
+                    presetHistory.unshift(entry);
+                    presetHistory = presetHistory.slice(0, 12);
+                    savePresetHistory();
+                    renderPresetHistory();
+                  }
+
                   function applyQueuePreset(name, values) {
                     document.getElementById("scenarioId").value = name;
                     document.getElementById("queueCapacity").value = values.queueCapacity;
@@ -313,6 +377,13 @@ public class ExperimentController {
                     document.getElementById("itemsPerProducer").value = values.itemsPerProducer;
                     document.getElementById("consumerDelayMs").value = values.consumerDelayMs;
                     document.getElementById("runResult").textContent = `Applied queue preset: ${name}`;
+                    pushPresetHistory({
+                      time: new Date().toLocaleTimeString(),
+                      kind: "preset",
+                      name,
+                      mode: "queue",
+                      details: `cap=${values.queueCapacity}, producers=${values.producerThreads}, consumers=${values.consumerThreads}`
+                    });
                     saveDashboardState();
                   }
 
@@ -323,6 +394,13 @@ public class ExperimentController {
                     document.getElementById("ioPinning").value = values.pinning ? 1 : 0;
                     document.getElementById("ioPinDelayMs").value = values.pinDelayMs;
                     document.getElementById("runResult").textContent = `Applied IO preset: ${name}`;
+                    pushPresetHistory({
+                      time: new Date().toLocaleTimeString(),
+                      kind: "preset",
+                      name,
+                      mode: "io",
+                      details: `requests=${values.requests}, delay=${values.delayMs}, pinning=${values.pinning}`
+                    });
                     saveDashboardState();
                   }
 
@@ -625,6 +703,13 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     }
                     const data = await res.json();
                     document.getElementById("runResult").innerHTML = `Started <code>${esc(data.jobId)}</code>`;
+                    pushPresetHistory({
+                      time: new Date().toLocaleTimeString(),
+                      kind: "run",
+                      name: body.scenarioId,
+                      mode: "queue",
+                      details: `job=${data.jobId}`
+                    });
                     saveDashboardState();
                     refreshJobs().catch(console.error);
                   }
@@ -648,6 +733,13 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     }
                     const data = await res.json();
                     document.getElementById("runResult").innerHTML = `Started <code>${esc(data.jobId)}</code>`;
+                    pushPresetHistory({
+                      time: new Date().toLocaleTimeString(),
+                      kind: "run",
+                      name: body.scenarioId,
+                      mode: "io",
+                      details: `job=${data.jobId}`
+                    });
                     saveDashboardState();
                     refreshJobs().catch(console.error);
                   }
@@ -705,6 +797,8 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                   document.getElementById("compareA").addEventListener("change", () => renderComparison().catch(console.error));
                   document.getElementById("compareB").addEventListener("change", () => renderComparison().catch(console.error));
                   loadDashboardState();
+                  loadPresetHistory();
+                  renderPresetHistory();
                   setInterval(() => refreshJobs().catch(console.error), 1000);
                   refreshJobs().catch(console.error);
                 </script>
