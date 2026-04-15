@@ -106,9 +106,11 @@ public class ExperimentController {
                     .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
                     .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
                     .toolbar { display: grid; grid-template-columns: 1fr 200px 200px; gap: 10px; align-items: end; }
+                    .preset-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
                     label { display: block; font-size: 12px; color: #bd93f9; margin-bottom: 6px; }
                     input, select { width: 100%%; box-sizing: border-box; background: #171a24; color: #f8f8f2; border: 1px solid #44475a; border-radius: 8px; padding: 10px; }
                     button { background: linear-gradient(90deg, #8be9fd, #50fa7b); color: #10131c; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+                    .preset-btn { background: #171a24; color: #f8f8f2; border: 1px solid #44475a; }
                     .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
                     .k { font-size: 12px; color: #bd93f9; }
                     .v { font-size: 24px; font-weight: 700; margin-top: 4px; }
@@ -136,6 +138,11 @@ public class ExperimentController {
                   <div class="grid">
                     <div class="card">
                       <div class="k">Start Queue Contention Experiment</div>
+                      <div class="preset-row">
+                        <button class="preset-btn" id="queuePresetQuick">Quick Demo</button>
+                        <button class="preset-btn" id="queuePresetPressure">Backpressure Stress</button>
+                        <button class="preset-btn" id="queuePresetBurst">Burst Producers</button>
+                      </div>
                       <div class="form-grid" style="margin-top:12px;">
                         <div><label for="scenarioId">Scenario ID</label><input id="scenarioId" value="queue-contention-demo" /></div>
                         <div><label for="queueCapacity">Queue Capacity</label><input id="queueCapacity" type="number" value="2" min="1" /></div>
@@ -149,6 +156,11 @@ public class ExperimentController {
 
                     <div class="card">
                       <div class="k">Start IO Endpoint Comparison</div>
+                      <div class="preset-row">
+                        <button class="preset-btn" id="ioPresetFast">Fast Echo</button>
+                        <button class="preset-btn" id="ioPresetPinned">Pinned Virtual Thread</button>
+                        <button class="preset-btn" id="ioPresetLatency">Long Wait</button>
+                      </div>
                       <div class="form-grid" style="margin-top:12px;">
                         <div><label for="ioScenarioId">Scenario ID</label><input id="ioScenarioId" value="io-comparison-demo" /></div>
                         <div><label for="ioRequests">Requests / Mode</label><input id="ioRequests" type="number" value="12" min="1" /></div>
@@ -225,6 +237,25 @@ public class ExperimentController {
 
                   function esc(value) {
                     return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+                  }
+
+                  function applyQueuePreset(name, values) {
+                    document.getElementById("scenarioId").value = name;
+                    document.getElementById("queueCapacity").value = values.queueCapacity;
+                    document.getElementById("producerThreads").value = values.producerThreads;
+                    document.getElementById("consumerThreads").value = values.consumerThreads;
+                    document.getElementById("itemsPerProducer").value = values.itemsPerProducer;
+                    document.getElementById("consumerDelayMs").value = values.consumerDelayMs;
+                    document.getElementById("runResult").textContent = `Applied queue preset: ${name}`;
+                  }
+
+                  function applyIoPreset(name, values) {
+                    document.getElementById("ioScenarioId").value = name;
+                    document.getElementById("ioRequests").value = values.requests;
+                    document.getElementById("ioDelayMs").value = values.delayMs;
+                    document.getElementById("ioPinning").value = values.pinning ? 1 : 0;
+                    document.getElementById("ioPinDelayMs").value = values.pinDelayMs;
+                    document.getElementById("runResult").textContent = `Applied IO preset: ${name}`;
                   }
 
                   function toPath(values, yMax, color) {
@@ -452,6 +483,45 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
 
                   document.getElementById("runQueueBtn").addEventListener("click", () => startQueueExperiment().catch(console.error));
                   document.getElementById("runIoBtn").addEventListener("click", () => startIoExperiment().catch(console.error));
+                  document.getElementById("queuePresetQuick").addEventListener("click", () => applyQueuePreset("queue-quick-demo", {
+                    queueCapacity: 4,
+                    producerThreads: 2,
+                    consumerThreads: 1,
+                    itemsPerProducer: 40,
+                    consumerDelayMs: 1
+                  }));
+                  document.getElementById("queuePresetPressure").addEventListener("click", () => applyQueuePreset("queue-backpressure-stress", {
+                    queueCapacity: 2,
+                    producerThreads: 3,
+                    consumerThreads: 1,
+                    itemsPerProducer: 150,
+                    consumerDelayMs: 6
+                  }));
+                  document.getElementById("queuePresetBurst").addEventListener("click", () => applyQueuePreset("queue-burst-producers", {
+                    queueCapacity: 8,
+                    producerThreads: 4,
+                    consumerThreads: 2,
+                    itemsPerProducer: 200,
+                    consumerDelayMs: 2
+                  }));
+                  document.getElementById("ioPresetFast").addEventListener("click", () => applyIoPreset("io-fast-echo", {
+                    requests: 10,
+                    delayMs: 5,
+                    pinning: false,
+                    pinDelayMs: 5
+                  }));
+                  document.getElementById("ioPresetPinned").addEventListener("click", () => applyIoPreset("io-pinned-virtual-thread", {
+                    requests: 16,
+                    delayMs: 20,
+                    pinning: true,
+                    pinDelayMs: 60
+                  }));
+                  document.getElementById("ioPresetLatency").addEventListener("click", () => applyIoPreset("io-long-wait", {
+                    requests: 12,
+                    delayMs: 120,
+                    pinning: false,
+                    pinDelayMs: 20
+                  }));
                   document.getElementById("jobFilter").addEventListener("change", () => refreshJobs().catch(console.error));
                   document.getElementById("compareA").addEventListener("change", () => renderComparison().catch(console.error));
                   document.getElementById("compareB").addEventListener("change", () => renderComparison().catch(console.error));

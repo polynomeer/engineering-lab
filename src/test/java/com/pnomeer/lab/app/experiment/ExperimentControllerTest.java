@@ -14,6 +14,9 @@ class ExperimentControllerTest {
         assertTrue(html.contains("Experiment Type Filter"));
         assertTrue(html.contains("Comparison View"));
         assertTrue(html.contains("Timeline Overlay"));
+        assertTrue(html.contains("Quick Demo"));
+        assertTrue(html.contains("Backpressure Stress"));
+        assertTrue(html.contains("Pinned Virtual Thread"));
         assertTrue(html.contains("comparisonChart"));
         assertTrue(html.contains("compareA"));
         assertTrue(html.contains("compareB"));
