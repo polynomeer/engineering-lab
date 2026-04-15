@@ -45,6 +45,7 @@ class IoLabControllerTest {
             assertTrue(html.contains("/lab/io/virtual-thread/echo"));
             assertTrue(html.contains("/lab/io/reactive/echo"));
             assertTrue(html.contains("Pinning (0/1)"));
+            assertTrue(html.contains("Run History"));
         }
     }
 }

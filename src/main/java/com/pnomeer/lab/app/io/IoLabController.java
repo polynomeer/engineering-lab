@@ -85,6 +85,11 @@ public class IoLabController {
                     .v { font-size: 22px; font-weight: 700; margin-top: 4px; }
                     svg { width: 100%%; height: 220px; background: #171a24; border-radius: 10px; border: 1px solid #44475a; }
                     .two { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+                    .table-wrap { overflow: auto; border: 1px solid #44475a; border-radius: 10px; }
+                    table { width: 100%%; border-collapse: collapse; font-size: 12px; }
+                    thead th { background: #171a24; color: #8be9fd; text-align: left; padding: 10px; }
+                    tbody td { border-top: 1px solid #383b4c; padding: 9px 10px; }
+                    tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
                     .small { font-size: 12px; color: #6272a4; }
                     @media (max-width: 920px) { .grid, .two, .form-grid, .stats { grid-template-columns: 1fr; } }
                   </style>
@@ -142,9 +147,33 @@ public class IoLabController {
                     <svg id="chart" viewBox="0 0 1000 220" preserveAspectRatio="none"></svg>
                     <div class="small">cyan: virtual-thread, green: reactive</div>
                   </div>
+
+                  <div class="card">
+                    <div class="k">Run History</div>
+                    <div class="small">Latest comparisons are kept in-memory in the browser for quick side-by-side review.</div>
+                    <div class="table-wrap" style="margin-top:12px;">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>msg</th>
+                            <th>delay</th>
+                            <th>pinning</th>
+                            <th>pinDelay</th>
+                            <th>virtual avg</th>
+                            <th>reactive avg</th>
+                            <th>winner</th>
+                          </tr>
+                        </thead>
+                        <tbody id="historyRows"></tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
 
                 <script>
+                  let history = [];
+
                   function toPath(data, yMax, color) {
                     if (!data.length || yMax <= 0) return "";
                     const step = 1000 / Math.max(1, data.length - 1);
@@ -177,6 +206,22 @@ public class IoLabController {
                     document.getElementById(`${prefix}Rps`).textContent = metrics.rps.toFixed(1);
                   }
 
+                  function renderHistory() {
+                    const body = document.getElementById("historyRows");
+                    body.innerHTML = history.map((item, index) => `
+                      <tr>
+                        <td>${history.length - index}</td>
+                        <td>${item.msg}</td>
+                        <td>${item.delayMs}ms</td>
+                        <td>${item.pinning ? "on" : "off"}</td>
+                        <td>${item.pinDelayMs}ms</td>
+                        <td>${item.virtualAvgMs.toFixed(1)}ms</td>
+                        <td>${item.reactiveAvgMs.toFixed(1)}ms</td>
+                        <td>${item.winner}</td>
+                      </tr>
+                    `).join("");
+                  }
+
                   async function runComparison() {
                     const msg = document.getElementById("msg").value;
                     const delayMs = Number(document.getElementById("delayMs").value);
@@ -199,6 +244,18 @@ public class IoLabController {
                       reactiveMetrics.avgMs < virtualMetrics.avgMs ? "Reactive" : "Tie";
                     document.getElementById("winner").textContent = winner;
 
+                    history.unshift({
+                      msg,
+                      delayMs,
+                      pinning,
+                      pinDelayMs,
+                      virtualAvgMs: virtualMetrics.avgMs,
+                      reactiveAvgMs: reactiveMetrics.avgMs,
+                      winner
+                    });
+                    history = history.slice(0, 12);
+                    renderHistory();
+
                     const yMax = Math.max(1, ...virtualMetrics.samples, ...reactiveMetrics.samples);
                     document.getElementById("chart").innerHTML =
                       toPath(virtualMetrics.samples, yMax, "#8be9fd") +
@@ -212,6 +269,7 @@ public class IoLabController {
                     console.error(err);
                     document.getElementById("runState").textContent = "Failed to run comparison.";
                   }));
+                  renderHistory();
                 </script>
                 </body>
                 </html>
