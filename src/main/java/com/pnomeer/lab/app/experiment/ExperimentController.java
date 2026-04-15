@@ -105,8 +105,9 @@ public class ExperimentController {
                     .sub { font-size: 12px; color: #6272a4; margin-top: 6px; }
                     .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
                     .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+                    .toolbar { display: grid; grid-template-columns: 1fr 200px 200px; gap: 10px; align-items: end; }
                     label { display: block; font-size: 12px; color: #bd93f9; margin-bottom: 6px; }
-                    input { width: 100%%; box-sizing: border-box; background: #171a24; color: #f8f8f2; border: 1px solid #44475a; border-radius: 8px; padding: 10px; }
+                    input, select { width: 100%%; box-sizing: border-box; background: #171a24; color: #f8f8f2; border: 1px solid #44475a; border-radius: 8px; padding: 10px; }
                     button { background: linear-gradient(90deg, #8be9fd, #50fa7b); color: #10131c; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
                     .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
                     .k { font-size: 12px; color: #bd93f9; }
@@ -114,12 +115,14 @@ public class ExperimentController {
                     .jobs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
                     .job { background: #171a24; border: 1px solid #44475a; border-radius: 10px; padding: 12px; }
                     .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-top: 8px; }
+                    .comparison { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+                    .metric-box { background: #171a24; border: 1px solid #44475a; border-radius: 10px; padding: 12px; }
                     .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; border: 1px solid; font-weight: 700; }
                     .RUNNING { color: #ffb86c; border-color: #ffb86c; }
                     .SUCCEEDED { color: #50fa7b; border-color: #50fa7b; }
                     .FAILED { color: #ff5555; border-color: #ff5555; }
                     .link a { color: #8be9fd; text-decoration: none; }
-                    @media (max-width: 960px) { .grid, .jobs, .stats, .form-grid { grid-template-columns: 1fr; } }
+                    @media (max-width: 960px) { .grid, .jobs, .stats, .form-grid, .toolbar, .comparison { grid-template-columns: 1fr; } }
                   </style>
                 </head>
                 <body>
@@ -164,12 +167,120 @@ public class ExperimentController {
                     </div>
                   </div>
 
+                  <div class="card">
+                    <div class="k">Experiment Browser</div>
+                    <div class="toolbar" style="margin-top:12px;">
+                      <div>
+                        <label for="jobFilter">Experiment Type Filter</label>
+                        <select id="jobFilter">
+                          <option value="all">All experiments</option>
+                          <option value="concurrency.queue-contention">Queue contention</option>
+                          <option value="io.endpoint-comparison">IO endpoint comparison</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="compareA">Compare A</label>
+                        <select id="compareA"></select>
+                      </div>
+                      <div>
+                        <label for="compareB">Compare B</label>
+                        <select id="compareB"></select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="k">Comparison View</div>
+                    <div class="sub">Compares the latest succeeded jobs using a normalized summary.</div>
+                    <div class="comparison" style="margin-top:12px;">
+                      <div class="metric-box">
+                        <div class="k">Job A</div>
+                        <div class="v" id="compareAType">-</div>
+                        <div class="sub" id="compareAScenario">-</div>
+                      </div>
+                      <div class="metric-box">
+                        <div class="k">Job B</div>
+                        <div class="v" id="compareBType">-</div>
+                        <div class="sub" id="compareBScenario">-</div>
+                      </div>
+                      <div class="metric-box">
+                        <div class="k">Delta Summary</div>
+                        <div class="sub" id="compareDelta">Pick two succeeded jobs.</div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div id="jobs" class="jobs"></div>
                 </div>
 
                 <script>
+                  let allJobs = [];
+
                   function esc(value) {
                     return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+                  }
+
+                  function summarizeJob(job) {
+                    if (job.experimentType === "io.endpoint-comparison") {
+                      return {
+                        primary: job.gauges?.["throughput.totalRequestsPerSec"] ?? 0,
+                        primaryLabel: "total throughput",
+                        secondary: job.gauges?.["virtual.avgLatencyMs"] ?? 0,
+                        secondaryLabel: "virtual avg latency",
+                        unitPrimary: "/s",
+                        unitSecondary: "ms"
+                      };
+                    }
+                    return {
+                      primary: job.gauges?.["throughput.itemsPerSec"] ?? 0,
+                      primaryLabel: "throughput",
+                      secondary: job.gauges?.["queue.avgEnqueueWaitMs"] ?? 0,
+                      secondaryLabel: "avg enqueue wait",
+                      unitPrimary: "/s",
+                      unitSecondary: "ms"
+                    };
+                  }
+
+                  function formatMetric(value, unit) {
+                    return `${Number(value ?? 0).toFixed(2)}${unit}`;
+                  }
+
+                  function comparisonLabel(summaryA, summaryB) {
+                    const primaryDelta = summaryA.primary - summaryB.primary;
+                    const secondaryDelta = summaryA.secondary - summaryB.secondary;
+                    return `${summaryA.primaryLabel}: ${formatMetric(summaryA.primary, summaryA.unitPrimary)} vs ${formatMetric(summaryB.primary, summaryB.unitPrimary)} | delta ${primaryDelta >= 0 ? "+" : ""}${primaryDelta.toFixed(2)}${summaryA.unitPrimary}
+${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSecondary)} vs ${formatMetric(summaryB.secondary, summaryB.unitSecondary)} | delta ${secondaryDelta >= 0 ? "+" : ""}${secondaryDelta.toFixed(2)}${summaryA.unitSecondary}`;
+                  }
+
+                  function populateComparisonSelectors(jobs) {
+                    const succeeded = jobs.filter(job => job.status === "SUCCEEDED");
+                    const options = succeeded.map(job =>
+                      `<option value="${esc(job.jobId)}">${esc(job.experimentType)} :: ${esc(job.scenarioId)}</option>`
+                    ).join("");
+                    document.getElementById("compareA").innerHTML = `<option value="">Select job</option>${options}`;
+                    document.getElementById("compareB").innerHTML = `<option value="">Select job</option>${options}`;
+                    if (succeeded[0] && !document.getElementById("compareA").value) {
+                      document.getElementById("compareA").value = succeeded[0].jobId;
+                    }
+                    if (succeeded[1] && !document.getElementById("compareB").value) {
+                      document.getElementById("compareB").value = succeeded[1].jobId;
+                    }
+                  }
+
+                  function renderComparison() {
+                    const jobA = allJobs.find(job => job.jobId === document.getElementById("compareA").value);
+                    const jobB = allJobs.find(job => job.jobId === document.getElementById("compareB").value);
+                    document.getElementById("compareAType").textContent = jobA?.experimentType ?? "-";
+                    document.getElementById("compareAScenario").textContent = jobA?.scenarioId ?? "-";
+                    document.getElementById("compareBType").textContent = jobB?.experimentType ?? "-";
+                    document.getElementById("compareBScenario").textContent = jobB?.scenarioId ?? "-";
+                    if (!jobA || !jobB) {
+                      document.getElementById("compareDelta").textContent = "Pick two succeeded jobs.";
+                      return;
+                    }
+                    const summaryA = summarizeJob(jobA);
+                    const summaryB = summarizeJob(jobB);
+                    document.getElementById("compareDelta").textContent = comparisonLabel(summaryA, summaryB);
                   }
 
                   function renderJob(job) {
@@ -209,12 +320,16 @@ public class ExperimentController {
                     const res = await fetch("/experiments/jobs");
                     if (!res.ok) return;
                     const data = await res.json();
-                    const jobs = data.jobs || [];
+                    allJobs = data.jobs || [];
+                    const filter = document.getElementById("jobFilter").value;
+                    const jobs = filter === "all" ? allJobs : allJobs.filter(job => job.experimentType === filter);
                     document.getElementById("running").textContent = jobs.filter(j => j.status === "RUNNING").length;
                     document.getElementById("succeeded").textContent = jobs.filter(j => j.status === "SUCCEEDED").length;
                     document.getElementById("failed").textContent = jobs.filter(j => j.status === "FAILED").length;
-                    document.getElementById("total").textContent = jobs.length;
+                    document.getElementById("total").textContent = allJobs.length;
                     document.getElementById("jobs").innerHTML = jobs.map(renderJob).join("");
+                    populateComparisonSelectors(allJobs);
+                    renderComparison();
                   }
 
                   async function startQueueExperiment() {
@@ -264,6 +379,9 @@ public class ExperimentController {
 
                   document.getElementById("runQueueBtn").addEventListener("click", () => startQueueExperiment().catch(console.error));
                   document.getElementById("runIoBtn").addEventListener("click", () => startIoExperiment().catch(console.error));
+                  document.getElementById("jobFilter").addEventListener("change", () => refreshJobs().catch(console.error));
+                  document.getElementById("compareA").addEventListener("change", renderComparison);
+                  document.getElementById("compareB").addEventListener("change", renderComparison);
                   setInterval(() => refreshJobs().catch(console.error), 1000);
                   refreshJobs().catch(console.error);
                 </script>
