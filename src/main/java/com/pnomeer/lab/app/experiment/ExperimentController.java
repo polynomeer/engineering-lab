@@ -234,9 +234,71 @@ public class ExperimentController {
                 <script>
                   let allJobs = [];
                   let comparisonMetrics = new Map();
+                  const dashboardStorageKey = "engineering-lab.experiments.dashboard";
 
                   function esc(value) {
                     return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+                  }
+
+                  function getValue(id) {
+                    return document.getElementById(id).value;
+                  }
+
+                  function setValue(id, value) {
+                    if (value === undefined || value === null) {
+                      return;
+                    }
+                    document.getElementById(id).value = value;
+                  }
+
+                  function saveDashboardState() {
+                    const state = {
+                      queue: {
+                        scenarioId: getValue("scenarioId"),
+                        queueCapacity: getValue("queueCapacity"),
+                        producerThreads: getValue("producerThreads"),
+                        consumerThreads: getValue("consumerThreads"),
+                        itemsPerProducer: getValue("itemsPerProducer"),
+                        consumerDelayMs: getValue("consumerDelayMs")
+                      },
+                      io: {
+                        scenarioId: getValue("ioScenarioId"),
+                        requests: getValue("ioRequests"),
+                        delayMs: getValue("ioDelayMs"),
+                        pinning: getValue("ioPinning"),
+                        pinDelayMs: getValue("ioPinDelayMs")
+                      },
+                      browser: {
+                        jobFilter: getValue("jobFilter"),
+                        compareA: getValue("compareA"),
+                        compareB: getValue("compareB")
+                      }
+                    };
+                    window.localStorage.setItem(dashboardStorageKey, JSON.stringify(state));
+                  }
+
+                  function loadDashboardState() {
+                    try {
+                      const raw = window.localStorage.getItem(dashboardStorageKey);
+                      if (!raw) {
+                        return;
+                      }
+                      const state = JSON.parse(raw);
+                      setValue("scenarioId", state.queue?.scenarioId);
+                      setValue("queueCapacity", state.queue?.queueCapacity);
+                      setValue("producerThreads", state.queue?.producerThreads);
+                      setValue("consumerThreads", state.queue?.consumerThreads);
+                      setValue("itemsPerProducer", state.queue?.itemsPerProducer);
+                      setValue("consumerDelayMs", state.queue?.consumerDelayMs);
+                      setValue("ioScenarioId", state.io?.scenarioId);
+                      setValue("ioRequests", state.io?.requests);
+                      setValue("ioDelayMs", state.io?.delayMs);
+                      setValue("ioPinning", state.io?.pinning);
+                      setValue("ioPinDelayMs", state.io?.pinDelayMs);
+                      setValue("jobFilter", state.browser?.jobFilter);
+                    } catch (error) {
+                      console.error(error);
+                    }
                   }
 
                   function applyQueuePreset(name, values) {
@@ -247,6 +309,7 @@ public class ExperimentController {
                     document.getElementById("itemsPerProducer").value = values.itemsPerProducer;
                     document.getElementById("consumerDelayMs").value = values.consumerDelayMs;
                     document.getElementById("runResult").textContent = `Applied queue preset: ${name}`;
+                    saveDashboardState();
                   }
 
                   function applyIoPreset(name, values) {
@@ -256,6 +319,7 @@ public class ExperimentController {
                     document.getElementById("ioPinning").value = values.pinning ? 1 : 0;
                     document.getElementById("ioPinDelayMs").value = values.pinDelayMs;
                     document.getElementById("runResult").textContent = `Applied IO preset: ${name}`;
+                    saveDashboardState();
                   }
 
                   function toPath(values, yMax, color) {
@@ -337,15 +401,21 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
 
                   function populateComparisonSelectors(jobs) {
                     const succeeded = jobs.filter(job => job.status === "SUCCEEDED");
+                    const savedCompareA = getValue("compareA");
+                    const savedCompareB = getValue("compareB");
                     const options = succeeded.map(job =>
                       `<option value="${esc(job.jobId)}">${esc(job.experimentType)} :: ${esc(job.scenarioId)}</option>`
                     ).join("");
                     document.getElementById("compareA").innerHTML = `<option value="">Select job</option>${options}`;
                     document.getElementById("compareB").innerHTML = `<option value="">Select job</option>${options}`;
-                    if (succeeded[0] && !document.getElementById("compareA").value) {
+                    if (savedCompareA && succeeded.some(job => job.jobId === savedCompareA)) {
+                      document.getElementById("compareA").value = savedCompareA;
+                    } else if (succeeded[0] && !document.getElementById("compareA").value) {
                       document.getElementById("compareA").value = succeeded[0].jobId;
                     }
-                    if (succeeded[1] && !document.getElementById("compareB").value) {
+                    if (savedCompareB && succeeded.some(job => job.jobId === savedCompareB)) {
+                      document.getElementById("compareB").value = savedCompareB;
+                    } else if (succeeded[1] && !document.getElementById("compareB").value) {
                       document.getElementById("compareB").value = succeeded[1].jobId;
                     }
                   }
@@ -353,6 +423,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                   async function renderComparison() {
                     const jobA = allJobs.find(job => job.jobId === document.getElementById("compareA").value);
                     const jobB = allJobs.find(job => job.jobId === document.getElementById("compareB").value);
+                    saveDashboardState();
                     document.getElementById("compareAType").textContent = jobA?.experimentType ?? "-";
                     document.getElementById("compareAScenario").textContent = jobA?.scenarioId ?? "-";
                     document.getElementById("compareBType").textContent = jobB?.experimentType ?? "-";
@@ -456,6 +527,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     }
                     const data = await res.json();
                     document.getElementById("runResult").innerHTML = `Started <code>${esc(data.jobId)}</code>`;
+                    saveDashboardState();
                     refreshJobs().catch(console.error);
                   }
 
@@ -478,6 +550,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     }
                     const data = await res.json();
                     document.getElementById("runResult").innerHTML = `Started <code>${esc(data.jobId)}</code>`;
+                    saveDashboardState();
                     refreshJobs().catch(console.error);
                   }
 
@@ -522,9 +595,16 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                     pinning: false,
                     pinDelayMs: 20
                   }));
-                  document.getElementById("jobFilter").addEventListener("change", () => refreshJobs().catch(console.error));
+                  ["scenarioId", "queueCapacity", "producerThreads", "consumerThreads", "itemsPerProducer", "consumerDelayMs",
+                   "ioScenarioId", "ioRequests", "ioDelayMs", "ioPinning", "ioPinDelayMs"]
+                    .forEach(id => document.getElementById(id).addEventListener("input", saveDashboardState));
+                  document.getElementById("jobFilter").addEventListener("change", () => {
+                    saveDashboardState();
+                    refreshJobs().catch(console.error);
+                  });
                   document.getElementById("compareA").addEventListener("change", () => renderComparison().catch(console.error));
                   document.getElementById("compareB").addEventListener("change", () => renderComparison().catch(console.error));
+                  loadDashboardState();
                   setInterval(() => refreshJobs().catch(console.error), 1000);
                   refreshJobs().catch(console.error);
                 </script>

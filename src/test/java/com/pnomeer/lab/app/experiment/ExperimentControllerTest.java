@@ -21,5 +21,6 @@ class ExperimentControllerTest {
         assertTrue(html.contains("compareA"));
         assertTrue(html.contains("compareB"));
         assertTrue(html.contains("All experiments"));
+        assertTrue(html.contains("engineering-lab.experiments.dashboard"));
     }
 }
