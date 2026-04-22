@@ -124,6 +124,7 @@ public class ExperimentController {
                     thead th { background: #171a24; color: #8be9fd; text-align: left; padding: 10px; }
                     tbody td { border-top: 1px solid #383b4c; padding: 9px 10px; }
                     tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+                    .link-btn { background: transparent; color: #8be9fd; border: 0; padding: 0; cursor: pointer; font: inherit; text-align: left; }
                     svg { width: 100%%; height: 220px; background: #171a24; border-radius: 10px; border: 1px solid #44475a; }
                     .badge { font-size: 11px; border-radius: 999px; padding: 3px 8px; border: 1px solid; font-weight: 700; }
                     .RUNNING { color: #ffb86c; border-color: #ffb86c; }
@@ -355,15 +356,44 @@ public class ExperimentController {
                       <tr>
                         <td>${esc(item.time)}</td>
                         <td>${esc(item.kind)}</td>
-                        <td>${esc(item.name)}</td>
+                        <td><button class="link-btn" data-history-id="${esc(item.id)}">${esc(item.name)}</button></td>
                         <td>${esc(item.mode)}</td>
                         <td>${esc(item.details)}</td>
                       </tr>
                     `).join("");
+                    document.querySelectorAll("[data-history-id]").forEach(button => {
+                      button.addEventListener("click", () => restoreHistoryEntry(button.getAttribute("data-history-id")));
+                    });
+                  }
+
+                  function restoreHistoryEntry(historyId) {
+                    const entry = presetHistory.find(item => item.id === historyId);
+                    if (!entry || !entry.payload) {
+                      return;
+                    }
+                    if (entry.mode === "queue") {
+                      setValue("scenarioId", entry.payload.scenarioId);
+                      setValue("queueCapacity", entry.payload.queueCapacity);
+                      setValue("producerThreads", entry.payload.producerThreads);
+                      setValue("consumerThreads", entry.payload.consumerThreads);
+                      setValue("itemsPerProducer", entry.payload.itemsPerProducer);
+                      setValue("consumerDelayMs", entry.payload.consumerDelayMs);
+                    } else if (entry.mode === "io") {
+                      setValue("ioScenarioId", entry.payload.scenarioId);
+                      setValue("ioRequests", entry.payload.requests);
+                      setValue("ioDelayMs", entry.payload.delayMs);
+                      setValue("ioPinning", entry.payload.pinning ? 1 : 0);
+                      setValue("ioPinDelayMs", entry.payload.pinDelayMs);
+                    }
+                    document.getElementById("runResult").textContent = `Restored history entry: ${entry.name}`;
+                    saveDashboardState();
                   }
 
                   function pushPresetHistory(entry) {
-                    presetHistory.unshift(entry);
+                    presetHistory.unshift({
+                      id: entry.id ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                      ...entry
+                    });
                     presetHistory = presetHistory.slice(0, 12);
                     savePresetHistory();
                     renderPresetHistory();
@@ -382,7 +412,15 @@ public class ExperimentController {
                       kind: "preset",
                       name,
                       mode: "queue",
-                      details: `cap=${values.queueCapacity}, producers=${values.producerThreads}, consumers=${values.consumerThreads}`
+                      details: `cap=${values.queueCapacity}, producers=${values.producerThreads}, consumers=${values.consumerThreads}`,
+                      payload: {
+                        scenarioId: name,
+                        queueCapacity: values.queueCapacity,
+                        producerThreads: values.producerThreads,
+                        consumerThreads: values.consumerThreads,
+                        itemsPerProducer: values.itemsPerProducer,
+                        consumerDelayMs: values.consumerDelayMs
+                      }
                     });
                     saveDashboardState();
                   }
@@ -399,7 +437,14 @@ public class ExperimentController {
                       kind: "preset",
                       name,
                       mode: "io",
-                      details: `requests=${values.requests}, delay=${values.delayMs}, pinning=${values.pinning}`
+                      details: `requests=${values.requests}, delay=${values.delayMs}, pinning=${values.pinning}`,
+                      payload: {
+                        scenarioId: name,
+                        requests: values.requests,
+                        delayMs: values.delayMs,
+                        pinning: values.pinning,
+                        pinDelayMs: values.pinDelayMs
+                      }
                     });
                     saveDashboardState();
                   }
@@ -708,7 +753,15 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                       kind: "run",
                       name: body.scenarioId,
                       mode: "queue",
-                      details: `job=${data.jobId}`
+                      details: `job=${data.jobId}`,
+                      payload: {
+                        scenarioId: body.scenarioId,
+                        queueCapacity: body.queueCapacity,
+                        producerThreads: body.producerThreads,
+                        consumerThreads: body.consumerThreads,
+                        itemsPerProducer: body.itemsPerProducer,
+                        consumerDelayMs: body.consumerDelayMs
+                      }
                     });
                     saveDashboardState();
                     refreshJobs().catch(console.error);
@@ -738,7 +791,14 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                       kind: "run",
                       name: body.scenarioId,
                       mode: "io",
-                      details: `job=${data.jobId}`
+                      details: `job=${data.jobId}`,
+                      payload: {
+                        scenarioId: body.scenarioId,
+                        requests: body.requests,
+                        delayMs: body.delayMs,
+                        pinning: body.pinning,
+                        pinDelayMs: body.pinDelayMs
+                      }
                     });
                     saveDashboardState();
                     refreshJobs().catch(console.error);

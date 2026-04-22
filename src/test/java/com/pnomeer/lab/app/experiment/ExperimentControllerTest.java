@@ -22,6 +22,8 @@ class ExperimentControllerTest {
         assertTrue(html.contains("Export CSV"));
         assertTrue(html.contains("Recent Preset History"));
         assertTrue(html.contains("presetHistoryRows"));
+        assertTrue(html.contains("data-history-id"));
+        assertTrue(html.contains("Restored history entry"));
         assertTrue(html.contains("compareA"));
         assertTrue(html.contains("compareB"));
         assertTrue(html.contains("All experiments"));
