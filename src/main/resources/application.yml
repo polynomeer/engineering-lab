@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: mds-distribution-lab
+  datasource:
+    hikari:
+      # [NEW-DESIGN] equity-system-lab에서 겪은 것과 동일한 문제(Testcontainers 기반
+      # 통합 테스트를 여러 개 연달아 돌릴 때 유휴 커넥션이 끊기는 현상)를 미리 방지한다.
+      keepalive-time: 30000
+      max-lifetime: 120000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
