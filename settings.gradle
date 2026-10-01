@@ -1,0 +1,2 @@
+rootProject.name = 'engineering-lab'
+include 'engineering-experiments', 'equity-system', 'batch-excel', 'mcp-platform', 'mds-distribution', 'creator-studio'
