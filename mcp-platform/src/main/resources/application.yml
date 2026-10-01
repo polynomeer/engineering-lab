@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: mcp-platform-lab
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
