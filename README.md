@@ -17,10 +17,23 @@ Each module's own `README.md` has full detail: architecture, API/usage, how to r
 
 ## Build
 
-This is a single Gradle multi-project build (one root wrapper and `settings.gradle` for all 6 modules):
+This is a single Gradle multi-project build (one root wrapper and `settings.gradle` for all 6 modules). Run every module's tests at once:
 
 ```bash
 JAVA_HOME=<a JDK 21 home> ./gradlew test
 ```
 
 Docker must be running locally for the Testcontainers-backed modules (`equity-system`, `batch-excel`, `mcp-platform`, `mds-distribution`, `creator-studio` all spin up MySQL/Redis containers in their tests).
+
+### Running a single module's tests
+
+Target one subproject with Gradle's `:<module>:test` task syntax instead of running the whole suite:
+
+```bash
+JAVA_HOME=<a JDK 21 home> ./gradlew :engineering-experiments:test
+JAVA_HOME=<a JDK 21 home> ./gradlew :equity-system:test
+JAVA_HOME=<a JDK 21 home> ./gradlew :batch-excel:test
+JAVA_HOME=<a JDK 21 home> ./gradlew :mcp-platform:test
+JAVA_HOME=<a JDK 21 home> ./gradlew :mds-distribution:test
+JAVA_HOME=<a JDK 21 home> ./gradlew :creator-studio:test
+```
