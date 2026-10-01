@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: creator-studio-lab
+  datasource:
+    hikari:
+      # [NEW-DESIGN] equity-system-lab에서 겪은 것과 같은 문제(테스트 클래스 사이
+      # 유휴 커넥션이 Docker 네트워크 계층에서 끊기는 것)를 예방하기 위해 동일하게 적용.
+      keepalive-time: 30000
+      max-lifetime: 120000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+creator-studio:
+  session:
+    access-token-ttl-seconds: 1800      # [NEW-DESIGN] design/creator-studio.md 8절 — facts엔 실제 TTL 값 없음
+    refresh-token-ttl-seconds: 1209600  # [NEW-DESIGN] 14일
