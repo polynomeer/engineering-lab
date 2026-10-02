@@ -16,7 +16,7 @@ public final class ExperimentMetricPreview {
             if (page.isEmpty()) break;
             for (var metric : page) {
                 before = metric.sequence();
-                if (!"jvm.boundary".equals(metric.point().labels().get("source"))) result.add(metric.point());
+                if (!java.util.Set.of("jvm.boundary", "jvm.periodic").contains(metric.point().labels().getOrDefault("source", ""))) result.add(metric.point());
                 if (result.size() == limit) break;
             }
             if (page.size() < limit) break;

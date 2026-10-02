@@ -21,6 +21,8 @@ pipeline:
 lab:
   observation:
     jvm-enabled: false
+    jvm-interval-ms: 0
+    max-periodic-samples: 1000
   scenario:
     max-document-bytes: 65536
     max-input-bytes: 52428800

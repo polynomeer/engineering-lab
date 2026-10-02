@@ -71,7 +71,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
-| JVM 관측 | `JvmObservationTest`, `JvmSnapshotTest`, `MetricCatalogTest`; [관측 가이드](observability.md) |
+| JVM 관측 | `JvmObservationTest`, `JvmPeriodicObservationTest`, `JvmSnapshotTest`, `MetricCatalogTest`; [관측 가이드](observability.md) |
 | Run 증거 | `RunEvidenceTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 

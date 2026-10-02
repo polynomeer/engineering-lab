@@ -22,6 +22,7 @@ public class RunStorageConfiguration {
         return new DurableExperimentRunner(store,
                 new GitProvenanceProvider(Path.of(properties.gitDirectory()), Duration.ofMillis(properties.gitTimeoutMs())),
                 properties.writerOptions(), properties.previewLimit(), properties.maxActiveRuns(),
-                observation.jvmEnabled() ? com.pnomeer.lab.metrics.JvmSnapshot::capture : null);
+                observation.jvmEnabled() ? com.pnomeer.lab.metrics.JvmSnapshot::capture : null,
+                observation.jvmIntervalMs(), observation.maxPeriodicSamples());
     }
 }

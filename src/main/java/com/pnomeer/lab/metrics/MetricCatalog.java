@@ -28,7 +28,8 @@ public final class MetricCatalog {
         add(map, "connections", "run", "resource.activeConnections resource.awaitingConnections");
         add(map, "MiB", "process", "resource.heapUsedMb resource.heapMaxMb resource.peakHeapMb");
         add(map, "ms", "process", "resource.gcPauseMs jvm.gc.collectionTimeMs");
-        add(map, "observations", "run", "storage.metrics.written storage.queue.depth storage.queue.maxDepth storage.preview.limit observation.jvm.samples");
+        add(map, "observations", "run", "storage.metrics.written storage.queue.depth storage.queue.maxDepth storage.preview.limit observation.jvm.samples observation.jvm.periodicSamples");
+        add(map, "boolean", "run", "observation.jvm.capReached");
         add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos");
         add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes");
         add(map, "threads", "process", "jvm.threads.platformLive");

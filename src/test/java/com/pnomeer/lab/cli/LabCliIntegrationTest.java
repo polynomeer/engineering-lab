@@ -12,7 +12,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true"})
+        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true", "lab.observation.jvm-interval-ms=100", "lab.observation.max-periodic-samples=2"})
 class LabCliIntegrationTest {
     @LocalServerPort int port;
     @Autowired RunStore store;
@@ -33,12 +33,13 @@ class LabCliIntegrationTest {
             String id = (String)submitted.get("runId");
             var result = store.find(id).orElseThrow();
             assertEquals(RunStatus.SUCCEEDED, result.status());
-            assertEquals("BOUNDARY", result.runMetadata().parameters().get("observation.jvm.mode"));
-            assertEquals(2L, result.summary().counters().get("observation.jvm.samples"));
+            assertEquals("PERIODIC", result.runMetadata().parameters().get("observation.jvm.mode"));
+            assertTrue(result.summary().counters().get("observation.jvm.samples") >= 2L);
+            assertTrue(result.summary().counters().get("observation.jvm.samples") <= 4L);
             if (result.experimentType().equals("pipeline.excel-ingestion")) {
                 assertEquals(5, ingestion.getJob(id).getInsertedCount());
                 assertTrue(ingestion.getJob(id).getMetricTimeline().stream()
-                        .noneMatch(point -> "jvm.boundary".equals(point.labels().get("source"))));
+                        .noneMatch(point -> Set.of("jvm.boundary", "jvm.periodic").contains(point.labels().getOrDefault("source", ""))));
             }
             assertEquals(hash, result.runMetadata().parameters().get("scenario.definition.sha256"));
             assertEquals(hash, submitted.get("definitionSha256"));

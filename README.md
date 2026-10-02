@@ -44,7 +44,7 @@ There is also a second non-pipeline experiment now:
 
 ## JVM observations
 
-Optional process-wide JVM start/end snapshots can be enabled with `./gradlew bootRun --args='--lab.observation.jvm-enabled=true'` (default: off). `/metrics/schema` describes known metric units and scope. See the [observation guide](docs/observability.md) for capture costs, limitations and verification.
+Optional process-wide JVM start/end snapshots can be enabled with `./gradlew bootRun --args='--lab.observation.jvm-enabled=true'` (default: off). Add `--lab.observation.jvm-interval-ms=1000` for capped periodic sampling (default cap: 1000 samples per Run). `/metrics/schema` describes known metric units and scope. See the [observation guide](docs/observability.md) for capture costs, limitations and verification.
 
 ## Run evidence and findings
 
