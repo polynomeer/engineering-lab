@@ -48,10 +48,14 @@
 
 검증: 전체 `./gradlew test` 61개 통과. DB 재개방 뒤 비교/export, 페이지 전체 metric export, artifact 불변성·상한·입력 거부, 실제 HTTP UI/정적 자산/API 경로를 검증했다. 브라우저에서 빈 목록, 실제 두 Run의 선택→비교, 상세, 404 오류와 375px 레이아웃을 확인했다. 실제 서버를 재시작한 뒤 같은 비교 URL로 두 결과가 복원되는 것도 확인했다. 파일 수집/호스팅은 이 단계의 artifact 참조에 포함되지 않는다.
 
-## 5. 관측과 외부 인프라 — 예정
+## 5. 관측과 외부 인프라 — 진행 중
 
-- metric schema/단위 정리 → JVM metrics → 명시적 trace → 선택적 JFR/log 순으로 추가한다.
+- [x] `GET /metrics/schema`와 공통 단위·범위 catalog v1을 추가하고 비교 API에서 재사용한다. 기존 이름·저장 형식은 유지한다.
+- [x] 선택적 JVM 시작/종료 스냅샷을 bounded writer로 저장한다. 기본 OFF, 최대 두 point/Run, 프로세스 범위와 수집 비용을 명시한다. [관측 가이드](observability.md) 참조.
+- [ ] 주기적 JVM sampling/semantic metric schema 확장 → 명시적 trace → 선택적 JFR/log 순으로 추가한다.
 - 실험 요구가 생기면 Testcontainers 기반 DB/Redis/Kafka 시나리오를 별도 작업으로 도입한다.
 - Java Agent는 플랫폼 필수 기능이 아닌 독립 실험으로 남긴다.
+
+현재 검증: 전체 `./gradlew test` 67개 통과. JVM 수집 활성/비활성·실패·미지원 값·재개방·최소 preview와 세 실험 HTTP 실행을 확인했다. 수집 비용/크기 리포트는 `build/reports/observability/jvm-snapshot.json`에 생성한다. 5단계 전체는 아직 미완료다.
 
 완료 기준: 각 관측 기능의 overhead·데이터 용량·종료 처리·민감정보 제외 정책을 검증한다. 인프라가 필요 없는 기존 테스트는 Docker 없이 실행 가능해야 한다.

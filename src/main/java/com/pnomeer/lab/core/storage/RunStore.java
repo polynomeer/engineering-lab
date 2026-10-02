@@ -16,6 +16,8 @@ public interface RunStore {
     /** Oldest first; afterSequence is exclusive, starting at -1. */
     List<StoredMetric> metrics(String runId, long afterSequence, int limit);
     List<StoredMetric> recentMetrics(String runId, int limit);
+    /** Newest first, exclusive cursor for bounded backwards scans. */
+    List<StoredMetric> metricsBefore(String runId, long beforeSequence, int limit);
     int recoverInterrupted();
     List<ArtifactReference> artifacts(String runId);
     void registerArtifact(ArtifactReference reference);

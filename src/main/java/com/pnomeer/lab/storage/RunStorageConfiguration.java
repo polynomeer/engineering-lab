@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties(StorageProperties.class)
+@EnableConfigurationProperties({StorageProperties.class, com.pnomeer.lab.runtime.ObservationProperties.class})
 public class RunStorageConfiguration {
     @Bean(destroyMethod = "close")
     public JdbcRunStore runStore(StorageProperties properties) {
@@ -18,9 +18,10 @@ public class RunStorageConfiguration {
         catch (RuntimeException ex) { store.close(); throw ex; }
     }
     @Bean(name = "experimentRunner", destroyMethod = "close")
-    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties) {
+    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties, com.pnomeer.lab.runtime.ObservationProperties observation) {
         return new DurableExperimentRunner(store,
                 new GitProvenanceProvider(Path.of(properties.gitDirectory()), Duration.ofMillis(properties.gitTimeoutMs())),
-                properties.writerOptions(), properties.previewLimit(), properties.maxActiveRuns());
+                properties.writerOptions(), properties.previewLimit(), properties.maxActiveRuns(),
+                observation.jvmEnabled() ? com.pnomeer.lab.metrics.JvmSnapshot::capture : null);
     }
 }

@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 
 public final class DurableExperimentRunner implements ExperimentRunner, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(DurableExperimentRunner.class);
+    private final Supplier<MetricPoint> jvmProbe;
     private final RunStore store;
     private final Supplier<GitProvenance> provenance;
     private final MetricWriterOptions options;
@@ -22,6 +23,12 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
 
     public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns) {
+        this(store, provenance, options, previewLimit, maxActiveRuns, null);
+    }
+
+    public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe) {
+        this.jvmProbe = jvmProbe;
         if (previewLimit < 1 || maxActiveRuns < 1) throw new IllegalArgumentException("Run limits must be positive");
         this.store = store; this.provenance = provenance; this.options = options;
         this.previewLimit = previewLimit; this.maxActiveRuns = maxActiveRuns;
@@ -31,7 +38,10 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         synchronized (active) {
             if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
         }
-        var metadata = new RunMetadata(id, experiment.parameters(scenario), RunEnvironment.capture(), provenance.get());
+        var parameters = new HashMap<>(experiment.parameters(scenario));
+        parameters.put("observation.schema.version", com.pnomeer.lab.metrics.MetricCatalog.VERSION);
+        parameters.put("observation.jvm.mode", jvmProbe == null ? "OFF" : "BOUNDARY");
+        var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
         synchronized (active) {
             if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
             return store.create(experiment.type(), scenario.scenarioId(), metadata);
@@ -64,7 +74,9 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             RunStatus status = RunStatus.SUCCEEDED;
             String failure = null;
             boolean interrupted = false;
+            long[] observation = new long[2];
             try {
+                captureJvm(writer, "start", observation);
                 summary = experiment.execute(scenario, point -> {
                     writer.accept(point);
                     synchronized (preview) {
@@ -78,6 +90,13 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                         : ex.getMessage() == null ? "Experiment failed" : ex.getMessage();
                 interrupted = Thread.interrupted() || ex instanceof InterruptedException;
             } finally {
+                try { captureJvm(writer, "end", observation); }
+                catch (RuntimeException | OutOfMemoryError ex) {
+                    status = RunStatus.FAILED;
+                    failure = "JVM observation failed" + (failure == null ? "" : "; experiment: " + failure);
+                    log.error("job_id={} stage=jvm-observation reason=capture_or_publish_failed", run.runId(), ex);
+                    interrupted |= Thread.interrupted();
+                }
                 try { writer.close(); }
                 catch (RuntimeException ex) {
                     status = RunStatus.FAILED;
@@ -90,6 +109,10 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             if (summary == null) summary = ExperimentSummary.empty();
             var counters = new HashMap<>(summary.counters());
             counters.putAll(writer.counters());
+            if (jvmProbe != null) {
+                counters.put("observation.jvm.samples", observation[0]);
+                counters.put("observation.jvm.captureNanos", observation[1]);
+            }
             counters.put("storage.preview.limit", (long) previewLimit);
             summary = new ExperimentSummary(counters, summary.gauges(), summary.details());
             try {
@@ -108,6 +131,18 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         } finally {
             synchronized (active) { active.remove(Thread.currentThread()); active.notifyAll(); }
         }
+    }
+
+    private void captureJvm(BoundedMetricWriter writer, String phase, long[] statistics) {
+        if (jvmProbe == null) return;
+        MetricPoint point;
+        long started = System.nanoTime();
+        try { point = jvmProbe.get(); }
+        finally { statistics[1] += System.nanoTime() - started; }
+        writer.accept(new MetricPoint(point.timestampEpochMs(), point.gauges(), point.counters(),
+                Map.of("source", "jvm.boundary", "scope", "process", "phase", phase,
+                        "schemaVersion", com.pnomeer.lab.metrics.MetricCatalog.VERSION)));
+        statistics[0]++;
     }
 
     @org.springframework.context.event.EventListener(org.springframework.context.event.ContextClosedEvent.class)

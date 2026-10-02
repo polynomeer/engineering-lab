@@ -19,6 +19,8 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  observation:
+    jvm-enabled: false
   scenario:
     max-document-bytes: 65536
     max-input-bytes: 52428800

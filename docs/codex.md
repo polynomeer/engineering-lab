@@ -12,7 +12,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | --- | --- |
 | `com/pnomeer/pipeline/ExcelPipelineApplication.java` | Spring Boot 진입점, `com.pnomeer` 컴포넌트 스캔 |
 | `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `RunMetadata`/`RunEnvironment`, `LocalExperimentRunner` |
-| `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷 |
+| `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷, `MetricCatalog` 단위·범위, `JvmSnapshot` |
 | `com/pnomeer/lab/runtime/` | 영속 runner, 제출/종료 lifecycle, Git provenance |
 | `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
 | `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 조회·비교·export·artifact 참조와 오류 응답 |
@@ -71,6 +71,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
+| JVM 관측 | `JvmObservationTest`, `JvmSnapshotTest`, `MetricCatalogTest`; [관측 가이드](observability.md) |
 | Run 증거 | `RunEvidenceTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 

@@ -12,10 +12,11 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties="lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}")
+        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true"})
 class LabCliIntegrationTest {
     @LocalServerPort int port;
     @Autowired RunStore store;
+    @Autowired com.pnomeer.lab.app.ingest.IngestionService ingestion;
     private final JsonMapper json = JsonMapper.builder().build();
     @Test void validatesAndRunsAllCheckedInExamplesThroughTheActualHttpServer() {
         for (String file : List.of("experiments/concurrency/queue-contention/scenarios/small-buffer.yaml",
@@ -32,6 +33,13 @@ class LabCliIntegrationTest {
             String id = (String)submitted.get("runId");
             var result = store.find(id).orElseThrow();
             assertEquals(RunStatus.SUCCEEDED, result.status());
+            assertEquals("BOUNDARY", result.runMetadata().parameters().get("observation.jvm.mode"));
+            assertEquals(2L, result.summary().counters().get("observation.jvm.samples"));
+            if (result.experimentType().equals("pipeline.excel-ingestion")) {
+                assertEquals(5, ingestion.getJob(id).getInsertedCount());
+                assertTrue(ingestion.getJob(id).getMetricTimeline().stream()
+                        .noneMatch(point -> "jvm.boundary".equals(point.labels().get("source"))));
+            }
             assertEquals(hash, result.runMetadata().parameters().get("scenario.definition.sha256"));
             assertEquals(hash, submitted.get("definitionSha256"));
         }

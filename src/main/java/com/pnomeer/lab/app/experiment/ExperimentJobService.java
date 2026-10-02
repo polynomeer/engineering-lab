@@ -45,7 +45,7 @@ public class ExperimentJobService {
     public ExperimentJobState getJob(String id) {
         return store.find(id).filter(run -> !run.experimentType().equals("pipeline.excel-ingestion"))
                 .map(run -> new ExperimentJobState(run,
-                        store.recentMetrics(id, properties.previewLimit()).stream().map(StoredMetric::point).toList(),
+                        com.pnomeer.lab.runtime.ExperimentMetricPreview.read(store, id, properties.previewLimit()),
                         firstMetric(id))).orElse(null);
     }
 

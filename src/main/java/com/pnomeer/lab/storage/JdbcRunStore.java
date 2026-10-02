@@ -145,6 +145,14 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
     }
 
     @Override
+    public List<StoredMetric> metricsBefore(String id, long before, int limit) {
+        checkLimit(limit);
+        if (before < 0) throw new IllegalArgumentException("beforeSequence must be nonnegative");
+        return jdbc.query("select seq, point_json from lab_metric where run_id=? and seq<? order by seq desc limit ?",
+                (row, n) -> new StoredMetric(row.getLong(1), json.readValue(row.getString(2), MetricPoint.class)), id, before, limit);
+    }
+
+    @Override
     public int recoverInterrupted() {
         return jdbc.update("update lab_run set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before durable completion' where status in ('QUEUED','RUNNING')",
                 System.currentTimeMillis());

@@ -42,6 +42,10 @@ There is also a second non-pipeline experiment now:
 - `src/main/resources/application.yml` : app and pipeline defaults
 - `src/main/resources/schema.sql` : runtime DB schema
 
+## JVM observations
+
+Optional process-wide JVM start/end snapshots can be enabled with `./gradlew bootRun --args='--lab.observation.jvm-enabled=true'` (default: off). `/metrics/schema` describes known metric units and scope. See the [observation guide](docs/observability.md) for capture costs, limitations and verification.
+
 ## Run evidence and findings
 
 Open `/runs/ui` to browse experiments, inspect persisted runs and compare two runs with their environment, input, parameters and metric units. Terminal runs can be exported as NDJSON. Artifact references retain user-provided file metadata; file collection/hosting is not implemented.
