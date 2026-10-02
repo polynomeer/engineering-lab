@@ -19,7 +19,7 @@
 
 - [x] RunStore 계약, 별도 H2 file 어댑터와 v1 스키마를 추가했다. 재개방 후 결과 조회, 중복 metric 재전송, 페이지 경계, 미완료 실행 복구 테스트 통과. 런타임 연결과 저장 기본값은 아래 서비스 전환에서 적용한다.
 - [x] Git SHA/dirty/수집 실패 이유, Excel 설정·입력 checksum을 스냅샷으로 남긴다.
-- bounded metric writer의 배압, size/time flush, 재시도·중복 방지·실패 보고를 구현한다.
+- [x] bounded metric writer의 배압, size/time/종료 flush, 동일 sequence 재시도와 실패 전파를 구현하고 테스트했다. 런타임 연결 시 결과에 queue depth/wait·write latency·retry/failure 카운터를 포함한다.
 - 작업 서비스의 in-memory 이력을 페이지 조회 저장소로 전환하고 재시작·중단 복구를 검증한다.
 - 메모리/처리량 측정은 재현 조건과 raw 결과를 함께 보관한다.
 
