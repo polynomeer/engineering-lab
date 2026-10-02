@@ -1,5 +1,7 @@
 # Architecture
 
+The next platform iteration is specified in [Experiment Platform v2](experiment-platform-design.md), with tracked work in [the implementation plan](implementation-plan.md). The layout below is the earlier architectural direction, not a list of existing Gradle modules.
+
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
 

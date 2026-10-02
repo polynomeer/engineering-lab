@@ -1,6 +1,8 @@
 # engineering-lab
 
-`engineering-lab` is a hands-on experimentation workspace for backend engineering topics.
+`engineering-lab` is evolving into a reproducible experimentation platform for backend engineering: reproduce problems, test hypotheses, observe runs, and preserve evidence behind decisions.
+
+See the [platform design](docs/experiment-platform-design.md) and [implementation plan](docs/implementation-plan.md) for the staged roadmap and current completion status.
 
 The current implemented experiment is an Excel ingestion pipeline with:
 - bounded queues for backpressure
