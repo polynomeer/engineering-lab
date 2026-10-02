@@ -23,7 +23,7 @@ This is a single Gradle multi-project build (one root wrapper and `settings.grad
 JAVA_HOME=<a JDK 21 home> ./gradlew test
 ```
 
-Docker must be running locally for the Testcontainers-backed modules (`equity-system`, `batch-excel`, `mcp-platform`, `mds-distribution`, `creator-studio` all spin up MySQL/Redis containers in their tests).
+Docker must be running locally for the Testcontainers-backed modules (all 5 under `career-lab/` — `equity-system`, `batch-excel`, `mcp-platform`, `mds-distribution`, `creator-studio` — spin up MySQL/Redis containers in their tests).
 
 ### Running a single module's tests
 
