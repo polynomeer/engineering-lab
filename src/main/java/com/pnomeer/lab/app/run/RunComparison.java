@@ -45,15 +45,6 @@ public record RunComparison(StoredRun baseline, StoredRun candidate, List<String
     }
     // Explicit known summary units only. New metrics must declare semantics before comparison.
     public static String unit(String key) {
-        return switch (key) {
-            case "time.elapsedMs", "timing.elapsedMs", "queue.avgEnqueueWaitMs", "virtual.avgLatencyMs", "reactive.avgLatencyMs" -> "ms";
-            case "throughput.itemsPerSec" -> "items/s";
-            case "throughput.virtualRequestsPerSec", "throughput.reactiveRequestsPerSec", "throughput.totalRequestsPerSec" -> "requests/s";
-            case "items.produced", "items.consumed", "queue.maxDepth" -> "items";
-            case "rows.produced", "rows.inserted", "rows.validationErrors" -> "rows";
-            case "requests.virtualCompleted", "requests.reactiveCompleted", "requests.totalCompleted" -> "requests";
-            case "blocking.events" -> "events";
-            default -> "unknown";
-        };
+        return com.pnomeer.lab.metrics.MetricCatalog.unit(key);
     }
 }
