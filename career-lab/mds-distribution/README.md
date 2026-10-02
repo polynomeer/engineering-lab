@@ -78,13 +78,16 @@ FLO(드림어스컴퍼니) 글로벌 유통 시스템(Music Distribution System,
 
 ## 실행 방법
 
+이 프로젝트는 `engineering-lab` 모노레포의 `career-lab/mds-distribution` 모듈입니다 —
+저장소 루트(`engineering-lab/`)에서 실행합니다.
+
 ```bash
 export JAVA_HOME=/Users/hammac/Library/Java/JavaVirtualMachines/corretto-21.0.7/Contents/Home
-./gradlew test
+./gradlew :career-lab:mds-distribution:test
 ```
 
 Docker(Testcontainers)가 필요합니다 — MySQL 컨테이너를 자동으로 띄우고
-종료합니다. 전체 실행에 30초~1분 정도 걸립니다. `./gradlew clean test`로
+종료합니다. 전체 실행에 30초~1분 정도 걸립니다. `./gradlew clean :career-lab:mds-distribution:test`로
 두 번 연속 실행해 8개 테스트 전부 PASS하는 것을 확인했습니다(flaky 체크).
 
 ## 실행하며 실제로 발견한 것 (정직하게 남겨둠)

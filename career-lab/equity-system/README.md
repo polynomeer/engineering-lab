@@ -30,8 +30,11 @@ Problem → Decision → Impact만 골라 실제로 동작하는 코드로 옮�
 
 ### 실행 방법
 
+이 프로젝트는 `engineering-lab` 모노레포의 `career-lab/equity-system` 모듈입니다 —
+저장소 루트(`engineering-lab/`)에서 실행합니다.
+
 ```bash
-./gradlew test
+JAVA_HOME=<JDK 21 경로> ./gradlew :career-lab:equity-system:test
 ```
 
 Docker(Testcontainers)가 필요합니다 — MySQL, Redis 컨테이너를 자동으로

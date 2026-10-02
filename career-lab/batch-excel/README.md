@@ -48,9 +48,12 @@ API 등), `settlement_batch`/`excel_export_job` 상태 추적 테이블까지 �
 
 ## 실행 방법
 
+이 프로젝트는 `engineering-lab` 모노레포의 `career-lab/batch-excel` 모듈입니다 —
+저장소 루트(`engineering-lab/`)에서 실행합니다.
+
 ```bash
 export JAVA_HOME=/Users/hammac/Library/Java/JavaVirtualMachines/corretto-21.0.7/Contents/Home
-./gradlew test
+./gradlew :career-lab:batch-excel:test
 ```
 
 Docker(Testcontainers)가 필요합니다 — MySQL 컨테이너를 자동으로 띄우고 종료합니다.

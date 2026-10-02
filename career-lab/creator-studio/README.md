@@ -75,9 +75,12 @@ facts 4번 섹션은 "Creator-Producer 매핑 장애"의 증상과 당시 운영
 
 ## 실행 방법
 
+이 프로젝트는 `engineering-lab` 모노레포의 `career-lab/creator-studio` 모듈입니다 —
+저장소 루트(`engineering-lab/`)에서 실행합니다.
+
 ```bash
 export JAVA_HOME=/Users/hammac/Library/Java/JavaVirtualMachines/corretto-21.0.7/Contents/Home
-./gradlew test
+./gradlew :career-lab:creator-studio:test
 ```
 
 Docker(Testcontainers)가 필요합니다 — MySQL, Redis 컨테이너를 자동으로 띄우고

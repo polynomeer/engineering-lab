@@ -95,22 +95,25 @@ Release, RabbitMQ 이벤트 발행은 이 랩에 없습니다).
 
 ## 실행 방법
 
+이 프로젝트는 `engineering-lab` 모노레포의 `career-lab/mcp-platform` 모듈입니다 —
+저장소 루트(`engineering-lab/`)에서 실행합니다.
+
 ```bash
 export JAVA_HOME=/Users/hammac/Library/Java/JavaVirtualMachines/corretto-21.0.7/Contents/Home
-./gradlew test
+./gradlew :career-lab:mcp-platform:test
 ```
 
 Docker(Testcontainers)가 필요합니다 — MySQL 컨테이너를 자동으로 띄우고
 종료합니다. 전체 실행에 30~40초 정도 걸립니다(ArchUnit·검증 파이프라인
 테스트는 DB 없이 즉시 실행됩니다).
 
-이 macOS 환경의 기본 `gradle`은 JDK 25로 동작해 Gradle 8.10과 호환 문제가
+이 macOS 환경의 기본 `gradle`은 JDK 25로 동작해 Gradle 8.14와 호환 문제가
 있으므로, 위처럼 JDK 21(Corretto)을 `JAVA_HOME`으로 지정한 뒤 `./gradlew`
 (wrapper)로 실행해야 합니다.
 
 ### 실행 결과 (2026-09-29, 로컬)
 
-`./gradlew clean test`를 연속 2회 실행해 모두 통과를 확인했습니다(flaky 체크).
+`./gradlew clean :career-lab:mcp-platform:test`를 연속 2회 실행해 모두 통과를 확인했습니다(flaky 체크).
 
 ```
 16 tests completed, 0 failed  (2회 연속)
