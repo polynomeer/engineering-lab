@@ -15,7 +15,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷 |
 | `com/pnomeer/lab/runtime/` | 영속 runner, 제출/종료 lifecycle, Git provenance |
 | `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
-| `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 페이지 조회와 오류 응답 |
+| `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 조회·비교·export·artifact 참조와 오류 응답 |
 | `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI |
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
@@ -26,7 +26,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | `com/pnomeer/lab/app/HomeController.java` | `/`, `/ui` 홈 |
 | `com/pnomeer/pipeline/tools/` | 테스트 XLSX 생성 도구 |
 
-- UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
+- 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
 - `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 `ExperimentDescriptors`와 [시나리오 가이드](scenarios.md)를 함께 수정한다.
 - ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`이며 별도 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
@@ -71,9 +71,10 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
+| Run 증거 | `RunEvidenceTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 
-테스트 리포트는 `build/reports/tests/test/index.html`에 생성된다. UI 확인 경로는 `/ui`, `/ingest/ui`, `/experiments/ui`, `/lab/io/ui`다. XLSX 샘플 생성은 `./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500`을 사용한다. 상세 API와 IO 실행 명령은 [README](../README.md)를 참조한다.
+테스트 리포트는 `build/reports/tests/test/index.html`에 생성된다. UI 확인 경로는 `/runs/ui`, `/ui`, `/ingest/ui`, `/experiments/ui`, `/lab/io/ui`다. XLSX 샘플 생성은 `./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500`을 사용한다. 상세 API와 IO 실행 명령은 [README](../README.md)를 참조한다.
 
 ## 구현 상태와 남은 요구사항
 

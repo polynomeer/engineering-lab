@@ -61,9 +61,11 @@ public class HomeController {
                     <h1 class="title">Engineering Lab</h1>
                     <div class="sub">
                       One place to run and inspect pipeline ingestion, shared experiments, and IO comparison labs.
-                      Live counts below are aggregated from the current in-memory job stores.
+                      Counts below summarize the latest persisted jobs (up to 100 per list).
                     </div>
                   </div>
+
+                  <div class="links" style="margin-bottom:16px"><a href="/runs/ui">Browse and compare persisted run evidence</a></div>
 
                   <div class="stats">
                     <div class="card"><div class="k">Pipeline Jobs</div><div class="v" id="pipelineCount">0</div></div>

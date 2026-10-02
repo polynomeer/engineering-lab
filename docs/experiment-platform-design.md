@@ -36,7 +36,7 @@ Engineering Lab은 문제 재현 → 가설 → 통제된 실행 → 관측 → 
 - `lab_schema`: 저장소 schema version. 지원하지 않는 버전은 시작을 거부한다.
 - `lab_run`: 단조 증가 seq, run_id PK, experiment_type, scenario_id, status, created/started/completed_at, metadata_json, summary_json, failure_message. parameters/environment/git은 metadata JSON에 함께 저장한다.
 - `lab_metric`: (run_id, seq) PK/FK, point_json. 기존 metric 이름과 timestamp/gauges/counters/labels를 유지한다.
-- `lab_artifact`: artifact_id PK, run_id FK, relative_path, media_type, byte_size, sha256. 파일 등록·조회 기능은 후속 단계에서 연결한다.
+- `lab_artifact`: artifact_id PK, run_id FK, relative_path, media_type, byte_size, sha256. 참조 metadata 등록/조회는 구현했고 원본 파일 수집·다운로드는 후속 단계다.
 
 상태는 QUEUED → RUNNING → SUCCEEDED/FAILED이며 재시작 시 남은 실행은 INTERRUPTED로 복구한다. 메트릭은 bounded queue와 size/time/종료 flush, bounded retry/backoff를 사용하고 동일 sequence로 재전송해 중복을 막는다. writer의 실패를 전파하며 durable 완료 이전에는 성공을 기록하지 않는다. 원본 메트릭 전체는 DB에 저장하고 runner/기존 API의 preview만 제한한다.
 
@@ -46,13 +46,13 @@ Git probe는 timeout/출력 제한이 있다. 없는 Git·저장소나 probe 실
 
 ## API와 이행
 
-현 `/experiments/*`, `/ingest/*`는 호환 어댑터로 유지한다. registry 조회와 공통 `/runs` 생성·조회는 구현되었고 artifact API는 후속 단계다.
+현 `/experiments/*`, `/ingest/*`는 호환 어댑터로 유지한다. registry 조회와 공통 `/runs` 생성·조회·비교·NDJSON export 및 artifact 참조 API를 제공한다.
 
 - `GET /experiments`, `GET /experiments/{id}`: 등록된 실험의 설명·파라미터 schema·input 종류·지원 측정 모드. Git 관리 시나리오 파일은 CLI에서 선택한다.
 - `POST /runs`: 엄격히 검증된 JSON/YAML 정의로 실행 생성. Excel은 multipart scenario/file과 input hash가 필요하다. [CLI와 정의 v1](scenarios.md)을 참조한다.
 - `GET /runs?experimentType=...&limit=...&before=...`: 구현된 실행 페이지 조회.
-- `GET /runs/{runId}`, `/runs/{runId}/metrics?after=...&limit=...`: 구현된 실행·메트릭 조회. `/runs/{runId}/artifacts`는 아직 미구현.
-- 비교는 metric 단위·환경·입력 차이를 표시하고 서로 다른 조건의 숫자를 동일 조건인 것처럼 보여주지 않는다.
+- `GET /runs/{runId}`, `/runs/{runId}/metrics?after=...&limit=...`: 구현된 실행·메트릭 조회. `/runs/{runId}/artifacts`는 사용자 제공 참조 metadata를 조회한다.
+- `/runs/compare`와 `/runs/ui`는 단위·환경·입력·파라미터 차이를 표시한다. 알 수 없는 단위/누락값을 추정하지 않는다. [증거 가이드](run-evidence.md)와 [Finding 템플릿](findings/TEMPLATE.md)을 사용한다.
 
 ## 관측과 실험 방법
 

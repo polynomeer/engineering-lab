@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run evidence · Engineering Lab</title>
+  <link rel="stylesheet" href="/run-browser/style.css">
+  <script src="/run-browser/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to evidence</a>
+<header><a href="/ui">Engineering Lab</a><nav aria-label="Lab navigation"><a href="/runs/ui">Run evidence</a><a href="/experiments/ui">Launch experiments</a><a href="/ingest/ui">Excel ingestion</a></nav></header>
+<main>
+  <div class="intro"><p class="eyebrow">EXPERIMENT OBSERVATORY</p><h1>Run evidence</h1><p>Inspect recorded conditions. Compare measurements. Keep the evidence behind your findings.</p></div>
+  <form id="comparison-form" class="compare-form">
+    <label>Baseline Run ID<input name="baseline" id="baseline" required maxlength="100" autocomplete="off"></label>
+    <label>Candidate Run ID<input name="candidate" id="candidate" required maxlength="100" autocomplete="off"></label>
+    <button type="submit">Compare runs</button>
+  </form>
+  <p id="status" role="status" aria-live="polite">Loading evidence…</p>
+  <div id="error" role="alert" hidden></div>
+  <div class="layout"><aside aria-label="Experiment catalog"><h2>Experiments</h2><div id="catalog"></div></aside><section id="content" tabindex="-1" aria-label="Run evidence"></section></div>
+</main>
+</body>
+</html>

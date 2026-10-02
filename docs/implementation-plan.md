@@ -38,13 +38,15 @@
 
 검증: 전체 `./gradlew test` 56개 통과. JSON/YAML hash 일치, 중복/미지원/타입·크기 거부, invalid Run 미생성, input checksum·경로 경계, 세 실험의 HTTP CLI 실행과 timeout/응답 제한을 검증했다.
 
-## 4. Run 조회·비교 및 Finding — 진행 중
+## 4. Run 조회·비교 및 Finding — 완료
 
-- 실험 목록/상세, run 상세/비교 화면을 기존 UI에서 점진적으로 이행한다.
+- [x] `/runs/ui`에서 registry 목록/상세, 영속 Run 목록/상세/비교를 제공한다. 기존 홈에서 연결하며 실험별 실행 화면은 유지한다.
 - [x] 환경·입력·단위 차이 비교 API, 종료 Run NDJSON export와 사용자 제공 artifact 참조 metadata를 구현했다. [증거 가이드](run-evidence.md) 참조.
-- `docs/findings/`에 증거와 해석을 분리하는 문서 템플릿을 추가한다.
+- [x] `docs/findings/`에 Run/export/artifact와 연결하고 증거·해석·한계를 분리하는 템플릿과 작성 순서를 추가했다.
 
 완료 기준: 저장된 두 실행을 재시작 후 비교하고 결과 해석에서 실행 증거를 추적할 수 있다.
+
+검증: 전체 `./gradlew test` 61개 통과. DB 재개방 뒤 비교/export, 페이지 전체 metric export, artifact 불변성·상한·입력 거부, 실제 HTTP UI/정적 자산/API 경로를 검증했다. 브라우저에서 빈 목록, 실제 두 Run의 선택→비교, 상세, 404 오류와 375px 레이아웃을 확인했다. 실제 서버를 재시작한 뒤 같은 비교 URL로 두 결과가 복원되는 것도 확인했다. 파일 수집/호스팅은 이 단계의 artifact 참조에 포함되지 않는다.
 
 ## 5. 관측과 외부 인프라 — 예정
 

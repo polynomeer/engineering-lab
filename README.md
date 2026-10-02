@@ -42,6 +42,12 @@ There is also a second non-pipeline experiment now:
 - `src/main/resources/application.yml` : app and pipeline defaults
 - `src/main/resources/schema.sql` : runtime DB schema
 
+## Run evidence and findings
+
+Open `/runs/ui` to browse experiments, inspect persisted runs and compare two runs with their environment, input, parameters and metric units. Terminal runs can be exported as NDJSON. Artifact references retain user-provided file metadata; file collection/hosting is not implemented.
+
+See the [evidence guide](docs/run-evidence.md) and [Finding template](docs/findings/TEMPLATE.md) to preserve observations separately from interpretation.
+
 ## Versioned scenarios
 
 The [scenario guide](docs/scenarios.md) documents the experiment registry, strict JSON/YAML schemas, common `POST /runs`, and HTTP CLI. Start the server with `./gradlew bootRun`, then use another terminal:

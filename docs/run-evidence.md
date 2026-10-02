@@ -19,3 +19,19 @@ Artifact는 사용자 관리 파일의 참조 metadata다. 경로·미디어 타
 - `PUT /runs/{id}/artifacts/{artifactId}`: 8 KiB 이하 JSON `{ "relativePath": "profiles/run.jfr", "mediaType": "application/octet-stream", "byteSize": 123, "sha256": "64자리 소문자 hex" }`. ID는 전역에서 유일한 영숫자/underscore/hyphen 1–100자다. 상대 경로만 허용하고 traversal은 거부한다. 같은 내용 재등록은 idempotent, 충돌/잘못된 metadata는 400, 크기 초과는 413이다.
 
 등록한 참조의 checksum은 사용자가 계산한 값이며 서버 검증을 의미하지 않는다. 원본 파일은 별도로 보관한다. export는 시작 시 읽은 참조 목록을 포함하고 이후 등록은 다음 export에 반영된다. 새로운 DB 스키마 변경 없이 기존 v1 lab_artifact 테이블을 사용한다.
+
+UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기를 받는다.
+
+## 화면과 Finding
+
+서버 시작 후 `/runs/ui`를 연다. 홈의 Browse and compare 링크에서도 접근한다.
+
+- 왼쪽 registry에서 실험을 선택하면 파라미터 schema와 해당 실험의 저장된 Run을 조회한다.
+- 목록은 최대 20개씩 (`lab.storage.page-limit`가 더 작으면 해당 상한) Older/Newest로 이동하며 상세는 상태·실패 이유·가설·환경·Git·파라미터·summary·artifact·metric 페이지를 제공한다.
+- 상세의 Use as baseline/candidate로 대상을 정한 뒤 Compare runs를 누른다. 두 선택 ID만 sessionStorage에 보관하며 실행 데이터는 저장소에서 조회한다.
+- `/runs/ui?run=<id>` 또는 `/runs/ui?baseline=<id>&candidate=<id>`를 저장해 다시 연다. 브라우저 뒤로 가기도 지원한다.
+- 좁은 화면의 비교 표는 표 안에서 가로 스크롤한다. 로딩/빈 결과/오류를 명시하고 저장된 문자열은 HTML로 해석하지 않는다.
+- 실행 중에는 Refresh run으로 갱신한다. 자동 polling은 하지 않는다.
+- [Finding 템플릿](findings/TEMPLATE.md)에 증거와 해석을 기록한다. 결과 자동 판정이나 Finding 자동 저장은 제공하지 않는다.
+
+기존 화면의 어두운 색상 계열을 유지하고 system font, 명시적 표 헤더, 44px 조작 영역과 키보드 focus를 적용했다. summary 단위는 현재 알려진 이름만 명시한 최소 catalog이며 전체 metric schema 확장은 다음 관측 단계에서 진행한다.
