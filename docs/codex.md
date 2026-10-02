@@ -15,7 +15,8 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷 |
 | `com/pnomeer/lab/runtime/` | 영속 runner, 제출/종료 lifecycle, Git provenance |
 | `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
-| `com/pnomeer/lab/app/run/` | `/runs` 실행·메트릭 페이지 조회와 DB 오류 응답 |
+| `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 페이지 조회와 오류 응답 |
+| `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI |
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
 | `com/pnomeer/lab/experiments/io/` | IO 비교 실험, blocking / virtual-thread / selector 서버, 부하 클라이언트 |
@@ -26,7 +27,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | `com/pnomeer/pipeline/tools/` | 테스트 XLSX 생성 도구 |
 
 - UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
-- `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 `PipelineProperties` 및 README 설정 설명도 함께 갱신한다.
+- `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 `ExperimentDescriptors`와 [시나리오 가이드](scenarios.md)를 함께 수정한다.
 - ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`이며 별도 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
 
@@ -36,6 +37,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 - 파이프라인 모드: 첫 시트 파싱 → bounded raw queue → 검증·매핑 worker → bounded mapped queue → insert worker별 chunk → JDBC 트랜잭션. 비교용 `SINGLE_THREAD` 모드도 있다.
 - 공통 실험: `ExperimentController` → `ExperimentJobService` → `DurableExperimentRunner` → 해당 실험. 메트릭과 결과를 공통 모델로 반환한다.
 - 실행 metadata는 jobId, 파라미터, JVM/OS, Git provenance를 보존한다. Excel은 input SHA-256과 설정도 포함한다. 앱 runner는 `runtime/DurableExperimentRunner`, 저장소는 `storage/JdbcRunStore`다. [저장 가이드](run-storage.md)를 참조한다.
+- 선언적 실행은 `POST /runs` → `ExperimentRegistry`의 typed binding → `DurableExperimentRunner`를 거친다. 정의/hash/가설도 metadata에 저장한다. Git 예제는 `experiments/*/*/scenarios/`에 있다.
 - 서버 실행·메트릭·결과는 `.lab/`의 별도 H2 DB에 보관된다. 브라우저 localStorage의 UI 상태·프리셋과 별개다. core의 `LocalExperimentRunner`는 저장소 없는 단위 테스트/로컬 실행용이며 앱 bean으로 사용하지 않는다.
 
 ## 실행과 검증
@@ -66,6 +68,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | 큐 / 종료 신호 | `BoundedChannelTest`, `StageShutdownTest` |
 | Excel / DB 쓰기 | `PipelineRunnerIntegrationTest`, 모델·시나리오 테스트 |
 | 공통 실행 모델 | `LocalExperimentRunnerTest`, `ExperimentExecutionStateTest`, `DurableExperimentRunnerTest` |
+| 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |

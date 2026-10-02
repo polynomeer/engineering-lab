@@ -49,7 +49,7 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 
 기존 `/experiments/jobs*`, `/ingest/jobs*`도 DB에서 복원한다. 목록은 최대 최신 100개, timeline은 preview-limit 이내다. QUEUED는 기존 화면에 RUNNING, INTERRUPTED는 FAILED로 표시된다. Excel 화면의 원래 progress 형식은 공통 metric에서 복원한다. 원본 실험 데이터 테이블은 별도 in-memory DB이므로 재시작 후 DB row 화면이 비어 있어도 과거 실행 결과는 남는다.
 
-현재 `/runs`는 조회 API다. 생성은 기존 실험별 POST endpoint를 사용한다. generic 실행 POST, registry, scenario file loader는 다음 단계다. `lab_artifact` 테이블은 후속 artifact 기능을 위한 v1 스키마에 포함되지만 파일 등록/다운로드 API는 아직 없다.
+`POST /runs`로 registry의 JSON/YAML 정의를 제출할 수 있다. Excel은 scenario/file multipart를 사용한다. [시나리오 가이드](scenarios.md)의 CLI는 같은 API를 사용하며, 기존 실험별 POST도 유지된다. `lab_artifact` 테이블은 후속 artifact 기능을 위한 v1 스키마에 포함되지만 파일 등록/다운로드 API는 아직 없다.
 
 ## 관측과 제한
 

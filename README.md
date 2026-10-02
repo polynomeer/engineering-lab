@@ -42,6 +42,18 @@ There is also a second non-pipeline experiment now:
 - `src/main/resources/application.yml` : app and pipeline defaults
 - `src/main/resources/schema.sql` : runtime DB schema
 
+## Versioned scenarios
+
+The [scenario guide](docs/scenarios.md) documents the experiment registry, strict JSON/YAML schemas, common `POST /runs`, and HTTP CLI. Start the server with `./gradlew bootRun`, then use another terminal:
+
+```bash
+./gradlew -q lab --args='list'
+./gradlew -q lab --args='validate experiments/concurrency/queue-contention/scenarios/small-buffer.yaml'
+./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --wait'
+```
+
+`GET /experiments` exposes all three schemas. Declarative runs preserve the canonical definition, hypothesis, and definition SHA-256 alongside the effective parameters. Only `SINGLE_PASS` measurement is currently supported; unsupported warmup/duration options fail validation.
+
 ## Run metadata
 
 Jobs in `/experiments/jobs`, `/experiments/jobs/{jobId}`, `/ingest/jobs`, and `/ingest/jobs/{jobId}` now include `runMetadata`:

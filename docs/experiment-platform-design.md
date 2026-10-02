@@ -11,7 +11,7 @@ Engineering Lab은 문제 재현 → 가설 → 통제된 실행 → 관측 → 
 | 개념 | 역할 | 도입 방법 |
 | --- | --- | --- |
 | Experiment | 실험 종류, 제목, 분류, 실행 코드 | 기존 `Experiment` 유지; registry에서 메타데이터 확장 |
-| Scenario | 버전 관리되는 입력과 가설 | 기존 `ExperimentScenario.parameters()`를 실행 시 복사; 추후 파일 정의와 해시 추가 |
+| Scenario | 버전 관리되는 입력과 가설 | JSON/YAML v1 정의·가설·측정 조건·canonical SHA-256을 검증하고 parameters와 함께 보존 |
 | Run | 특정 조건에서 발생한 한 번의 실행 | `runId`는 기존 `jobId`와 동일; `RunMetadata`와 `ExperimentResult`를 연결 |
 | Observation | 실행에 속한 시계열 관측 | 기존 `MetricPoint` 유지, 저장 시 runId와 sequence를 부여 |
 | Artifact | JFR·로그·입력·결과 파일에 대한 참조 | 경로, 미디어 타입, 바이트 수, checksum 저장; 실행 결과와 별도 관리 |
@@ -46,10 +46,10 @@ Git probe는 timeout/출력 제한이 있다. 없는 Git·저장소나 probe 실
 
 ## API와 이행
 
-현 `/experiments/*`, `/ingest/*`는 호환 어댑터로 유지한다. `/runs` 조회는 구현되었고 registry/생성/artifact API는 후속 단계다.
+현 `/experiments/*`, `/ingest/*`는 호환 어댑터로 유지한다. registry 조회와 공통 `/runs` 생성·조회는 구현되었고 artifact API는 후속 단계다.
 
-- `GET /experiments`: 등록된 실험과 지원 시나리오.
-- `POST /runs`: 실험 ID와 검증된 시나리오로 실행 생성.
+- `GET /experiments`, `GET /experiments/{id}`: 등록된 실험의 설명·파라미터 schema·input 종류·지원 측정 모드. Git 관리 시나리오 파일은 CLI에서 선택한다.
+- `POST /runs`: 엄격히 검증된 JSON/YAML 정의로 실행 생성. Excel은 multipart scenario/file과 input hash가 필요하다. [CLI와 정의 v1](scenarios.md)을 참조한다.
 - `GET /runs?experimentType=...&limit=...&before=...`: 구현된 실행 페이지 조회.
 - `GET /runs/{runId}`, `/runs/{runId}/metrics?after=...&limit=...`: 구현된 실행·메트릭 조회. `/runs/{runId}/artifacts`는 아직 미구현.
 - 비교는 metric 단위·환경·입력 차이를 표시하고 서로 다른 조건의 숫자를 동일 조건인 것처럼 보여주지 않는다.

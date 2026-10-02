@@ -27,14 +27,16 @@
 
 검증: 전체 `./gradlew test` 45개 통과. 재시작·실패/거부·중복 방지·backpressure·time/size/shutdown flush·스키마/소유권·페이지/preview 상한을 검증했다. artifact 파일 등록/조회는 4–5단계에 남는다.
 
-## 3. Registry와 선언적 Scenario — 진행 중
+## 3. Registry와 선언적 Scenario — 완료
 
 - [x] 세 실험을 명시적 registry에 등록했다. 중복 ID, 잘못된 파라미터 타입/범위, 미지원 옵션을 거부한다. [정의 v1 가이드](scenarios.md)를 참고한다.
-- Git으로 관리하는 JSON/YAML 시나리오와 가설·측정 조건·정의 해시를 도입한다.
+- [x] Git 관리 JSON/YAML 예제와 합성 XLSX fixture, 가설·SINGLE_PASS 측정 조건·canonical 정의/hash를 추가했다.
 - [x] `GET /experiments`, `GET /experiments/{id}`, JSON/YAML 및 Excel multipart `POST /runs`를 구현했다. 재실행 hash 일치와 invalid definition의 Run 미생성을 검증했다.
-- [ ] 파일 CLI 진입점과 Git 관리 예제를 추가한다.
+- [x] `./gradlew -q lab --args=...`의 list/validate/run(--wait) CLI를 구현하고 실제 서버에 세 예제를 제출해 완료를 검증했다.
 
 완료 기준: 파일 하나로 같은 입력 조건을 재실행하고 잘못된 정의는 실행 전에 실패한다.
+
+검증: 전체 `./gradlew test` 56개 통과. JSON/YAML hash 일치, 중복/미지원/타입·크기 거부, invalid Run 미생성, input checksum·경로 경계, 세 실험의 HTTP CLI 실행과 timeout/응답 제한을 검증했다.
 
 ## 4. Run 조회·비교 및 Finding — 예정
 

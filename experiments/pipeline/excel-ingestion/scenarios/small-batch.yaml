@@ -1,0 +1,18 @@
+schemaVersion: 1
+experiment: pipeline.excel-ingestion
+scenario:
+  id: excel-small-batch
+  hypothesis: Small batches preserve all valid rows while bounded queues constrain buffering.
+parameters:
+  mode: PIPELINE
+  rawCapacity: 8
+  mappedCapacity: 8
+  validatorThreads: 2
+  inserterThreads: 2
+  chunkSize: 2
+  offerTimeoutMs: 200
+measurement:
+  mode: SINGLE_PASS
+input:
+  file: fixtures/sample.xlsx
+  sha256: 4f5594b6cf534e94e572d2a38eb20467cd467b88c404d735fefc7674438b7bb0

@@ -69,3 +69,10 @@ tasks.register('runIoLoadTest', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.pnomeer.lab.experiments.io.LoadTestClient'
 }
+
+tasks.register('lab', JavaExec) {
+    group = 'application'
+    description = 'Validate or submit a JSON/YAML scenario to a running lab server. Use --args="run FILE --wait".'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.pnomeer.lab.cli.LabCli'
+}

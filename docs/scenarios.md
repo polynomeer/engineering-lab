@@ -57,4 +57,44 @@ file은 시나리오 디렉터리 안의 상대 경로이며 상위 경로, 절�
 
 정의·파라미터·입력 hash 검증이 끝나기 전에는 Run을 생성하지 않는다. 잘못된 정의는 400이다. executor 제출 거부는 실패 Run을 남기고 503을 반환한다. Excel의 시나리오 ID는 실행 모드와 독립적이다. 기존 ingestion 조회는 metadata의 mode를 사용해 복원한다.
 
-기존 실험별 POST endpoint는 호환 경로로 유지되며 선언적 정의 hash를 새로 만들어 붙이지 않는다. 파일 CLI와 Git 관리 예제는 다음 작업 단위에서 연결한다.
+기존 실험별 POST endpoint는 호환 경로로 유지되며 선언적 정의 hash를 새로 만들어 붙이지 않는다.
+
+## 파일 CLI
+
+저장소 루트에서 실행한다. `validate`는 서버 없이 정의/schema와 필요한 input hash를 검사한다.
+
+```bash
+./gradlew -q lab --args='validate experiments/concurrency/queue-contention/scenarios/small-buffer.yaml'
+./gradlew -q lab --args='validate experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml'
+```
+
+서버를 `./gradlew bootRun`으로 시작한 뒤 다른 터미널에서 실행한다. CLI는 HTTP 클라이언트이며 Spring이나 evidence DB를 직접 열지 않는다.
+
+```bash
+./gradlew -q lab --args='list'
+./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --wait'
+./gradlew -q lab --args='run experiments/io/endpoint-comparison/scenarios/baseline.json --wait'
+./gradlew -q lab --args='run experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml --wait'
+```
+
+기본 서버는 `http://localhost:8080`이다. `--server http://localhost:8090`처럼 HTTP(S) origin으로 바꿀 수 있다. `--wait`가 없으면 접수 응답을 출력하고 끝낸다. 있으면 기본 120초까지 완료를 조회하며 `--timeout-seconds 30`으로 1–3600초 범위에서 바꾼다. 대기 timeout은 서버 실행을 취소하지 않는다. POST를 자동 재시도하지 않으며, 같은 정의를 다시 제출하면 새 Run이 만들어진다.
+
+stdout은 JSON lines다. validate는 검증 결과/hash, list는 catalog 배열을 출력한다. run은 접수 응답을 한 줄 출력하고 --wait 사용 시 최종 결과를 한 줄 더 출력한다. Java CLI의 종료 코드는 성공 0, 검증/HTTP/실험 실패 1, 완료 대기 timeout 2다. Gradle JavaExec로 호출하면 비정상 종료를 Gradle task 실패로 보고한다.
+
+CLI 문서/파일 한도는 각각 64 KiB/50 MiB이고 서버가 더 작은 한도를 설정하면 서버가 거부한다. XLSX는 8 KiB 버퍼로 hash를 검증한 뒤 multipart로 스트리밍 전송한다. input symlink가 시나리오 디렉터리 밖을 가리키면 거부한다. 서버 응답은 1 MiB로 제한하고, connect timeout은 5초, HTTP 요청 전체의 대기는 최대 30초 또는 남은 --wait 시간 중 짧은 값이다. HTTP redirect는 따라가지 않는다.
+
+## Git 관리 예제
+
+- `experiments/concurrency/queue-contention/scenarios/small-buffer.yaml`
+- `experiments/io/endpoint-comparison/scenarios/baseline.json`
+- `experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml`와 `fixtures/sample.xlsx`
+
+XLSX fixture는 기존 TestWorkbookGenerator로 만든 header + 5개의 합성 유효 행이다. fixture를 변경하면 정의의 input.sha256도 갱신해야 한다. 시간 정보가 있는 XLSX를 다시 생성하면 같은 행이어도 bytes/hash가 달라질 수 있다.
+
+시나리오 파일은 입력·파라미터·가설을 재실행할 수 있게 한다. 측정 결과가 매번 같음을 보장하지 않는다. 공유 ingestion DB의 기존 행을 자동 삭제하거나 외부 환경을 초기화하지 않으며, 시간 기반 반복/warmup·격리된 데이터 환경은 별도 기능이다. 기존 UI에는 실험별 시작 폼을 유지하며 registry 중심 UI 이행은 다음 단계다.
+
+## 새 실험 추가
+
+`ExperimentDescriptors`에 설명/schema를, `RegistryConfiguration`에 명시적 typed factory를 추가한다. `ExperimentRegistry`는 중복 ID를 거부한다. 공통 POST/CLI 전송 코드에는 분기를 추가하지 않는다. CLI의 offline validator도 같은 descriptor를 사용한다. 새 input 종류나 measurement mode는 실행 의미·검증·API를 함께 구현한 후 허용한다.
+
+검증은 `./gradlew test`로 수행한다. parser/schema/hash 테스트, 잘못된 정의의 Run 미생성, Excel별 설정과 hash, 실제 HTTP 서버를 통한 세 예제 CLI 실행, timeout/실패/응답 제한을 포함한다.

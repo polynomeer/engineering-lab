@@ -1,0 +1,13 @@
+schemaVersion: 1
+experiment: concurrency.queue-contention
+scenario:
+  id: small-buffer-slow-consumer
+  hypothesis: A slower consumer fills a small queue and increases producer waiting.
+parameters:
+  queueCapacity: 2
+  producerThreads: 2
+  consumerThreads: 1
+  itemsPerProducer: 100
+  consumerDelayMs: 2
+measurement:
+  mode: SINGLE_PASS

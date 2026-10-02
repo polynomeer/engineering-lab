@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "experiment": "io.endpoint-comparison",
+  "scenario": {
+    "id": "io-baseline",
+    "hypothesis": "Both implementations complete the same delayed workload; measured overhead may differ."
+  },
+  "parameters": {"requests": 5, "delayMs": 2, "pinning": false, "pinDelayMs": 0},
+  "measurement": {"mode": "SINGLE_PASS"}
+}
