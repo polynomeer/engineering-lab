@@ -48,4 +48,13 @@ file은 시나리오 디렉터리 안의 상대 경로이며 상위 경로, 절�
 
 `lab.scenario.max-document-bytes` 기본값은 65536, `max-input-bytes`는 52428800이다. 설정 가능한 상한은 각각 1 MiB와 50 MiB다. 기존 Spring multipart 요청 한도(50 MB)도 적용된다. 문서 parser는 stream에서 limit+1 byte까지만 읽어 초과를 감지한다. 입력 checksum 검증은 실행 생성 전에 수행한다.
 
-이 단계에서 parser/schema/registry를 구현했다. HTTP 조회·공통 실행과 파일 CLI 연결은 다음 작업 단위에서 완료한다. 기존 실험별 API와 기존 Run 조회는 유지된다.
+## HTTP API
+
+- `GET /experiments`: 세 실험의 ID/제목/분류, 입력 종류, 파라미터 schema, 측정 모드.
+- `GET /experiments/{experimentId}`: 한 실험의 schema. 없는 실험은 404.
+- `POST /runs`: application/json 또는 application/yaml 정의를 body로 전달. Excel은 multipart/form-data의 `scenario` 문서 part와 `file` XLSX part로 전달한다.
+- 성공 접수 시 202, Location `/runs/{runId}`, `{runId, experimentType, scenarioId, definitionSha256}`를 반환한다. 이후 기존 `GET /runs/{runId}`로 완료/실패를 확인한다.
+
+정의·파라미터·입력 hash 검증이 끝나기 전에는 Run을 생성하지 않는다. 잘못된 정의는 400이다. executor 제출 거부는 실패 Run을 남기고 503을 반환한다. Excel의 시나리오 ID는 실행 모드와 독립적이다. 기존 ingestion 조회는 metadata의 mode를 사용해 복원한다.
+
+기존 실험별 POST endpoint는 호환 경로로 유지되며 선언적 정의 hash를 새로 만들어 붙이지 않는다. 파일 CLI와 Git 관리 예제는 다음 작업 단위에서 연결한다.

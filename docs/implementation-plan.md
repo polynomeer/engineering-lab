@@ -31,7 +31,8 @@
 
 - [x] 세 실험을 명시적 registry에 등록했다. 중복 ID, 잘못된 파라미터 타입/범위, 미지원 옵션을 거부한다. [정의 v1 가이드](scenarios.md)를 참고한다.
 - Git으로 관리하는 JSON/YAML 시나리오와 가설·측정 조건·정의 해시를 도입한다.
-- registry 기반 조회/실행 API와 CLI 진입점을 추가한다.
+- [x] `GET /experiments`, `GET /experiments/{id}`, JSON/YAML 및 Excel multipart `POST /runs`를 구현했다. 재실행 hash 일치와 invalid definition의 Run 미생성을 검증했다.
+- [ ] 파일 CLI 진입점과 Git 관리 예제를 추가한다.
 
 완료 기준: 파일 하나로 같은 입력 조건을 재실행하고 잘못된 정의는 실행 전에 실패한다.
 
