@@ -25,6 +25,10 @@ There is also a second non-pipeline experiment now:
 - macOS/Linux shell (examples below use `bash`/`zsh`).
 - `curl` for API testing.
 
+## Working with Codex
+- [AGENTS.md](AGENTS.md): repository rules, required tests, and one Conventional Commit per completed unit of work.
+- [Codex repository guide](docs/codex.md): code map, verification commands, and current implementation gaps.
+
 ## Current layout
 - `src/main/java/com/pnomeer/lab/app/ingest` : REST API, job state, live dashboards
 - `src/main/java/com/pnomeer/lab/core` : shared experiment contracts and execution state
@@ -478,7 +482,7 @@ Examples:
 
 ## Current limitations
 - Job store is in-memory (`ConcurrentHashMap`), so job history is lost on restart.
-- Only the Excel pipeline experiment is implemented so far.
+- Implemented experiment families are Excel ingestion, queue contention, and IO endpoint comparison; other families in the architecture plan remain future work.
 - No authentication or authorization on endpoints.
 - No persistence of validation-error details beyond aggregated summary in status payload.
 - Some legacy names remain during the migration, especially the Spring Boot application class and the `pipeline.*` property prefix.

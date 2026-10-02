@@ -1,19 +1,28 @@
 # AGENTS
 
 ## 1. Project Overview
-- Goal: build a parallel Excel ingestion pipeline with bounded queues for backpressure and chunked batch inserts for efficient database writes.
+- Repository: `engineering-lab`, a Java 25 / Spring Boot 4 experiment platform in a single Gradle project.
+- Current experiments: Excel ingestion, queue contention, and IO endpoint comparison.
+- Pipeline goal: build a parallel Excel ingestion pipeline with bounded queues for backpressure and chunked batch inserts for efficient database writes.
 - Core architecture:
   - Use producer-consumer stages with explicit boundaries.
   - Use bounded queues between major stages.
   - Use configurable worker pools (`transform`, `insert`).
   - Use chunked inserts with size/time-based flush conditions.
+- New code normally belongs under `com.pnomeer.lab`; the entrypoint and workbook generator still use `com.pnomeer.pipeline`.
+- Read [docs/codex.md](docs/codex.md) when locating code, choosing verification commands, or checking implementation gaps. Read [docs/architecture.md](docs/architecture.md) for architectural changes; its target layout is not the current module structure.
+- Standards below describe required design direction, not a claim that every capability already exists.
 
 ## 2. Development Workflow
-After every completed task:
-1. Run tests (`./gradlew test`).
-2. Stage modified files.
-3. Create a Conventional Commit message.
-4. Commit the changes.
+For every logical unit of work, including documentation and Codex setup:
+1. Inspect `git status --short` and relevant code. Preserve unrelated user changes and existing staged files.
+2. Implement one coherent change, with relevant tests and documentation. For complex work, outline independently verifiable units and finish each before committing it.
+3. Run `./gradlew test` before committing. Targeted tests are useful during development but do not replace this command.
+4. Review the diff and run `git diff --check`. Stage only files or hunks belonging to the completed unit; inspect `git diff --cached`.
+5. Create a Conventional Commit using section 4 and commit the completed unit without waiting for a separate commit request. Do not accumulate unrelated tasks into one commit.
+6. Check `git status --short` and report the change, test result, and commit hash to the user (in Korean by default).
+
+If tests or Git operations fail, resolve problems within scope and retry. If blocked by the environment or an unrelated failure, report the exact blocker and leave the task explicitly incomplete; never claim a passing test or successful commit. Do not disable tests to obtain a green build. Read-only questions do not require empty commits. Do not amend, reset, or push existing history unless requested.
 
 ## 3. Coding Standards
 - Keep memory bounded; stream workbooks when possible instead of loading full files.
@@ -47,6 +56,9 @@ Rules:
 - Do not include trailing punctuation.
 - Add a body when the change is complex.
 - Keep one logical change per commit.
+- Keep subjects in English to match the existing history.
+- Choose the scope by the changed responsibility: `pipeline`, `queue`, `validation`, `concurrency`, `io`, `core`, `metrics`, `ui`, `architecture`, `build`, or `codex` (extend when needed).
+- Use `docs(codex)` for agent guidance; use `chore(codex)` for executable tooling/configuration changes.
 
 Examples:
 - `feat(pipeline): add parallel insert worker`
