@@ -27,9 +27,9 @@
 
 검증: 전체 `./gradlew test` 45개 통과. 재시작·실패/거부·중복 방지·backpressure·time/size/shutdown flush·스키마/소유권·페이지/preview 상한을 검증했다. artifact 파일 등록/조회는 4–5단계에 남는다.
 
-## 3. Registry와 선언적 Scenario — 예정
+## 3. Registry와 선언적 Scenario — 진행 중
 
-- 세 실험을 명시적 registry에 등록하고 중복 ID·미지원 옵션을 거부한다.
+- [x] 세 실험을 명시적 registry에 등록했다. 중복 ID, 잘못된 파라미터 타입/범위, 미지원 옵션을 거부한다. [정의 v1 가이드](scenarios.md)를 참고한다.
 - Git으로 관리하는 JSON/YAML 시나리오와 가설·측정 조건·정의 해시를 도입한다.
 - registry 기반 조회/실행 API와 CLI 진입점을 추가한다.
 

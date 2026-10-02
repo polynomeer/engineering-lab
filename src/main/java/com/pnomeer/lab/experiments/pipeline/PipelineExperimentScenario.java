@@ -11,7 +11,13 @@ public record PipelineExperimentScenario(
         PipelineRunner.RunMode runMode,
         Consumer<ExecutionMetricsSnapshot> progressListener,
         PipelineExperimentCapture capture,
-        String fileName) implements ExperimentScenario {
+        String fileName,
+        String definitionScenarioId) implements ExperimentScenario {
+
+    public PipelineExperimentScenario(byte[] payload, PipelineRunner.RunMode runMode,
+            Consumer<ExecutionMetricsSnapshot> progressListener, PipelineExperimentCapture capture, String fileName) {
+        this(payload, runMode, progressListener, capture, fileName, runMode.name());
+    }
 
     public PipelineExperimentScenario(byte[] payload, PipelineRunner.RunMode runMode,
             Consumer<ExecutionMetricsSnapshot> progressListener, PipelineExperimentCapture capture) {
@@ -20,7 +26,7 @@ public record PipelineExperimentScenario(
 
     @Override
     public String scenarioId() {
-        return runMode.name();
+        return definitionScenarioId;
     }
 
     @Override

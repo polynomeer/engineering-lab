@@ -39,7 +39,7 @@ public final class IngestionJobState {
 
     public IngestionJobState(com.pnomeer.lab.core.storage.StoredRun run, List<MetricPoint> timeline, long firstMetric) {
         this.fileName = run.runMetadata().parameters().getOrDefault("input.fileName", "unknown.xlsx");
-        this.runMode = PipelineRunner.RunMode.valueOf(run.scenarioId());
+        this.runMode = PipelineRunner.RunMode.valueOf(run.runMetadata().parameters().getOrDefault("mode", run.scenarioId()));
         this.executionState = new ExperimentExecutionState(run, firstMetric);
         this.runMetadata = run.runMetadata();
         this.producedCount = run.summary().counters().getOrDefault("rows.produced", 0L).intValue();

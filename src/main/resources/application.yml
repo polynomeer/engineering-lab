@@ -19,6 +19,9 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  scenario:
+    max-document-bytes: 65536
+    max-input-bytes: 52428800
   storage:
     root: .lab
     queue-capacity: 1000
