@@ -15,7 +15,8 @@ public class PipelineRuntimeConfig {
 
     @Bean
     public ExperimentRunner experimentRunner() {
-        return new LocalExperimentRunner();
+        return new LocalExperimentRunner(new com.pnomeer.lab.runtime.GitProvenanceProvider(
+                java.nio.file.Path.of("."), java.time.Duration.ofSeconds(2)));
     }
 
     @Bean

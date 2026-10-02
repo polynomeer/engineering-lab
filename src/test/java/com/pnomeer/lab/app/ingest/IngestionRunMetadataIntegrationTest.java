@@ -32,6 +32,9 @@ class IngestionRunMetadataIntegrationTest {
 
             assertEquals(IngestionJobStatus.SUCCEEDED, result.status());
             assertEquals(1, result.insertedCount());
+            assertEquals("500", result.runMetadata().parameters().get("pipeline.insert.chunk-size"));
+            assertEquals("sample.xlsx", result.runMetadata().parameters().get("input.fileName"));
+            assertEquals(64, result.runMetadata().parameters().get("input.sha256").length());
             assertEquals(jobId, result.runMetadata().runId());
             assertEquals(mode.name(), result.runMetadata().parameters().get("mode"));
             assertEquals(String.valueOf(workbook.length), result.runMetadata().parameters().get("payloadBytes"));

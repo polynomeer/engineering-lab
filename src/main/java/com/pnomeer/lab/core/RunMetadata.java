@@ -7,7 +7,12 @@ import java.util.Objects;
 public record RunMetadata(
         String runId,
         Map<String, String> parameters,
-        RunEnvironment environment) {
+        RunEnvironment environment,
+        GitProvenance git) {
+
+    public RunMetadata(String runId, Map<String, String> parameters, RunEnvironment environment) {
+        this(runId, parameters, environment, GitProvenance.unknown("Not configured"));
+    }
 
     public RunMetadata {
         if (runId == null || runId.isBlank()) {
@@ -15,5 +20,6 @@ public record RunMetadata(
         }
         parameters = Map.copyOf(Objects.requireNonNull(parameters, "parameters"));
         Objects.requireNonNull(environment, "environment");
+        Objects.requireNonNull(git, "git");
     }
 }

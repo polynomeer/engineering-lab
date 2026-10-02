@@ -9,5 +9,9 @@ public interface Experiment<C extends ExperimentScenario> {
         return type();
     }
 
+    default java.util.Map<String, String> parameters(C scenario) {
+        return scenario.parameters();
+    }
+
     ExperimentSummary execute(C scenario, Consumer<MetricPoint> timelineListener) throws Exception;
 }

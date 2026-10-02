@@ -16,5 +16,6 @@ class PipelineExperimentScenarioTest {
         assertEquals("SINGLE_THREAD", scenario.scenarioId());
         assertEquals("excel-single_thread", scenario.displayName());
         assertEquals("3", scenario.parameters().get("payloadBytes"));
+        assertEquals("039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81", scenario.parameters().get("input.sha256"));
     }
 }

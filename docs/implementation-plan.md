@@ -15,10 +15,10 @@
 
 검증: `./gradlew test` 32개 통과. 파라미터 변경 후 원본 스냅샷 보존, 독립 실행 UUID, 실패 metadata, 큐/IO HTTP JSON, Excel 두 모드와 잘못된 workbook의 결과를 검증했다.
 
-## 2. 실행 증거 영속화 — 예정
+## 2. 실행 증거 영속화 — 진행 중
 
 - RunStore 계약, H2 file 저장소, 버전 관리 스키마, 저장 기본값·문서를 추가한다.
-- Git SHA/dirty/수집 실패 이유, Excel 설정·입력 checksum을 스냅샷으로 남긴다.
+- [x] Git SHA/dirty/수집 실패 이유, Excel 설정·입력 checksum을 스냅샷으로 남긴다.
 - bounded metric writer의 배압, size/time flush, 재시도·중복 방지·실패 보고를 구현한다.
 - 작업 서비스의 in-memory 이력을 페이지 조회 저장소로 전환하고 재시작·중단 복구를 검증한다.
 - 메모리/처리량 측정은 재현 조건과 raw 결과를 함께 보관한다.

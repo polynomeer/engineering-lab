@@ -66,7 +66,7 @@ public class IngestionService {
         try {
             PipelineExperimentCapture capture = new PipelineExperimentCapture();
             PipelineExperimentScenario scenario =
-                    new PipelineExperimentScenario(payload, state.getRunMode(), state::recordProgress, capture);
+                    new PipelineExperimentScenario(payload, state.getRunMode(), state::recordProgress, capture, state.getFileName());
             ExperimentResult experimentResult = experimentRunner.run(pipelineExperiment, scenario, state.getJobId());
             state.setRunMetadata(experimentResult.runMetadata());
             if (experimentResult.status() == ExperimentStatus.FAILED) {

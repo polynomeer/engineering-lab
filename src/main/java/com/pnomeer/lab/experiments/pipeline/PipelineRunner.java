@@ -47,6 +47,17 @@ public class PipelineRunner {
     private final TransactionTemplate transactionTemplate;
     private final long insertDelayMs;
 
+    public java.util.Map<String, String> configurationSnapshot() {
+        return java.util.Map.of(
+                "pipeline.queue.raw-capacity", String.valueOf(properties.getQueue().getRawCapacity()),
+                "pipeline.queue.mapped-capacity", String.valueOf(properties.getQueue().getMappedCapacity()),
+                "pipeline.threads.validator", String.valueOf(properties.getThreads().getValidator()),
+                "pipeline.threads.inserter", String.valueOf(properties.getThreads().getInserter()),
+                "pipeline.insert.chunk-size", String.valueOf(properties.getInsert().getChunkSize()),
+                "pipeline.backpressure.offer-timeout-ms", String.valueOf(properties.getBackpressure().getOfferTimeoutMs()),
+                "pipeline.insert.delay-ms", String.valueOf(insertDelayMs));
+    }
+
     public enum RunMode {
         PIPELINE,
         SINGLE_THREAD

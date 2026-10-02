@@ -49,10 +49,12 @@ Completed jobs in `/experiments/jobs`, `/experiments/jobs/{jobId}`, `/ingest/job
 - `runId`: the existing `jobId`, shared with the runner result.
 - `parameters`: an immutable copy of the scenario parameters taken before execution.
 - `environment`: Java version/vendor/VM, OS name/version/architecture, available processors, and maximum JVM heap bytes.
+- `git`: commit SHA, tracked/untracked dirty state, and a collection error when unavailable. Runtime Git probes have a two-second command timeout and 64 KiB output limit; unknown is never reported as clean.
+- Excel parameters also include `input.sha256`, `input.fileName`, and the pipeline queue/worker/batch/timeout configuration. The hash identifies the uploaded bytes; it does not archive the workbook.
 
 Successful results and experiment exceptions both preserve this snapshot. The field is null until a runner result is available, and can remain null for failures before execution or fatal JVM errors. Existing response fields are unchanged.
 
-This is the first step toward reproducible runs, not durable evidence storage yet. Git provenance, complete pipeline settings, input checksums, and restart-safe history are scheduled in the [implementation plan](docs/implementation-plan.md). CPU count means processors available to the JVM; maximum heap is not physical system RAM. Environment variables and full JVM arguments are not collected.
+This is the first step toward reproducible runs, not durable evidence storage yet. Restart-safe history is scheduled in the [implementation plan](docs/implementation-plan.md). CPU count means processors available to the JVM; maximum heap is not physical system RAM. Environment variables and full JVM arguments are not collected.
 
 ## Configuration
 Default config in `application.yml`:

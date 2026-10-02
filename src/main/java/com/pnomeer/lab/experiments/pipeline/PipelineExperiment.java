@@ -28,6 +28,13 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
     }
 
     @Override
+    public Map<String, String> parameters(PipelineExperimentScenario scenario) {
+        var parameters = new java.util.HashMap<>(scenario.parameters());
+        parameters.putAll(pipelineRunner.configurationSnapshot());
+        return Map.copyOf(parameters);
+    }
+
+    @Override
     public ExperimentSummary execute(PipelineExperimentScenario scenario, Consumer<MetricPoint> timelineListener)
             throws Exception {
         PipelineRunner.PipelineRunResult result = pipelineRunner.run(
