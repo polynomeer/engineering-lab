@@ -150,6 +150,35 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
                 System.currentTimeMillis());
     }
 
+    @Override
+    public List<ArtifactReference> artifacts(String id) {
+        return jdbc.query("select * from lab_artifact where run_id=? order by artifact_id limit 100",
+                (row, n) -> new ArtifactReference(row.getString("artifact_id"), row.getString("run_id"),
+                        row.getString("relative_path"), row.getString("media_type"), row.getLong("byte_size"), row.getString("sha256")), id);
+    }
+
+    @Override
+    public void registerArtifact(ArtifactReference reference) {
+        transactions.executeWithoutResult(tx -> {
+            // Serialize registrations for this Run so the reference bound is enforced concurrently.
+            var rows = jdbc.queryForList("select run_id from lab_run where run_id=? for update", String.class, reference.runId());
+            if (rows.isEmpty()) throw new IllegalArgumentException("Run not found");
+            var existing = artifacts(reference.runId());
+            var sameId = existing.stream().filter(a -> a.artifactId().equals(reference.artifactId())).findFirst();
+            if (sameId.isPresent()) {
+                if (!sameId.get().equals(reference)) throw new IllegalArgumentException("Artifact ID already has different metadata");
+                return;
+            }
+            if (existing.size() >= 100) throw new IllegalArgumentException("Run artifact reference limit is 100");
+            try {
+                jdbc.update("insert into lab_artifact values(?,?,?,?,?,?)", reference.artifactId(), reference.runId(),
+                        reference.relativePath(), reference.mediaType(), reference.byteSize(), reference.sha256());
+            } catch (org.springframework.dao.DuplicateKeyException ex) {
+                throw new IllegalArgumentException("Artifact ID belongs to another Run", ex);
+            }
+        });
+    }
+
     private StoredRun readRun(ResultSet row, int index) throws SQLException {
         return new StoredRun(row.getLong("seq"), row.getString("run_id"), row.getString("experiment_type"), row.getString("scenario_id"),
                 RunStatus.valueOf(row.getString("status")), row.getLong("created_at"), row.getLong("started_at"), row.getLong("completed_at"),

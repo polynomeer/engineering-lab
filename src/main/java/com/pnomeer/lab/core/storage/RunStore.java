@@ -17,4 +17,6 @@ public interface RunStore {
     List<StoredMetric> metrics(String runId, long afterSequence, int limit);
     List<StoredMetric> recentMetrics(String runId, int limit);
     int recoverInterrupted();
+    List<ArtifactReference> artifacts(String runId);
+    void registerArtifact(ArtifactReference reference);
 }
