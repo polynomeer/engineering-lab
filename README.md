@@ -44,7 +44,7 @@ There is also a second non-pipeline experiment now:
 
 ## Run metadata
 
-Completed jobs in `/experiments/jobs`, `/experiments/jobs/{jobId}`, `/ingest/jobs`, and `/ingest/jobs/{jobId}` now include `runMetadata`:
+Jobs in `/experiments/jobs`, `/experiments/jobs/{jobId}`, `/ingest/jobs`, and `/ingest/jobs/{jobId}` now include `runMetadata`:
 
 - `runId`: the existing `jobId`, shared with the runner result.
 - `parameters`: an immutable copy of the scenario parameters taken before execution.
@@ -52,9 +52,13 @@ Completed jobs in `/experiments/jobs`, `/experiments/jobs/{jobId}`, `/ingest/job
 - `git`: commit SHA, tracked/untracked dirty state, and a collection error when unavailable. Runtime Git probes have a two-second command timeout and 64 KiB output limit; unknown is never reported as clean.
 - Excel parameters also include `input.sha256`, `input.fileName`, and the pipeline queue/worker/batch/timeout configuration. The hash identifies the uploaded bytes; it does not archive the workbook.
 
-Successful results and experiment exceptions both preserve this snapshot. The field is null until a runner result is available, and can remain null for failures before execution or fatal JVM errors. Existing response fields are unchanged.
+The snapshot is persisted before dispatch, so queued, successful, failed, and rejected jobs retain it. Existing response fields are unchanged. Legacy job endpoints map QUEUED to RUNNING and INTERRUPTED to FAILED; `/runs` exposes the full lifecycle.
 
-This is the first step toward reproducible runs, not durable evidence storage yet. Restart-safe history is scheduled in the [implementation plan](docs/implementation-plan.md). CPU count means processors available to the JVM; maximum heap is not physical system RAM. Environment variables and full JVM arguments are not collected.
+Run state, metadata, summaries, and metrics survive application restarts in a separate H2 file DB under `.lab/`. CPU count means processors available to the JVM; maximum heap is not physical system RAM. Environment variables and full JVM arguments are not collected.
+
+## Run persistence
+
+See the [run storage guide](docs/run-storage.md) for defaults, recovery behavior, paginated `/runs` APIs, backup, and verification.
 
 ## Configuration
 Default config in `application.yml`:
@@ -104,7 +108,7 @@ Meaning:
 - `http://localhost:8080`
 
 Notes:
-- Runtime DB is H2 (in-memory).
+- The ingestion data DB is H2 (in-memory). Run evidence uses a separate H2 file DB under `.lab/`.
 - Schema is auto-initialized from `src/main/resources/schema.sql`.
 - The Spring Boot entrypoint class is still named `ExcelPipelineApplication` while the project is being migrated.
 
@@ -497,7 +501,9 @@ Examples:
 ```
 
 ## Current limitations
-- Job store is in-memory (`ConcurrentHashMap`), so job history is lost on restart.
+- Run evidence persists locally; ingestion rows and uploaded workbook bytes are not archived. A checksum identifies inputs but cannot recreate them.
+- Legacy job lists show at most the newest 100 runs; metric previews default to the latest 200 points. Use the paginated `/runs` API for full evidence.
+- Run storage is single-application local storage. Schema v1 is supported; unknown versions fail startup. Artifact registration/export APIs remain future work.
 - Implemented experiment families are Excel ingestion, queue contention, and IO endpoint comparison; other families in the architecture plan remain future work.
 - No authentication or authorization on endpoints.
 - No persistence of validation-error details beyond aggregated summary in status payload.

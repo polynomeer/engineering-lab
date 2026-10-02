@@ -1,148 +1,62 @@
 package com.pnomeer.lab.app.ingest;
 
-import com.pnomeer.lab.core.ExperimentResult;
-import com.pnomeer.lab.core.ExperimentRunner;
-import com.pnomeer.lab.core.ExperimentStatus;
-import com.pnomeer.lab.experiments.pipeline.PipelineExperiment;
-import com.pnomeer.lab.experiments.pipeline.PipelineExperimentCapture;
-import com.pnomeer.lab.experiments.pipeline.PipelineExperimentScenario;
-import com.pnomeer.lab.experiments.pipeline.PipelineRunner;
-import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
+import com.pnomeer.lab.core.storage.*;
+import com.pnomeer.lab.runtime.DurableExperimentRunner;
+import com.pnomeer.lab.storage.StorageProperties;
+import com.pnomeer.lab.experiments.pipeline.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.List;
-import java.util.Comparator;
-import java.util.Locale;
+import java.util.*;
 
 @Service
 public class IngestionService {
-    private final ExperimentRunner experimentRunner;
-    private final PipelineExperiment pipelineExperiment;
-    private final TaskExecutor taskExecutor;
-    private final ConcurrentHashMap<String, IngestionJobState> jobs = new ConcurrentHashMap<>();
+    private final DurableExperimentRunner runner;
+    private final RunStore store;
+    private final StorageProperties properties;
+    private final PipelineExperiment experiment;
+    private final TaskExecutor executor;
 
-    public IngestionService(
-            ExperimentRunner experimentRunner,
-            PipelineExperiment pipelineExperiment,
-            @Qualifier("ingestTaskExecutor") TaskExecutor taskExecutor) {
-        this.experimentRunner = experimentRunner;
-        this.pipelineExperiment = pipelineExperiment;
-        this.taskExecutor = taskExecutor;
+    public IngestionService(DurableExperimentRunner runner, RunStore store, StorageProperties properties,
+            PipelineExperiment experiment, @Qualifier("ingestTaskExecutor") TaskExecutor executor) {
+        this.runner = runner; this.store = store; this.properties = properties;
+        this.experiment = experiment; this.executor = executor;
     }
 
-    public String startJob(MultipartFile file, PipelineRunner.RunMode runMode) {
-        byte[] payload = readFile(file);
-        String jobId = UUID.randomUUID().toString();
+    public String startJob(MultipartFile file, PipelineRunner.RunMode mode) {
+        byte[] payload;
+        try { payload = file.getBytes(); }
+        catch (IOException ex) { throw new UncheckedIOException("Failed to read upload", ex); }
         String fileName = file.getOriginalFilename() == null ? "unknown.xlsx" : file.getOriginalFilename();
-        IngestionJobState state = new IngestionJobState(jobId, fileName, runMode);
-        jobs.put(jobId, state);
-
-        taskExecutor.execute(() -> runJob(state, payload));
-        return jobId;
+        var scenario = new PipelineExperimentScenario(payload, mode, progress -> { }, new PipelineExperimentCapture(), fileName);
+        var run = runner.prepare(experiment, scenario, UUID.randomUUID().toString());
+        try { executor.execute(() -> runner.runPrepared(experiment, scenario, run)); }
+        catch (org.springframework.core.task.TaskRejectedException ex) {
+            runner.reject(run, "Executor rejected the submitted run");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ingestion queue is full or shutting down", ex);
+        }
+        return run.runId();
     }
 
-    public IngestionJobState getJob(String jobId) {
-        return jobs.get(jobId);
+    public IngestionJobState getJob(String id) {
+        return store.find(id).filter(run -> run.experimentType().equals(experiment.type()))
+                .map(run -> new IngestionJobState(run,
+                        store.recentMetrics(id, properties.previewLimit()).stream().map(StoredMetric::point).toList(), firstMetric(id)))
+                .orElse(null);
     }
-
-    public List<IngestionJobState> listJobs() {
-        return jobs.values().stream()
-                .sorted(Comparator.comparingLong(IngestionJobState::getCreatedAtEpochMs).reversed())
+    public List<IngestionJobState> listJobs() { return listJobs(Math.min(100, properties.pageLimit()), Long.MAX_VALUE); }
+    public List<IngestionJobState> listJobs(int limit, long before) {
+        return store.list(experiment.type(), before, limit).stream()
+                .map(run -> new IngestionJobState(run,
+                        store.recentMetrics(run.runId(), 1).stream().map(StoredMetric::point).toList(), firstMetric(run.runId())))
                 .toList();
     }
-
-    private void runJob(IngestionJobState state, byte[] payload) {
-        state.markStarted();
-        try {
-            PipelineExperimentCapture capture = new PipelineExperimentCapture();
-            PipelineExperimentScenario scenario =
-                    new PipelineExperimentScenario(payload, state.getRunMode(), state::recordProgress, capture, state.getFileName());
-            ExperimentResult experimentResult = experimentRunner.run(pipelineExperiment, scenario, state.getJobId());
-            state.setRunMetadata(experimentResult.runMetadata());
-            if (experimentResult.status() == ExperimentStatus.FAILED) {
-                state.markFailed(
-                        experimentResult.failureMessage() == null ? "Pipeline failed" : experimentResult.failureMessage(),
-                        false,
-                        containsDeadlock(experimentResult.failureMessage()));
-                return;
-            }
-
-            var result = capture.getRunResult();
-            if (result == null) {
-                state.markFailed("Pipeline produced no result", false, false);
-                return;
-            }
-            Map<String, Long> errorSummary = result.getValidationErrors().stream()
-                    .map(ValidationError::getReason)
-                    .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-            state.markSucceeded(
-                    result.getProducedCount(),
-                    result.getInsertedCount(),
-                    result.getValidationErrors().size(),
-                    errorSummary);
-        } catch (OutOfMemoryError error) {
-            state.markFailed("Out of memory", true, false);
-        } catch (Exception ex) {
-            state.markFailed(
-                ex.getMessage() == null ? "Pipeline failed" : ex.getMessage(),
-                containsOutOfMemory(ex),
-                containsDeadlock(ex));
-        }
-    }
-
-    private static boolean containsDeadlock(String message) {
-        if (message == null) {
-            return false;
-        }
-        String lower = message.toLowerCase(Locale.ROOT);
-        return lower.contains("deadlock") || lower.contains("sqlstate 40001");
-    }
-
-    private static boolean containsOutOfMemory(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof OutOfMemoryError) {
-                return true;
-            }
-            String message = current.getMessage();
-            if (message != null && message.toLowerCase(Locale.ROOT).contains("outofmemory")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
-    private static boolean containsDeadlock(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            String message = current.getMessage();
-            if (message != null) {
-                String lower = message.toLowerCase(Locale.ROOT);
-                if (lower.contains("deadlock") || lower.contains("sqlstate 40001")) {
-                    return true;
-                }
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
-    private static byte[] readFile(MultipartFile file) {
-        try {
-            return file.getBytes();
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Failed to read upload", ex);
-        }
+    private long firstMetric(String id) {
+        return store.metrics(id, -1, 1).stream().mapToLong(metric -> metric.point().timestampEpochMs()).findFirst().orElse(0);
     }
 }

@@ -53,4 +53,45 @@ public final class PipelineMetricPointMapper {
                         Map.entry("time.elapsedMs", snapshot.elapsedMillis())),
                 Map.of("source", "pipeline.progressSnapshot"));
     }
+
+    public static ExecutionMetricsSnapshot toProgressSnapshot(MetricPoint point) {
+        return new ExecutionMetricsSnapshot(
+                point.gauges().getOrDefault("queue.raw.size", 0d).intValue(),
+                point.gauges().getOrDefault("queue.mapped.size", 0d).intValue(),
+                point.gauges().getOrDefault("queue.raw.saturationPct", 0d).doubleValue(),
+                point.gauges().getOrDefault("queue.mapped.saturationPct", 0d).doubleValue(),
+                point.gauges().getOrDefault("queue.raw.enqueueWaitMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("queue.mapped.enqueueWaitMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("queue.raw.dequeueLatencyMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("queue.mapped.dequeueLatencyMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("backpressure.enqueueBlockingTimeMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("backpressure.producerSlowdownPct", 0d).doubleValue(),
+                point.gauges().getOrDefault("backpressure.stallFrequencyPerMin", 0d).doubleValue(),
+                point.counters().getOrDefault("backpressure.stallEvents", 0L).intValue(),
+                point.gauges().getOrDefault("resource.heapUsedMb", 0d).doubleValue(),
+                point.gauges().getOrDefault("resource.heapMaxMb", 0d).doubleValue(),
+                point.gauges().getOrDefault("resource.peakHeapMb", 0d).doubleValue(),
+                point.gauges().getOrDefault("resource.gcPauseMs", 0d).doubleValue(),
+                point.counters().getOrDefault("resource.activeConnections", 0L).intValue(),
+                point.counters().getOrDefault("resource.awaitingConnections", 0L).intValue(),
+                point.gauges().getOrDefault("resource.connectionWaitMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("resource.lockWaitMs", 0d).doubleValue(),
+                point.counters().getOrDefault("rows.produced", 0L).intValue(),
+                point.counters().getOrDefault("rows.mapped", 0L).intValue(),
+                point.counters().getOrDefault("rows.inserted", 0L).intValue(),
+                point.counters().getOrDefault("batches.completed", 0L).intValue(),
+                point.counters().getOrDefault("rows.failed", 0L).intValue(),
+                point.gauges().getOrDefault("errors.validationRatePct", 0d).doubleValue(),
+                point.counters().getOrDefault("retry.count", 0L).intValue(),
+                point.counters().getOrDefault("retry.ratePerSec", 0L).longValue(),
+                point.counters().getOrDefault("throughput.producedPerSec", 0L).longValue(),
+                point.counters().getOrDefault("throughput.mappedPerSec", 0L).longValue(),
+                point.counters().getOrDefault("throughput.insertedPerSec", 0L).longValue(),
+                point.counters().getOrDefault("throughput.batchPerSec", 0L).longValue(),
+                point.gauges().getOrDefault("latency.parseMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("latency.validationMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("latency.mappingMs", 0d).doubleValue(),
+                point.gauges().getOrDefault("latency.insertMs", 0d).doubleValue(),
+                point.counters().getOrDefault("time.elapsedMs", 0L).longValue());
+    }
 }

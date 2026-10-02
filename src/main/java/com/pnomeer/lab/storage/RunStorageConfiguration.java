@@ -1,0 +1,26 @@
+package com.pnomeer.lab.storage;
+
+import com.pnomeer.lab.runtime.DurableExperimentRunner;
+import com.pnomeer.lab.runtime.GitProvenanceProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import java.nio.file.Path;
+import java.time.Duration;
+
+@Configuration
+@EnableConfigurationProperties(StorageProperties.class)
+public class RunStorageConfiguration {
+    @Bean(destroyMethod = "close")
+    public JdbcRunStore runStore(StorageProperties properties) {
+        var store = new JdbcRunStore(Path.of(properties.root()), properties.pageLimit(), properties.batchSize());
+        try { store.recoverInterrupted(); return store; }
+        catch (RuntimeException ex) { store.close(); throw ex; }
+    }
+    @Bean(name = "experimentRunner", destroyMethod = "close")
+    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties) {
+        return new DurableExperimentRunner(store,
+                new GitProvenanceProvider(Path.of(properties.gitDirectory()), Duration.ofMillis(properties.gitTimeoutMs())),
+                properties.writerOptions(), properties.previewLimit(), properties.maxActiveRuns());
+    }
+}

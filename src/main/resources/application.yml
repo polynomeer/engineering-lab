@@ -17,3 +17,18 @@ pipeline:
     chunk-size: 500
   backpressure:
     offer-timeout-ms: 200
+
+lab:
+  storage:
+    root: .lab
+    queue-capacity: 1000
+    batch-size: 100
+    flush-interval-ms: 1000
+    max-attempts: 3
+    retry-backoff-ms: 100
+    shutdown-timeout-ms: 30000
+    page-limit: 500
+    preview-limit: 200
+    max-active-runs: 8
+    git-directory: .
+    git-timeout-ms: 2000

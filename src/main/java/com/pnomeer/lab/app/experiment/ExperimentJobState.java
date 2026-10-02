@@ -21,6 +21,13 @@ public final class ExperimentJobState {
         this.timeline = List.of();
     }
 
+    public ExperimentJobState(com.pnomeer.lab.core.storage.StoredRun run, List<MetricPoint> timeline, long firstMetric) {
+        this.executionState = new ExperimentExecutionState(run, firstMetric);
+        this.runMetadata = run.runMetadata();
+        this.summary = run.summary();
+        this.timeline = List.copyOf(timeline);
+    }
+
     public RunMetadata getRunMetadata() {
         return runMetadata;
     }

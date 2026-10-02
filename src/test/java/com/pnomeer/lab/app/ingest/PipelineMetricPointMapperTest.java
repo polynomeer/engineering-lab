@@ -17,6 +17,7 @@ class PipelineMetricPointMapperTest {
 
         MetricPoint point = PipelineMetricPointMapper.fromProgressSnapshot(snapshot);
 
+        assertEquals(snapshot, PipelineMetricPointMapper.toProgressSnapshot(point));
         assertEquals(3.0d, point.gauges().get("queue.raw.size"));
         assertEquals(300L, point.counters().get("throughput.producedPerSec"));
         assertEquals(90L, point.counters().get("rows.inserted"));

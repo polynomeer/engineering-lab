@@ -37,6 +37,27 @@ public final class IngestionJobState {
         this.errorSummary = Map.of();
     }
 
+    public IngestionJobState(com.pnomeer.lab.core.storage.StoredRun run, List<MetricPoint> timeline, long firstMetric) {
+        this.fileName = run.runMetadata().parameters().getOrDefault("input.fileName", "unknown.xlsx");
+        this.runMode = PipelineRunner.RunMode.valueOf(run.scenarioId());
+        this.executionState = new ExperimentExecutionState(run, firstMetric);
+        this.runMetadata = run.runMetadata();
+        this.producedCount = run.summary().counters().getOrDefault("rows.produced", 0L).intValue();
+        this.insertedCount = run.summary().counters().getOrDefault("rows.inserted", 0L).intValue();
+        this.validationErrorCount = run.summary().counters().getOrDefault("rows.validationErrors", 0L).intValue();
+        var errors = new java.util.HashMap<String, Long>();
+        run.summary().details().forEach((key, value) -> {
+            if (key.startsWith("validation.")) errors.put(key.substring("validation.".length()), Long.parseLong(value));
+        });
+        this.errorSummary = Map.copyOf(errors);
+        String reason = run.failureMessage() == null ? "" : run.failureMessage().toLowerCase(java.util.Locale.ROOT);
+        this.oomExists = reason.contains("out of memory") || reason.contains("outofmemory");
+        this.dbDeadlock = reason.contains("deadlock") || reason.contains("sqlstate 40001");
+        metricTimeline.addAll(timeline);
+        progressTimeline.addAll(timeline.stream().map(PipelineMetricPointMapper::toProgressSnapshot).toList());
+        latestProgress = progressTimeline.isEmpty() ? null : progressTimeline.getLast();
+    }
+
     public RunMetadata getRunMetadata() {
         return runMetadata;
     }

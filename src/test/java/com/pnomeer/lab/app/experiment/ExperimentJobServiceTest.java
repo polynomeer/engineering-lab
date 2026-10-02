@@ -1,6 +1,10 @@
 package com.pnomeer.lab.app.experiment;
 
-import com.pnomeer.lab.core.LocalExperimentRunner;
+import com.pnomeer.lab.core.GitProvenance;
+import com.pnomeer.lab.runtime.DurableExperimentRunner;
+import com.pnomeer.lab.storage.*;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
 import com.pnomeer.lab.experiments.concurrency.QueueContentionExperiment;
 import com.pnomeer.lab.experiments.concurrency.QueueContentionScenario;
 import com.pnomeer.lab.experiments.io.IoEndpointComparisonExperiment;
@@ -17,11 +21,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ExperimentJobServiceTest {
+    @TempDir Path root;
+    private StorageProperties properties() {
+        return new StorageProperties(root.toString(), 100, 100, 100, 3, 1, 2000, 500, 200, 8, ".", 1000);
+    }
+
     @Test
     void runsQueueContentionExperimentAndStoresSummary() throws Exception {
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        try (var store = new JdbcRunStore(root, 500, 100);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             ExperimentJobService service = new ExperimentJobService(
-                    new LocalExperimentRunner(),
+                    new DurableExperimentRunner(store, () -> GitProvenance.unknown("test"), properties().writerOptions(), 200, 8),
+                    store, properties(),
                     new QueueContentionExperiment(),
                     new IoEndpointComparisonExperiment(executor),
                     new SyncTaskExecutor());
@@ -58,9 +69,11 @@ class ExperimentJobServiceTest {
 
     @Test
     void runsIoEndpointComparisonExperimentAndStoresSummary() throws Exception {
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        try (var store = new JdbcRunStore(root, 500, 100);
+             var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             ExperimentJobService service = new ExperimentJobService(
-                    new LocalExperimentRunner(),
+                    new DurableExperimentRunner(store, () -> GitProvenance.unknown("test"), properties().writerOptions(), 200, 8),
+                    store, properties(),
                     new QueueContentionExperiment(),
                     new IoEndpointComparisonExperiment(executor),
                     new SyncTaskExecutor());
@@ -91,6 +104,24 @@ class ExperimentJobServiceTest {
             assertEquals("3", state.getRunMetadata().parameters().get("requests"));
             assertEquals(3L, state.getSummary().counters().get("requests.virtualCompleted"));
             assertEquals(3L, state.getSummary().counters().get("requests.reactiveCompleted"));
+        }
+    }
+
+    @Test
+    void recordsRejectedSubmissionAsFailedWithMetadata() {
+        try (var store = new JdbcRunStore(root, 500, 100);
+             var io = Executors.newVirtualThreadPerTaskExecutor();
+             var runner = new DurableExperimentRunner(store, () -> GitProvenance.unknown("test"), properties().writerOptions(), 200, 8)) {
+            var service = new ExperimentJobService(runner, store, properties(), new QueueContentionExperiment(),
+                    new IoEndpointComparisonExperiment(io), task -> {
+                        throw new org.springframework.core.task.TaskRejectedException("full");
+                    });
+            org.junit.jupiter.api.Assertions.assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                    () -> service.startQueueContentionJob(new QueueContentionScenario("rejected", 1, 1, 1, 1, 0)));
+            var run = store.list(null, Long.MAX_VALUE, 1).getFirst();
+            assertEquals(com.pnomeer.lab.core.storage.RunStatus.FAILED, run.status());
+            assertEquals("rejected", run.scenarioId());
+            assertEquals("1", run.runMetadata().parameters().get("queueCapacity"));
         }
     }
 }

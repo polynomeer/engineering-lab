@@ -16,7 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(classes = com.pnomeer.pipeline.ExcelPipelineApplication.class)
+@SpringBootTest(classes = com.pnomeer.pipeline.ExcelPipelineApplication.class,
+        properties = "lab.storage.root=${java.io.tmpdir}/engineering-lab-tests-${random.uuid}")
 class IngestionRunMetadataIntegrationTest {
     @Autowired
     private IngestionController controller;

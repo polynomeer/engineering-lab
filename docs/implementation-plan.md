@@ -15,15 +15,17 @@
 
 검증: `./gradlew test` 32개 통과. 파라미터 변경 후 원본 스냅샷 보존, 독립 실행 UUID, 실패 metadata, 큐/IO HTTP JSON, Excel 두 모드와 잘못된 workbook의 결과를 검증했다.
 
-## 2. 실행 증거 영속화 — 진행 중
+## 2. 실행 증거 영속화 — 완료
 
-- [x] RunStore 계약, 별도 H2 file 어댑터와 v1 스키마를 추가했다. 재개방 후 결과 조회, 중복 metric 재전송, 페이지 경계, 미완료 실행 복구 테스트 통과. 런타임 연결과 저장 기본값은 아래 서비스 전환에서 적용한다.
+- [x] RunStore 계약, 별도 H2 file 어댑터와 v1 스키마를 추가했다. 재개방 후 결과 조회, 중복 metric 재전송, 페이지 경계, 미완료 실행 복구 테스트 통과. 런타임 기본값과 복구 절차는 [저장 가이드](run-storage.md)에 기록했다.
 - [x] Git SHA/dirty/수집 실패 이유, Excel 설정·입력 checksum을 스냅샷으로 남긴다.
-- [x] bounded metric writer의 배압, size/time/종료 flush, 동일 sequence 재시도와 실패 전파를 구현하고 테스트했다. 런타임 연결 시 결과에 queue depth/wait·write latency·retry/failure 카운터를 포함한다.
-- 작업 서비스의 in-memory 이력을 페이지 조회 저장소로 전환하고 재시작·중단 복구를 검증한다.
-- 메모리/처리량 측정은 재현 조건과 raw 결과를 함께 보관한다.
+- [x] bounded metric writer의 배압, size/time/종료 flush, 동일 sequence 재시도와 실패 전파를 구현하고 테스트했다. 완료 summary에 queue depth/wait·write latency·retry/failure 카운터를 포함한다.
+- [x] 작업 서비스의 in-memory 이력을 제거하고 저장소로 전환했다. 실제 Spring 앱 재시작 후 큐/Excel 결과 조회, 중단 복구, executor 거부 기록을 검증했다. `/runs` 페이지 조회를 제공한다.
+- [x] metric writer의 버퍼 상한과 per-point 대비 batch 처리량 테스트를 추가하고 실행 조건·raw 결과를 build report에 기록한다. 이는 전체 ingestion 메모리/성능 보장을 뜻하지 않는다.
 
 완료 기준: 실행 상태·parameters·환경·metrics·summary가 재시작 후 조회되고, 저장소 장애에서 silent loss가 없다. 스키마/어댑터, writer, 서비스 전환은 각각 테스트 후 별도 커밋한다.
+
+검증: 전체 `./gradlew test` 45개 통과. 재시작·실패/거부·중복 방지·backpressure·time/size/shutdown flush·스키마/소유권·페이지/preview 상한을 검증했다. artifact 파일 등록/조회는 4–5단계에 남는다.
 
 ## 3. Registry와 선언적 Scenario — 예정
 

@@ -85,4 +85,19 @@ class BoundedMetricWriterTest {
         assertEquals(1L, writer.counters().get("storage.failures"));
         assertEquals(2L, writer.counters().get("storage.retries"));
     }
+
+    @Test
+    void boundsShutdownTimeWhenStorageDoesNotFinish() throws Exception {
+        RunStore store = mock(RunStore.class);
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        doAnswer(i -> { entered.countDown(); release.await(); return null; })
+                .when(store).appendMetrics(anyString(), anyList());
+        var writer = new BoundedMetricWriter(store, "slow", new MetricWriterOptions(1,1,10,1,0,50));
+        writer.accept(POINT);
+        assertTrue(entered.await(1, TimeUnit.SECONDS));
+        try {
+            assertTimeoutPreemptively(java.time.Duration.ofSeconds(1),
+                    () -> assertThrows(IllegalStateException.class, writer::close));
+        } finally { release.countDown(); }
+    }
 }

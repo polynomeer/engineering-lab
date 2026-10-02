@@ -21,6 +21,23 @@ public final class ExperimentExecutionState {
         this.status = ExperimentStatus.RUNNING;
     }
 
+    public ExperimentExecutionState(com.pnomeer.lab.core.storage.StoredRun run, long firstMetric) {
+        this.jobId = run.runId();
+        this.experimentType = run.experimentType();
+        this.scenarioId = run.scenarioId();
+        this.createdAtEpochMs = run.createdAtEpochMs();
+        this.startedAtEpochMs = run.startedAtEpochMs();
+        this.completedAtEpochMs = run.completedAtEpochMs();
+        this.updatedAtEpochMs = Math.max(createdAtEpochMs, Math.max(startedAtEpochMs, completedAtEpochMs));
+        this.firstMetricAtEpochMs = firstMetric;
+        this.failureMessage = run.failureMessage();
+        this.status = switch (run.status()) {
+            case QUEUED, RUNNING -> ExperimentStatus.RUNNING;
+            case SUCCEEDED -> ExperimentStatus.SUCCEEDED;
+            case FAILED, INTERRUPTED -> ExperimentStatus.FAILED;
+        };
+    }
+
     public String getJobId() {
         return jobId;
     }

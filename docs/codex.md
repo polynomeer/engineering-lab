@@ -13,6 +13,9 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | `com/pnomeer/pipeline/ExcelPipelineApplication.java` | Spring Boot 진입점, `com.pnomeer` 컴포넌트 스캔 |
 | `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `RunMetadata`/`RunEnvironment`, `LocalExperimentRunner` |
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷 |
+| `com/pnomeer/lab/runtime/` | 영속 runner, 제출/종료 lifecycle, Git provenance |
+| `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
+| `com/pnomeer/lab/app/run/` | `/runs` 실행·메트릭 페이지 조회와 DB 오류 응답 |
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
 | `com/pnomeer/lab/experiments/io/` | IO 비교 실험, blocking / virtual-thread / selector 서버, 부하 클라이언트 |
@@ -24,16 +27,16 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 
 - UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
 - `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 `PipelineProperties` 및 README 설정 설명도 함께 갱신한다.
-- DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다.
+- ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`이며 별도 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
 
 ## 실행 흐름
 
-- Excel: `IngestionController` → `IngestionService` → `ExperimentRunner` → `PipelineExperiment` → `PipelineRunner`.
+- Excel: `IngestionController` → `IngestionService` → `DurableExperimentRunner` → `PipelineExperiment` → `PipelineRunner`.
 - 파이프라인 모드: 첫 시트 파싱 → bounded raw queue → 검증·매핑 worker → bounded mapped queue → insert worker별 chunk → JDBC 트랜잭션. 비교용 `SINGLE_THREAD` 모드도 있다.
-- 공통 실험: `ExperimentController` → `ExperimentJobService` → `LocalExperimentRunner` → 해당 실험. 메트릭과 결과를 공통 모델로 반환한다.
-- 실행 결과의 `runMetadata`는 jobId와 동일한 실행 ID, 파라미터 및 JVM/OS 환경 스냅샷을 보존한다. 영속화·Git provenance는 다음 단계이며 [v2 설계](experiment-platform-design.md)를 참조한다.
-- 서버 작업 상태는 메모리에 보관된다. 브라우저의 localStorage에 저장되는 UI 상태·프리셋 이력과 서버 작업의 영속성은 별개다.
+- 공통 실험: `ExperimentController` → `ExperimentJobService` → `DurableExperimentRunner` → 해당 실험. 메트릭과 결과를 공통 모델로 반환한다.
+- 실행 metadata는 jobId, 파라미터, JVM/OS, Git provenance를 보존한다. Excel은 input SHA-256과 설정도 포함한다. 앱 runner는 `runtime/DurableExperimentRunner`, 저장소는 `storage/JdbcRunStore`다. [저장 가이드](run-storage.md)를 참조한다.
+- 서버 실행·메트릭·결과는 `.lab/`의 별도 H2 DB에 보관된다. 브라우저 localStorage의 UI 상태·프리셋과 별개다. core의 `LocalExperimentRunner`는 저장소 없는 단위 테스트/로컬 실행용이며 앱 bean으로 사용하지 않는다.
 
 ## 실행과 검증
 
@@ -62,7 +65,8 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | --- | --- |
 | 큐 / 종료 신호 | `BoundedChannelTest`, `StageShutdownTest` |
 | Excel / DB 쓰기 | `PipelineRunnerIntegrationTest`, 모델·시나리오 테스트 |
-| 공통 실행 모델 | `LocalExperimentRunnerTest`, `ExperimentExecutionStateTest` |
+| 공통 실행 모델 | `LocalExperimentRunnerTest`, `ExperimentExecutionStateTest`, `DurableExperimentRunnerTest` |
+| 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 
@@ -74,9 +78,9 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 - insert chunk는 크기 충족 또는 종료 신호에서 flush된다. 시간 기반 flush와 insert 재시도/backoff는 아직 구현되어 있지 않다. retry 메트릭 필드만으로 재시도 지원을 판단하지 않는다.
 - 검증 오류는 행 문맥을 가진 메모리 컬렉션에 모이며 API에는 집계가 노출된다. 영속 dead-letter 출력은 아직 없다.
-- 단계 사이 큐는 bounded지만 업로드 파일은 `byte[]`로 읽고, 검증 오류·작업 이력·메트릭 타임라인도 메모리에 누적된다. 전체 경로의 bounded memory가 보장된 상태는 아니다.
+- 단계 사이 큐는 bounded지만 업로드 파일은 `byte[]`로 읽고, 검증 오류도 메모리에 누적된다. 앱의 실행 이력은 영속화했고 metric writer와 preview는 bounded이다. 전체 경로의 bounded memory가 보장된 상태는 아니다.
 - 정상 종료 신호와 partial chunk flush는 존재한다. 실패·중단 경로까지 queue drain과 데이터 보존이 보장되는지는 별도 검증이 필요하다.
-- 현재 통합 테스트는 검증 오류 수집, backpressure, 두 실행 모드의 결과 일치를 검증한다. bounded memory와 단일 스레드 대비 처리량 향상을 입증하는 전용 성능 테스트는 아직 없다.
+- pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. 전체 Excel ingestion의 heap/throughput 비교 테스트는 여전히 별도 과제다.
 
 ## 작업 단위 커밋
 

@@ -1,82 +1,64 @@
 package com.pnomeer.lab.app.experiment;
 
-import com.pnomeer.lab.core.ExperimentResult;
-import com.pnomeer.lab.core.ExperimentRunner;
-import com.pnomeer.lab.core.Experiment;
-import com.pnomeer.lab.core.ExperimentScenario;
-import com.pnomeer.lab.experiments.concurrency.QueueContentionExperiment;
-import com.pnomeer.lab.experiments.concurrency.QueueContentionScenario;
-import com.pnomeer.lab.experiments.io.IoEndpointComparisonExperiment;
-import com.pnomeer.lab.experiments.io.IoEndpointComparisonScenario;
+import com.pnomeer.lab.core.*;
+import com.pnomeer.lab.core.storage.*;
+import com.pnomeer.lab.runtime.DurableExperimentRunner;
+import com.pnomeer.lab.storage.StorageProperties;
+import com.pnomeer.lab.experiments.concurrency.*;
+import com.pnomeer.lab.experiments.io.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
-
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import java.util.*;
 
 @Service
 public class ExperimentJobService {
-    private final ExperimentRunner experimentRunner;
-    private final QueueContentionExperiment queueContentionExperiment;
-    private final IoEndpointComparisonExperiment ioEndpointComparisonExperiment;
-    private final TaskExecutor taskExecutor;
-    private final ConcurrentHashMap<String, ExperimentJobState> jobs = new ConcurrentHashMap<>();
+    private final DurableExperimentRunner runner;
+    private final RunStore store;
+    private final StorageProperties properties;
+    private final QueueContentionExperiment queueExperiment;
+    private final IoEndpointComparisonExperiment ioExperiment;
+    private final TaskExecutor executor;
 
-    public ExperimentJobService(
-            ExperimentRunner experimentRunner,
-            QueueContentionExperiment queueContentionExperiment,
-            IoEndpointComparisonExperiment ioEndpointComparisonExperiment,
-            @Qualifier("experimentTaskExecutor") TaskExecutor taskExecutor) {
-        this.experimentRunner = experimentRunner;
-        this.queueContentionExperiment = queueContentionExperiment;
-        this.ioEndpointComparisonExperiment = ioEndpointComparisonExperiment;
-        this.taskExecutor = taskExecutor;
+    public ExperimentJobService(DurableExperimentRunner runner, RunStore store, StorageProperties properties,
+            QueueContentionExperiment queueExperiment, IoEndpointComparisonExperiment ioExperiment,
+            @Qualifier("experimentTaskExecutor") TaskExecutor executor) {
+        this.runner = runner; this.store = store; this.properties = properties;
+        this.queueExperiment = queueExperiment; this.ioExperiment = ioExperiment; this.executor = executor;
     }
 
-    public String startQueueContentionJob(QueueContentionScenario scenario) {
-        return startJob(queueContentionExperiment.type(), scenario.scenarioId(), state -> runJob(state, queueContentionExperiment, scenario));
-    }
+    public String startQueueContentionJob(QueueContentionScenario scenario) { return submit(queueExperiment, scenario); }
+    public String startIoEndpointComparisonJob(IoEndpointComparisonScenario scenario) { return submit(ioExperiment, scenario); }
 
-    public String startIoEndpointComparisonJob(IoEndpointComparisonScenario scenario) {
-        return startJob(ioEndpointComparisonExperiment.type(), scenario.scenarioId(), state -> runJob(state, ioEndpointComparisonExperiment, scenario));
-    }
-
-    private String startJob(
-            String experimentType,
-            String scenarioId,
-            java.util.function.Consumer<ExperimentJobState> task) {
-        String jobId = UUID.randomUUID().toString();
-        ExperimentJobState state = new ExperimentJobState(jobId, experimentType, scenarioId);
-        jobs.put(jobId, state);
-        taskExecutor.execute(() -> task.accept(state));
-        return jobId;
-    }
-
-    public ExperimentJobState getJob(String jobId) {
-        return jobs.get(jobId);
-    }
-
-    public List<ExperimentJobState> listJobs() {
-        return jobs.values().stream()
-                .sorted(Comparator.comparingLong(ExperimentJobState::getCreatedAtEpochMs).reversed())
-                .toList();
-    }
-
-    private <C extends ExperimentScenario> void runJob(
-            ExperimentJobState state,
-            Experiment<C> experiment,
-            C scenario) {
-        state.markStarted();
-        try {
-            ExperimentResult result = experimentRunner.run(experiment, scenario, state.getJobId());
-            state.markCompleted(result);
-        } catch (OutOfMemoryError error) {
-            state.markFailed("Out of memory");
-        } catch (Exception ex) {
-            state.markFailed(ex.getMessage() == null ? "Experiment failed" : ex.getMessage());
+    private <C extends ExperimentScenario> String submit(Experiment<C> experiment, C scenario) {
+        var run = runner.prepare(experiment, scenario, UUID.randomUUID().toString());
+        try { executor.execute(() -> runner.runPrepared(experiment, scenario, run)); }
+        catch (org.springframework.core.task.TaskRejectedException ex) {
+            runner.reject(run, "Executor rejected the submitted run");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Experiment queue is full or shutting down", ex);
         }
+        return run.runId();
+    }
+
+    public ExperimentJobState getJob(String id) {
+        return store.find(id).filter(run -> !run.experimentType().equals("pipeline.excel-ingestion"))
+                .map(run -> new ExperimentJobState(run,
+                        store.recentMetrics(id, properties.previewLimit()).stream().map(StoredMetric::point).toList(),
+                        firstMetric(id))).orElse(null);
+    }
+
+    public List<ExperimentJobState> listJobs() { return listJobs(Math.min(100, properties.pageLimit()), Long.MAX_VALUE); }
+    public List<ExperimentJobState> listJobs(int limit, long before) {
+        var runs = new ArrayList<StoredRun>();
+        runs.addAll(store.list(queueExperiment.type(), before, limit));
+        runs.addAll(store.list(ioExperiment.type(), before, limit));
+        return runs.stream().sorted(Comparator.comparingLong(StoredRun::sequence).reversed()).limit(limit)
+                .map(run -> new ExperimentJobState(run, List.of(), firstMetric(run.runId()))).toList();
+    }
+
+    private long firstMetric(String id) {
+        return store.metrics(id, -1, 1).stream().mapToLong(metric -> metric.point().timestampEpochMs()).findFirst().orElse(0);
     }
 }

@@ -49,4 +49,16 @@ class JdbcRunStoreTest {
             assertThrows(IllegalArgumentException.class, () -> store.appendMetrics("complete", List.of(new StoredMetric(2,point),new StoredMetric(3,point),new StoredMetric(4,point))));
         }
     }
+
+    @Test
+    void preventsConcurrentOwnersAndRejectsUnknownSchemaVersions() throws Exception {
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            assertThrows(IllegalStateException.class, () -> new JdbcRunStore(root, 10, 2));
+        }
+        try (var connection = java.sql.DriverManager.getConnection("jdbc:h2:file:" + root.resolve("runs"), "sa", "");
+             var statement = connection.createStatement()) {
+            statement.executeUpdate("update lab_schema set version=99 where id=1");
+        }
+        assertThrows(IllegalStateException.class, () -> new JdbcRunStore(root, 10, 2));
+    }
 }

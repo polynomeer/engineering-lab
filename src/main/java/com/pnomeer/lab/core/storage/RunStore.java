@@ -15,5 +15,6 @@ public interface RunStore {
     void appendMetrics(String runId, List<StoredMetric> metrics);
     /** Oldest first; afterSequence is exclusive, starting at -1. */
     List<StoredMetric> metrics(String runId, long afterSequence, int limit);
+    List<StoredMetric> recentMetrics(String runId, int limit);
     int recoverInterrupted();
 }

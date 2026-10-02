@@ -21,38 +21,37 @@ Engineering Lab은 문제 재현 → 가설 → 통제된 실행 → 관측 → 
 
 ## 첫 구현: 실행 메타데이터
 
-`RunMetadata(runId, parameters, environment)`는 실행 직전에 캡처한 불변 스냅샷이다. `RunEnvironment`에는 Java 버전·벤더·VM, OS 이름·버전·아키텍처, JVM이 보는 CPU 수, 최대 heap을 기록한다. CPU 모델·물리 RAM과 혼동하지 않는다. 전체 환경 변수, 시스템 프로퍼티, JVM 인자에는 비밀값이 있을 수 있으므로 일괄 수집하지 않는다.
+`RunMetadata(runId, parameters, environment, git)`는 제출 전에 캡처한 불변 스냅샷이다. `RunEnvironment`에는 Java 버전·벤더·VM, OS 이름·버전·아키텍처, JVM이 보는 CPU 수, 최대 heap을 기록한다. CPU 모델·물리 RAM과 혼동하지 않는다. 전체 환경 변수, 시스템 프로퍼티, JVM 인자에는 비밀값이 있을 수 있으므로 일괄 수집하지 않는다.
 
-`ExperimentRunner.run(experiment, scenario)`는 새 UUID를 만들고, 작업 서비스는 기존 jobId를 넘기는 overload를 사용한다. 성공과 실패 결과 모두 동일한 메타데이터를 보존한다. generic job 및 ingestion 응답에 `runMetadata`를 추가한다. 기존 필드와 응답 형식은 유지하며, 실행 결과가 아직 없는 동안은 null이다. 제출·스케줄링 실패까지 메타데이터를 저장하는 lifecycle은 영속 RunStore 단계에서 처리한다.
+`ExperimentRunner.run(experiment, scenario)`는 새 UUID를 만들고, 앱 서비스는 기존 jobId를 사용한다. `DurableExperimentRunner.prepare`가 제출 metadata를 먼저 저장하고 executor에서 `runPrepared`가 실행한다. 기존 API의 `runMetadata`는 대기/실패 상태에서도 조회된다.
 
-이 스냅샷만으로 완전한 재현성을 보장하지 않는다. Git SHA/dirty 여부, 실행 설정 전체, 입력 checksum, 외부 서비스 버전은 다음 단계에서 추가한다. 특히 Excel 시나리오의 현 parameters는 mode와 payload 크기만 포함한다.
+현재 Git SHA/dirty/수집 오류와 Excel 입력 SHA-256·파일명·queue/worker/chunk/timeout 설정이 기록된다. 원본 workbook과 외부 서비스의 버전은 자동 보관하지 않는다.
 
-## 다음 구현: 영속 RunStore
+## 영속 RunStore — 구현됨
 
-첫 저장 어댑터는 현재 JDBC 기술과 호환되는 별도 H2 file DB를 사용한다. ingestion 실험 DB와 분리하여 실험 데이터 초기화가 실행 증거를 지우지 않게 한다. SQLite/PostgreSQL 이식은 `RunStore` 경계 뒤에서 가능하도록 한다. 새 DB 드라이버나 서버 운영을 첫 단계의 전제로 두지 않는다.
+별도 H2 file DB를 사용하며 ingestion용 in-memory DB와 분리한다. core의 RunStore 계약 뒤에 JDBC 어댑터를 두고 Spring/DB 의존성을 core에 추가하지 않는다. 실행 경로는 app → DurableExperimentRunner → Experiment이며, 관측은 bounded writer → RunStore로 전달한다.
 
-예정 스키마(아직 생성하지 않음):
+구현된 v1 스키마:
 
-- `lab_run`: run_id PK, experiment_type, scenario_id, schema_version, status, created/started/completed_at, parameters_json, environment_json, git_commit(nullable), git_dirty(nullable), provenance_error(nullable), summary_json, failure_message.
-- `lab_metric`: (run_id, sequence) PK/FK, timestamp, gauges_json, counters_json, labels_json. 기존 metric 이름을 임의로 변경하지 않는다.
-- `lab_artifact`: artifact_id PK, run_id FK, relative_path, media_type, byte_size, sha256.
+- `lab_schema`: 저장소 schema version. 지원하지 않는 버전은 시작을 거부한다.
+- `lab_run`: 단조 증가 seq, run_id PK, experiment_type, scenario_id, status, created/started/completed_at, metadata_json, summary_json, failure_message. parameters/environment/git은 metadata JSON에 함께 저장한다.
+- `lab_metric`: (run_id, seq) PK/FK, point_json. 기존 metric 이름과 timestamp/gauges/counters/labels를 유지한다.
+- `lab_artifact`: artifact_id PK, run_id FK, relative_path, media_type, byte_size, sha256. 파일 등록·조회 기능은 후속 단계에서 연결한다.
 
-`RunStore`는 실행 생성, 상태 전이, bounded metric batch append, 완료 결과 저장, 단건 조회, 페이지 조회를 제공한다. 메트릭 재시도는 `(run_id, sequence)`로 중복 쓰기를 방지한다. 제한된 queue와 size/time flush, bounded retry/backoff, 배압·저장 실패 메트릭을 갖춘 writer를 사용한다. 저장 실패를 성공 실행으로 숨기지 않고 사용자에게 구분해서 보고한다. 무제한 timeline을 저장 완료까지 메모리에 쌓는 방식은 금지한다.
+상태는 QUEUED → RUNNING → SUCCEEDED/FAILED이며 재시작 시 남은 실행은 INTERRUPTED로 복구한다. 메트릭은 bounded queue와 size/time/종료 flush, bounded retry/backoff를 사용하고 동일 sequence로 재전송해 중복을 막는다. writer의 실패를 전파하며 durable 완료 이전에는 성공을 기록하지 않는다. 원본 메트릭 전체는 DB에 저장하고 runner/기존 API의 preview만 제한한다.
 
-프로세스 재시작 시 남은 실행은 별도 `INTERRUPTED` 상태로 전환하고 자동 재실행하지 않는다. 현재 `ExperimentStatus`/기존 UI와의 호환 매핑을 이 단계에서 함께 추가한다. 종료 시 새 제출을 막고 제한된 시간 동안 queue drain/flush 후 남은 실패를 기록한다.
+설정 기본값, API cursor, 오류·종료·소유 잠금과 백업 정책은 [저장 가이드](run-storage.md)에 정의한다. 신규 제출을 막고 제한된 시간 동안 executor와 writer를 drain한다. 강제 종료나 timeout 후 미완료 실행의 성공을 보장하지 않는다. DB 자체가 접근 불가능하면 오류를 노출하고 재시작 복구를 적용한다.
 
-설정은 `lab.storage.*`에 root, metric queue capacity, batch size, flush interval, retry attempts/backoff, shutdown timeout, query page limit을 정의하고 기본값·문서를 함께 추가한다. `.lab/`은 로컬 실행 데이터로 ignore하며 이 경로가 실제 도입될 때 설정한다. 파일 export는 임시 파일 작성 후 원자적 이동으로 완료 상태를 표시한다. artifact 경로는 관리 root 밖으로 나갈 수 없다.
-
-Git 정보는 명령 timeout과 출력 제한을 갖춘 로컬 provider로 캡처한다. Git이 없는 배포 환경은 null과 이유를 남긴다. dirty 상태는 tracked 및 untracked 변경을 포함한다. 알 수 없는 상태를 clean으로 기록하지 않는다. Git 정보 수집 실패가 실험 자체를 중단시키지는 않는다.
+Git probe는 timeout/출력 제한이 있다. 없는 Git·저장소나 probe 실패는 null과 이유를 남기고 clean으로 위장하지 않는다. 파일 export가 도입되면 임시 파일/원자적 이동과 관리 root 경계를 적용한다.
 
 ## API와 이행
 
-현 `/experiments/*`, `/ingest/*`는 호환 어댑터로 유지한다. 다음 API는 영속화·registry 단계에서 추가할 예정이며 아직 사용할 수 없다.
+현 `/experiments/*`, `/ingest/*`는 호환 어댑터로 유지한다. `/runs` 조회는 구현되었고 registry/생성/artifact API는 후속 단계다.
 
 - `GET /experiments`: 등록된 실험과 지원 시나리오.
 - `POST /runs`: 실험 ID와 검증된 시나리오로 실행 생성.
-- `GET /runs?experimentType=...&limit=...&cursor=...`: 제한된 페이지 조회.
-- `GET /runs/{runId}`, `/runs/{runId}/metrics`, `/runs/{runId}/artifacts`: 실행과 페이지 단위 증거 조회.
+- `GET /runs?experimentType=...&limit=...&before=...`: 구현된 실행 페이지 조회.
+- `GET /runs/{runId}`, `/runs/{runId}/metrics?after=...&limit=...`: 구현된 실행·메트릭 조회. `/runs/{runId}/artifacts`는 아직 미구현.
 - 비교는 metric 단위·환경·입력 차이를 표시하고 서로 다른 조건의 숫자를 동일 조건인 것처럼 보여주지 않는다.
 
 ## 관측과 실험 방법

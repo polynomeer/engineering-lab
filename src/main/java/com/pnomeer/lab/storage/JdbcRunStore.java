@@ -21,6 +21,8 @@ import java.util.Optional;
 /** A separate file DB: ingestion table initialization cannot erase experiment evidence. */
 public final class JdbcRunStore implements RunStore, AutoCloseable {
     private final HikariDataSource dataSource;
+    private final java.nio.channels.FileChannel ownershipChannel;
+    private final java.nio.channels.FileLock ownershipLock;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final JsonMapper json = JsonMapper.builder().build();
@@ -37,13 +39,26 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
         }
         try { Files.createDirectories(root); }
         catch (java.io.IOException ex) { throw new IllegalStateException("Cannot create run storage", ex); }
+        java.nio.channels.FileChannel channel = null;
+        try {
+            channel = java.nio.channels.FileChannel.open(root.resolve("owner.lock"),
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE);
+            var lock = channel.tryLock();
+            if (lock == null) throw new IllegalStateException("Run storage is already owned by another application");
+            ownershipChannel = channel;
+            ownershipLock = lock;
+        } catch (Exception ex) {
+            if (channel != null) try { channel.close(); } catch (java.io.IOException close) { ex.addSuppressed(close); }
+            throw new IllegalStateException("Cannot acquire exclusive run storage ownership", ex);
+        }
         var config = new HikariConfig();
         config.setJdbcUrl("jdbc:h2:file:" + path + ";DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=2000");
         config.setUsername("sa");
         config.setPassword("");
         config.setMaximumPoolSize(2);
         config.setConnectionTimeout(3000);
-        dataSource = new HikariDataSource(config);
+        try { dataSource = new HikariDataSource(config); }
+        catch (RuntimeException ex) { releaseOwnership(); throw ex; }
         jdbc = new JdbcTemplate(dataSource);
         jdbc.setQueryTimeout(3);
         transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
@@ -58,6 +73,7 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
             new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v1.sql")).execute(dataSource);
         } catch (RuntimeException ex) {
             dataSource.close();
+            releaseOwnership();
             throw ex;
         }
     }
@@ -121,6 +137,14 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
     }
 
     @Override
+    public List<StoredMetric> recentMetrics(String id, int limit) {
+        checkLimit(limit);
+        var points = jdbc.query("select seq, point_json from lab_metric where run_id=? order by seq desc limit ?",
+                (row, n) -> new StoredMetric(row.getLong(1), json.readValue(row.getString(2), MetricPoint.class)), id, limit);
+        return List.copyOf(points.reversed());
+    }
+
+    @Override
     public int recoverInterrupted() {
         return jdbc.update("update lab_run set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before durable completion' where status in ('QUEUED','RUNNING')",
                 System.currentTimeMillis());
@@ -140,5 +164,13 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
     private static void requireTransition(int count, String id) {
         if (count != 1) throw new IllegalStateException("Invalid run state transition: " + id);
     }
-    @Override public void close() { dataSource.close(); }
+    private void releaseOwnership() {
+        try {
+            if (ownershipLock.isValid()) ownershipLock.release();
+            ownershipChannel.close();
+        } catch (java.io.IOException ex) { throw new IllegalStateException("Cannot release run storage ownership", ex); }
+    }
+    @Override public void close() {
+        try { dataSource.close(); } finally { releaseOwnership(); }
+    }
 }
