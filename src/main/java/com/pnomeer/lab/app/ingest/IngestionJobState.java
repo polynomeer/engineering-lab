@@ -1,6 +1,7 @@
 package com.pnomeer.lab.app.ingest;
 
 import com.pnomeer.lab.core.ExperimentExecutionState;
+import com.pnomeer.lab.core.RunMetadata;
 import com.pnomeer.lab.core.ExperimentStatus;
 import com.pnomeer.lab.core.MetricPoint;
 import com.pnomeer.lab.experiments.pipeline.PipelineRunner;
@@ -18,6 +19,7 @@ public final class IngestionJobState {
     private final String fileName;
     private final PipelineRunner.RunMode runMode;
     private final ExperimentExecutionState executionState;
+    private volatile RunMetadata runMetadata;
     private volatile int producedCount;
     private volatile int insertedCount;
     private volatile int validationErrorCount;
@@ -33,6 +35,10 @@ public final class IngestionJobState {
         this.runMode = runMode;
         this.executionState = new ExperimentExecutionState(jobId, EXPERIMENT_TYPE, runMode.name());
         this.errorSummary = Map.of();
+    }
+
+    public RunMetadata getRunMetadata() {
+        return runMetadata;
     }
 
     public String getJobId() {
@@ -117,6 +123,10 @@ public final class IngestionJobState {
 
     public List<MetricPoint> getMetricTimeline() {
         return new ArrayList<>(metricTimeline);
+    }
+
+    public void setRunMetadata(RunMetadata runMetadata) {
+        this.runMetadata = runMetadata;
     }
 
     public void markStarted() {

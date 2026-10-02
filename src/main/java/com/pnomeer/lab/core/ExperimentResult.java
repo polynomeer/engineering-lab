@@ -1,6 +1,7 @@
 package com.pnomeer.lab.core;
 
 import java.util.List;
+import java.util.Objects;
 
 public record ExperimentResult(
         String experimentType,
@@ -10,9 +11,11 @@ public record ExperimentResult(
         long completedAtEpochMs,
         ExperimentSummary summary,
         String failureMessage,
-        List<MetricPoint> timeline) {
+        List<MetricPoint> timeline,
+        RunMetadata runMetadata) {
 
     public ExperimentResult {
+        Objects.requireNonNull(runMetadata, "runMetadata");
         summary = summary == null ? ExperimentSummary.empty() : summary;
         timeline = List.copyOf(timeline == null ? List.of() : timeline);
     }

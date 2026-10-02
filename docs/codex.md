@@ -11,7 +11,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | 경로 | 책임 / 수정 시 확인할 대상 |
 | --- | --- |
 | `com/pnomeer/pipeline/ExcelPipelineApplication.java` | Spring Boot 진입점, `com.pnomeer` 컴포넌트 스캔 |
-| `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `LocalExperimentRunner` |
+| `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `RunMetadata`/`RunEnvironment`, `LocalExperimentRunner` |
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷 |
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
@@ -32,6 +32,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 - Excel: `IngestionController` → `IngestionService` → `ExperimentRunner` → `PipelineExperiment` → `PipelineRunner`.
 - 파이프라인 모드: 첫 시트 파싱 → bounded raw queue → 검증·매핑 worker → bounded mapped queue → insert worker별 chunk → JDBC 트랜잭션. 비교용 `SINGLE_THREAD` 모드도 있다.
 - 공통 실험: `ExperimentController` → `ExperimentJobService` → `LocalExperimentRunner` → 해당 실험. 메트릭과 결과를 공통 모델로 반환한다.
+- 실행 결과의 `runMetadata`는 jobId와 동일한 실행 ID, 파라미터 및 JVM/OS 환경 스냅샷을 보존한다. 영속화·Git provenance는 다음 단계이며 [v2 설계](experiment-platform-design.md)를 참조한다.
 - 서버 작업 상태는 메모리에 보관된다. 브라우저의 localStorage에 저장되는 UI 상태·프리셋 이력과 서버 작업의 영속성은 별개다.
 
 ## 실행과 검증

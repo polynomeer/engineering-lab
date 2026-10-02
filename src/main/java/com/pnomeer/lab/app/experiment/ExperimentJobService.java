@@ -71,7 +71,7 @@ public class ExperimentJobService {
             C scenario) {
         state.markStarted();
         try {
-            ExperimentResult result = experimentRunner.run(experiment, scenario);
+            ExperimentResult result = experimentRunner.run(experiment, scenario, state.getJobId());
             state.markCompleted(result);
         } catch (OutOfMemoryError error) {
             state.markFailed("Out of memory");

@@ -5,7 +5,8 @@ import java.util.List;
 
 public final class LocalExperimentRunner implements ExperimentRunner {
     @Override
-    public <C extends ExperimentScenario> ExperimentResult run(Experiment<C> experiment, C scenario) {
+    public <C extends ExperimentScenario> ExperimentResult run(Experiment<C> experiment, C scenario, String runId) {
+        RunMetadata runMetadata = new RunMetadata(runId, scenario.parameters(), RunEnvironment.capture());
         long startedAtEpochMs = System.currentTimeMillis();
         List<MetricPoint> timeline = new ArrayList<>();
         try {
@@ -18,7 +19,8 @@ public final class LocalExperimentRunner implements ExperimentRunner {
                     System.currentTimeMillis(),
                     summary,
                     null,
-                    timeline);
+                    timeline,
+                    runMetadata);
         } catch (Exception ex) {
             return new ExperimentResult(
                     experiment.type(),
@@ -28,7 +30,8 @@ public final class LocalExperimentRunner implements ExperimentRunner {
                     System.currentTimeMillis(),
                     ExperimentSummary.empty(),
                     ex.getMessage() == null ? "Experiment failed" : ex.getMessage(),
-                    timeline);
+                    timeline,
+                    runMetadata);
         }
     }
 }

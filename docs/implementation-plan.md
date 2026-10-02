@@ -4,14 +4,16 @@
 
 각 단계는 검증 가능한 작업 단위로 나누고 `./gradlew test` → diff 검토 → Conventional Commit으로 완료한다. 다음 단계가 미완료인 상태를 플랫폼 전체 완성으로 보고하지 않는다.
 
-## 1. 실행 모델 기반 — 진행 중
+## 1. 실행 모델 기반 — 완료
 
 - [x] 현재 코드와 제안 문서의 차이를 확인하고 설계·이행 경계를 정리한다.
-- [ ] core에 실행 ID, 불변 파라미터, JVM/OS 환경 스냅샷을 추가한다.
-- [ ] 성공·실패 결과와 기존 jobId를 연결하고 generic/ingestion API에 additive field로 노출한다.
-- [ ] 실제 실행·실패·snapshot·API 회귀 테스트를 통과시킨다.
+- [x] core에 실행 ID, 불변 파라미터, JVM/OS 환경 스냅샷을 추가한다.
+- [x] 성공·실패 결과와 기존 jobId를 연결하고 generic/ingestion API에 additive field로 노출한다.
+- [x] 실제 실행·실패·snapshot·API 회귀 테스트를 통과시킨다.
 
 완료 기준: 세 실험군이 동일한 실행 메타데이터 모델을 사용하고 기존 UI/API가 유지된다. 첫 단계에서는 서버 재시작 후 결과 보존을 보장하지 않는다.
+
+검증: `./gradlew test` 32개 통과. 파라미터 변경 후 원본 스냅샷 보존, 독립 실행 UUID, 실패 metadata, 큐/IO HTTP JSON, Excel 두 모드와 잘못된 workbook의 결과를 검증했다.
 
 ## 2. 실행 증거 영속화 — 예정
 

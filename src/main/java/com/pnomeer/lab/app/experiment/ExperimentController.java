@@ -1031,7 +1031,8 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                 state.getFailureMessage(),
                 state.getSummary().counters(),
                 state.getSummary().gauges(),
-                state.getSummary().details());
+                state.getSummary().details(),
+                state.getRunMetadata());
     }
 
     public record QueueContentionRequest(
@@ -1067,7 +1068,8 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
             String failureMessage,
             Map<String, Long> counters,
             Map<String, Double> gauges,
-            Map<String, String> details) {
+            Map<String, String> details,
+            com.pnomeer.lab.core.RunMetadata runMetadata) {
     }
 
     public record ExperimentJobsResponse(List<ExperimentJobResponse> jobs) {

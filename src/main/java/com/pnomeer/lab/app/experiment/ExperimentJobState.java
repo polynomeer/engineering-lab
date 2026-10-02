@@ -1,6 +1,7 @@
 package com.pnomeer.lab.app.experiment;
 
 import com.pnomeer.lab.core.ExperimentExecutionState;
+import com.pnomeer.lab.core.RunMetadata;
 import com.pnomeer.lab.core.ExperimentResult;
 import com.pnomeer.lab.core.ExperimentStatus;
 import com.pnomeer.lab.core.ExperimentSummary;
@@ -10,6 +11,7 @@ import java.util.List;
 
 public final class ExperimentJobState {
     private final ExperimentExecutionState executionState;
+    private volatile RunMetadata runMetadata;
     private volatile ExperimentSummary summary;
     private volatile List<MetricPoint> timeline;
 
@@ -17,6 +19,10 @@ public final class ExperimentJobState {
         this.executionState = new ExperimentExecutionState(jobId, experimentType, scenarioId);
         this.summary = ExperimentSummary.empty();
         this.timeline = List.of();
+    }
+
+    public RunMetadata getRunMetadata() {
+        return runMetadata;
     }
 
     public String getJobId() {
@@ -76,6 +82,7 @@ public final class ExperimentJobState {
     }
 
     public void markCompleted(ExperimentResult result) {
+        this.runMetadata = result.runMetadata();
         this.summary = result.summary();
         this.timeline = result.timeline();
         if (result.status() == ExperimentStatus.SUCCEEDED) {

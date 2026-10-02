@@ -62,7 +62,8 @@ public class IngestionController {
                 state.getFailureMessage(),
                 state.isOomExists(),
                 state.isDbDeadlock(),
-                state.getLatestProgress());
+                state.getLatestProgress(),
+                state.getRunMetadata());
     }
 
     @GetMapping("/jobs")
@@ -87,7 +88,8 @@ public class IngestionController {
                         state.getFailureMessage(),
                         state.isOomExists(),
                         state.isDbDeadlock(),
-                        state.getLatestProgress()))
+                        state.getLatestProgress(),
+                        state.getRunMetadata()))
                 .toList();
         return new IngestionJobsResponse(jobs);
     }
@@ -728,7 +730,8 @@ public class IngestionController {
             String failureMessage,
             boolean oomExists,
             boolean dbDeadlock,
-            com.pnomeer.lab.metrics.ExecutionMetricsSnapshot latestProgress) {
+            com.pnomeer.lab.metrics.ExecutionMetricsSnapshot latestProgress,
+            com.pnomeer.lab.core.RunMetadata runMetadata) {
     }
 
     public record IngestionJobsResponse(java.util.List<IngestionJobResponse> jobs) {
