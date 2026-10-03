@@ -3,6 +3,7 @@ package com.pnomeer.lab.experiments.io;
 import com.pnomeer.lab.core.Experiment;
 import com.pnomeer.lab.core.ExperimentSummary;
 import com.pnomeer.lab.core.MetricPoint;
+import com.pnomeer.lab.core.TraceRecorder;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -32,6 +33,12 @@ public class IoEndpointComparisonExperiment implements Experiment<IoEndpointComp
     @Override
     public ExperimentSummary execute(IoEndpointComparisonScenario scenario, Consumer<MetricPoint> timelineListener)
             throws Exception {
+        return execute(scenario, timelineListener, TraceRecorder.disabled(), null);
+    }
+
+    @Override
+    public ExperimentSummary execute(IoEndpointComparisonScenario scenario, Consumer<MetricPoint> timelineListener,
+            TraceRecorder trace, String parentSpanId) throws Exception {
         long startedAtNanos = System.nanoTime();
         int virtualCompleted = 0;
         int reactiveCompleted = 0;
@@ -41,13 +48,13 @@ public class IoEndpointComparisonExperiment implements Experiment<IoEndpointComp
         emitPoint(timelineListener, startedAtNanos, virtualCompleted, reactiveCompleted, virtualLatencyNanos, reactiveLatencyNanos);
 
         for (int i = 0; i < scenario.requests(); i++) {
-            virtualLatencyNanos += runVirtualRequest(scenario);
+            virtualLatencyNanos += trace.call(TraceRecorder.Stage.IO_VIRTUAL_REQUEST, parentSpanId, span -> runVirtualRequest(scenario));
             virtualCompleted++;
             emitPoint(timelineListener, startedAtNanos, virtualCompleted, reactiveCompleted, virtualLatencyNanos, reactiveLatencyNanos);
         }
 
         for (int i = 0; i < scenario.requests(); i++) {
-            reactiveLatencyNanos += runReactiveRequest(scenario.delayMs());
+            reactiveLatencyNanos += trace.call(TraceRecorder.Stage.IO_REACTIVE_REQUEST, parentSpanId, span -> runReactiveRequest(scenario.delayMs()));
             reactiveCompleted++;
             emitPoint(timelineListener, startedAtNanos, virtualCompleted, reactiveCompleted, virtualLatencyNanos, reactiveLatencyNanos);
         }

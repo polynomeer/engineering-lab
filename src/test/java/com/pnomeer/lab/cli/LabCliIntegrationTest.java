@@ -12,7 +12,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true", "lab.observation.jvm-interval-ms=100", "lab.observation.max-periodic-samples=2"})
+        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true", "lab.observation.jvm-interval-ms=100", "lab.observation.max-periodic-samples=2", "lab.trace.enabled=true", "lab.trace.max-spans=7"})
 class LabCliIntegrationTest {
     @LocalServerPort int port;
     @Autowired RunStore store;
@@ -33,13 +33,25 @@ class LabCliIntegrationTest {
             String id = (String)submitted.get("runId");
             var result = store.find(id).orElseThrow();
             assertEquals(RunStatus.SUCCEEDED, result.status());
+            assertEquals("EXPLICIT", result.runMetadata().parameters().get("observation.trace.mode"));
+            assertTrue(result.summary().counters().get("trace.spans.recorded") >= 1);
+            assertTrue(result.summary().counters().get("trace.spans.recorded") <= 7);
+            if (result.experimentType().equals("io.endpoint-comparison")) {
+                var spans = store.recentMetrics(id, 100).stream().map(StoredMetric::point)
+                        .filter(point -> "trace.span".equals(point.labels().get("source"))).toList();
+                assertEquals(7, spans.size());
+                assertTrue(spans.stream().anyMatch(point -> "IO_VIRTUAL_REQUEST".equals(point.labels().get("stage"))
+                        && "1".equals(point.labels().get("parentSpanId"))));
+                assertTrue(spans.stream().anyMatch(point -> "IO_REACTIVE_REQUEST".equals(point.labels().get("stage"))));
+                assertTrue(result.summary().counters().get("trace.spans.dropped") > 0);
+            }
             assertEquals("PERIODIC", result.runMetadata().parameters().get("observation.jvm.mode"));
             assertTrue(result.summary().counters().get("observation.jvm.samples") >= 2L);
             assertTrue(result.summary().counters().get("observation.jvm.samples") <= 4L);
             if (result.experimentType().equals("pipeline.excel-ingestion")) {
                 assertEquals(5, ingestion.getJob(id).getInsertedCount());
                 assertTrue(ingestion.getJob(id).getMetricTimeline().stream()
-                        .noneMatch(point -> Set.of("jvm.boundary", "jvm.periodic").contains(point.labels().getOrDefault("source", ""))));
+                        .noneMatch(point -> Set.of("jvm.boundary", "jvm.periodic", "trace.span").contains(point.labels().getOrDefault("source", ""))));
             }
             assertEquals(hash, result.runMetadata().parameters().get("scenario.definition.sha256"));
             assertEquals(hash, submitted.get("definitionSha256"));

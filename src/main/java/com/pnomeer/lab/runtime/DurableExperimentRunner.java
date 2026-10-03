@@ -12,6 +12,8 @@ import java.util.function.Supplier;
 
 public final class DurableExperimentRunner implements ExperimentRunner, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(DurableExperimentRunner.class);
+    private final boolean traceEnabled;
+    private final int traceMaxSpans;
     private final Supplier<MetricPoint> jvmProbe;
     private final long jvmIntervalMs;
     private final int maxPeriodicSamples;
@@ -36,6 +38,14 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
             long jvmIntervalMs, int maxPeriodicSamples) {
+        this(store, provenance, options, previewLimit, maxActiveRuns, jvmProbe, jvmIntervalMs, maxPeriodicSamples, false, 1000);
+    }
+
+    public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
+            long jvmIntervalMs, int maxPeriodicSamples, boolean traceEnabled, int traceMaxSpans) {
+        new TraceProperties(traceEnabled, traceMaxSpans);
+        this.traceEnabled=traceEnabled; this.traceMaxSpans=traceMaxSpans;
         new ObservationProperties(jvmProbe != null, jvmIntervalMs, maxPeriodicSamples);
         this.jvmIntervalMs = jvmIntervalMs; this.maxPeriodicSamples = maxPeriodicSamples;
         this.jvmProbe = jvmProbe;
@@ -53,6 +63,9 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         parameters.put("observation.jvm.mode", jvmProbe == null ? "OFF" : jvmIntervalMs == 0 ? "BOUNDARY" : "PERIODIC");
         parameters.put("observation.jvm.intervalMs", String.valueOf(jvmProbe == null ? 0 : jvmIntervalMs));
         parameters.put("observation.jvm.maxPeriodicSamples", String.valueOf(jvmProbe == null || jvmIntervalMs == 0 ? 0 : maxPeriodicSamples));
+        parameters.put("observation.trace.mode", traceEnabled ? "EXPLICIT" : "OFF");
+        parameters.put("observation.trace.schemaVersion", "1");
+        parameters.put("observation.trace.maxSpans", String.valueOf(traceEnabled ? traceMaxSpans : 0));
         var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
         synchronized (active) {
             if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
@@ -82,6 +95,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             long started = System.currentTimeMillis();
             var preview = new ArrayDeque<MetricPoint>(previewLimit);
             var writer = new BoundedMetricWriter(store, run.runId(), options);
+            var trace = new TraceRecorder(traceEnabled ? writer : null, run.runId(), traceMaxSpans);
             ExperimentSummary summary = ExperimentSummary.empty();
             RunStatus status = RunStatus.SUCCEEDED;
             String failure = null;
@@ -90,20 +104,21 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                     maxPeriodicSamples, options.shutdownTimeoutMs(), run.runId());
             try {
                 observation.start();
-                summary = experiment.execute(scenario, point -> {
+                summary = trace.call(TraceRecorder.Stage.EXPERIMENT, null, rootSpan -> experiment.execute(scenario, point -> {
                     observation.checkFailure();
                     writer.accept(point);
                     synchronized (preview) {
                         if (preview.size() == previewLimit) preview.removeFirst();
                         preview.addLast(point);
                     }
-                });
+                }, trace, rootSpan));
             } catch (Exception | OutOfMemoryError ex) {
                 status = ex instanceof InterruptedException ? RunStatus.INTERRUPTED : RunStatus.FAILED;
                 failure = ex instanceof OutOfMemoryError ? "Out of memory"
                         : ex.getMessage() == null ? "Experiment failed" : ex.getMessage();
                 interrupted = Thread.interrupted() || ex instanceof InterruptedException;
             } finally {
+                trace.close();
                 try { observation.finish(); }
                 catch (RuntimeException | OutOfMemoryError ex) {
                     status = RunStatus.FAILED;
@@ -124,6 +139,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             var counters = new HashMap<>(summary.counters());
             counters.putAll(writer.counters());
             counters.putAll(observation.counters());
+            counters.putAll(trace.counters());
             counters.put("storage.preview.limit", (long) previewLimit);
             summary = new ExperimentSummary(counters, summary.gauges(), summary.details());
             try {

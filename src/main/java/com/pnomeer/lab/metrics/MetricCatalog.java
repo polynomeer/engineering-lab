@@ -30,6 +30,8 @@ public final class MetricCatalog {
         add(map, "ms", "process", "resource.gcPauseMs jvm.gc.collectionTimeMs");
         add(map, "observations", "run", "storage.metrics.written storage.queue.depth storage.queue.maxDepth storage.preview.limit observation.jvm.samples observation.jvm.periodicSamples");
         add(map, "boolean", "run", "observation.jvm.capReached");
+        add(map, "spans", "run", "trace.spans.recorded trace.spans.dropped");
+        add(map, "ns", "span", "trace.durationNanos");
         add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos");
         add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes");
         add(map, "threads", "process", "jvm.threads.platformLive");
@@ -40,7 +42,7 @@ public final class MetricCatalog {
         String semantics = "UNKNOWN", aggregation = "Do not aggregate without checking the producer";
         if (Set.of("items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
                 "requests.virtualCompleted", "requests.reactiveCompleted", "requests.totalCompleted", "blocking.events", "backpressure.stallEvents",
-                "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
+                "trace.spans.recorded", "trace.spans.dropped", "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
                 "storage.enqueueWaitNanos", "storage.writeNanos", "observation.jvm.samples", "observation.jvm.periodicSamples",
                 "observation.jvm.captureNanos", "time.elapsedMs", "timing.elapsedMs").contains(name)) {
             semantics = "RUN_CUMULATIVE"; aggregation = "Use the final value; never sum repeated snapshots";
@@ -64,6 +66,8 @@ public final class MetricCatalog {
             semantics = "INSTANTANEOUS"; aggregation = "Use timestamped samples; never sum gauges across time";
         } else if (Set.of("queue.raw.saturationPct", "queue.mapped.saturationPct", "backpressure.producerSlowdownPct", "errors.validationRatePct").contains(name)) {
             semantics = "RATIO"; aggregation = "Inspect numerator and denominator; never sum percentages";
+        } else if (name.equals("trace.durationNanos")) {
+            semantics = "SPAN_DURATION"; aggregation = "Inclusive monotonic duration; never sum overlapping parent and child spans";
         } else if (name.equals("storage.preview.limit")) {
             semantics = "CONFIGURATION"; aggregation = "Recorded limit, not an observation count";
         } else if (name.equals("observation.jvm.capReached")) {

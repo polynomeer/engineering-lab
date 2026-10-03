@@ -530,3 +530,7 @@ Examples:
 - No authentication or authorization on endpoints.
 - No persistence of validation-error details beyond aggregated summary in status payload.
 - Some legacy names remain during the migration, especially the Spring Boot application class and the `pipeline.*` property prefix.
+
+### 선택적 명시적 Trace
+
+`--lab.trace.enabled=true --lab.trace.max-spans=1000`으로 전체 실행 및 IO 요청별 span을 기록한다(기본 OFF, 최대 10000개). `/runs/{id}/traces`와 NDJSON export에서 조회한다. Excel/큐 내부 단계 계측은 후속 과제다. 페이지 cursor 처리와 계측 비용·저장 상한은 [관측 가이드](docs/observability.md)를 참고한다.

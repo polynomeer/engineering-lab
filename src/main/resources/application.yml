@@ -19,6 +19,9 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  trace:
+    enabled: false
+    max-spans: 1000
   observation:
     jvm-enabled: false
     jvm-interval-ms: 0

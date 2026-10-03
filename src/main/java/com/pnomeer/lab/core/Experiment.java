@@ -14,4 +14,9 @@ public interface Experiment<C extends ExperimentScenario> {
     }
 
     ExperimentSummary execute(C scenario, Consumer<MetricPoint> timelineListener) throws Exception;
+
+    default ExperimentSummary execute(C scenario, Consumer<MetricPoint> timelineListener,
+            TraceRecorder trace, String parentSpanId) throws Exception {
+        return execute(scenario, timelineListener);
+    }
 }

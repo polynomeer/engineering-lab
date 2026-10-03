@@ -38,6 +38,12 @@ public class RunController {
         var metrics = store.metrics(runId, after, limit);
         return new MetricPage(metrics, metrics.size() == limit ? metrics.getLast().sequence() : null);
     }
+    @GetMapping("/{runId}/traces")
+    public MetricPage traces(@PathVariable String runId, @RequestParam(defaultValue="-1") long after,
+            @RequestParam(required=false) Integer limit) {
+        var page = metrics(runId, after, limit);
+        return new MetricPage(page.metrics().stream().filter(m -> "trace.span".equals(m.point().labels().get("source"))).toList(), page.nextAfter());
+    }
     private void validateLimit(int limit) {
         if (limit < 1 || limit > properties.pageLimit()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid page limit");
     }

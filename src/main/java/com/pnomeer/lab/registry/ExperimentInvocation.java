@@ -21,6 +21,9 @@ public record ExperimentInvocation<C extends ExperimentScenario>(Experiment<C> e
                 parameters.put("measurement.mode", definition.measurement().mode());
                 return Map.copyOf(parameters);
             }
+            public ExperimentSummary execute(C input, Consumer<MetricPoint> sink, TraceRecorder trace, String parentSpanId) throws Exception {
+                return delegate.execute(input, sink, trace, parentSpanId);
+            }
             public ExperimentSummary execute(C input, Consumer<MetricPoint> sink) throws Exception {
                 return delegate.execute(input, sink);
             }

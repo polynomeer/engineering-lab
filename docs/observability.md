@@ -1,10 +1,10 @@
-# 관측 schema와 JVM 스냅샷
+# 관측 schema, JVM 스냅샷과 명시적 Trace
 
-5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 명시적 trace, JFR/log 수집, 외부 인프라는 후속 작업이다.
+5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 상한이 있는 명시적 trace도 지원한다. JFR/log 수집과 외부 인프라는 후속 작업이다.
 
 ## Metric catalog v2
 
-`GET /metrics/schema`는 이름·단위·범위(run/process)·semantics·aggregation을 제공한다. 비교 API도 같은 catalog를 쓴다. ms/ns, bytes/MiB, percent, rate를 구분하며 알 수 없는 이름은 unknown이다. 기존 MetricPoint와 DB schema는 변경하지 않는다. legacy counters/gauges는 저장 컨테이너일 뿐 의미론적 counter/gauge 보장은 아니다(예: throughput rate가 counters에 존재).
+`GET /metrics/schema`는 이름·단위·범위(run/process/span)·semantics·aggregation을 제공한다. 비교 API도 같은 catalog를 쓴다. ms/ns, bytes/MiB, percent, rate를 구분하며 알 수 없는 이름은 unknown이다. 기존 MetricPoint와 DB schema는 변경하지 않는다. legacy counters/gauges는 저장 컨테이너일 뿐 의미론적 counter/gauge 보장은 아니다(예: throughput rate가 counters에 존재).
 
 기존 heap `Mb` 필드는 실제 1024² byte 기준이므로 MiB로 설명한다. 기존 metric의 placeholder/구현 누락을 catalog가 실제 계측으로 바꾸지는 않는다. 특히 pipeline connection/lock/retry 지표는 구현 상태를 함께 확인한다. schema version은 새로운 Run의 parameters에 남기며 기존 실행에는 소급 기록하지 않는다.
 
@@ -31,7 +31,7 @@
 
 `./gradlew test`는 활성/비활성, 실패 종료와 수집 실패, 미지원 MXBean 값 생략, 최소 page limit에서의 preview 및 재개방, 실제 HTTP CLI를 통한 세 실험을 검증한다. `build/reports/observability/jvm-snapshot.json`은 20회 준비 후 100회 capture의 평균/최대 시간과 JSON payload 최대 바이트를 기록한다. 2 KiB 미만의 고정 sample shape를 검증한다(수집 단계 payload, 저장 envelope 제외). 이것은 publication/DB 대기나 전체 실행 slowdown의 보장이 아니다. summary의 captureNanos도 수집 호출만 포함하며 writer 배압 비용은 storage.enqueueWaitNanos에 포함된다.
 
-경계 전용 모드는 새로운 작업 thread를 만들지 않으며 기존 writer 종료 순서를 따른다. 시작 전 executor 거부는 snapshot이 없고, 강제 프로세스 종료는 end가 없을 수 있다. 이 경우 기존 INTERRUPTED 복구가 적용된다. Trace/JFR/log는 아직 수집하지 않는다.
+경계 전용 모드는 새로운 작업 thread를 만들지 않으며 기존 writer 종료 순서를 따른다. 시작 전 executor 거부는 snapshot이 없고, 강제 프로세스 종료는 end가 없을 수 있다. 이 경우 기존 INTERRUPTED 복구가 적용된다. JFR/log는 아직 수집하지 않는다.
 
 ## 주기적 관측
 
@@ -55,4 +55,20 @@ summary의 observation.jvm.periodicSamples와 observation.jvm.capReached(0/1)는
 
 ## 지표 의미와 집계
 
-Schema v2는 RUN_CUMULATIVE / PROCESS_CUMULATIVE / RUN_MEAN / INTERVAL_RATE / RUN_RATE / INTERVAL_DELTA / OBSERVED_MAXIMUM / INSTANTANEOUS / RATIO / CONFIGURATION / FLAG를 명시한다. 누적 snapshot을 시간축으로 합산하거나 평균의 평균을 내지 않는다. 구간 rate는 실제 구간 길이가 필요하며 반올림된 rate에서 정확한 건수를 복구할 수 없다. GC 누적 시간은 process 전체 collection time이다. 기존 DB 값과 이름은 변경하지 않는다. 과거 Run의 schema version은 보존하며 catalog의 설명을 소급 계측 증거로 해석하지 않는다.
+Schema v2는 RUN_CUMULATIVE / PROCESS_CUMULATIVE / RUN_MEAN / INTERVAL_RATE / RUN_RATE / INTERVAL_DELTA / OBSERVED_MAXIMUM / INSTANTANEOUS / RATIO / CONFIGURATION / FLAG / SPAN_DURATION을 명시한다. 누적 snapshot을 시간축으로 합산하거나 평균의 평균을 내지 않는다. 구간 rate는 실제 구간 길이가 필요하며 반올림된 rate에서 정확한 건수를 복구할 수 없다. GC 누적 시간은 process 전체 collection time이다. 기존 DB 값과 이름은 변경하지 않는다. 과거 Run의 schema version은 보존하며 catalog의 설명을 소급 계측 증거로 해석하지 않는다.
+
+## 명시적 Trace — 로컬 span v1
+
+```bash
+./gradlew bootRun --args='--lab.trace.enabled=true --lab.trace.max-spans=1000'
+```
+
+기본값은 enabled=false, max-spans=1000이며 허용 범위는 1–10000이다. Run parameters에 mode=OFF/EXPLICIT, schemaVersion=1, maxSpans를 남긴다. 활성 실행은 EXPERIMENT 루트 span 하나를 예약하고 IO 비교에서는 IO_VIRTUAL_REQUEST / IO_REACTIVE_REQUEST 자식 span을 기록한다. 큐와 Excel은 현재 전체 실행만 관측한다. 내부 파싱·JDBC 단계나 분산 네트워크 trace, ThreadLocal 기반 자동 전파는 포함하지 않는다. 부모 ID를 직접 전달하며 자식 작업은 execute 반환 전에 완료되어야 한다.
+
+source=trace.span인 MetricPoint를 기존 bounded writer로 저장한다. traceId는 Run ID, spanId는 Run 내 예약 순번, parentSpanId는 부모 순번(루트는 빈 문자열)이다. stage는 고정 enum, status는 SUCCEEDED/FAILED, traceSchemaVersion은 1이다. 예외 메시지·요청 내용·스택을 span에 넣지 않는다. 기존 Run 실패 이유 저장 정책과는 별개다. 시작 timestamp는 wall clock이고 trace.durationNanos는 monotonic clock의 inclusive 시간이다. 부모에는 자식 계측/게시 비용이 포함되므로 부모·자식 시간을 합산하지 않는다. 자체 writer 게시 비용은 제외하되 동시에 완료한 span의 게시 동기화 대기는 포함할 수 있다.
+
+루트도 상한에 포함되며 예약 한도 이후에는 작업을 그대로 실행하고 trace.spans.dropped를 증가시킨다. summary의 trace.spans.recorded는 writer에 게시된 span 수다. 별도 span 목록이나 queue는 만들지 않는다. 종료 시 recorder를 닫고 기존 writer를 drain한다. 계측/저장 실패는 Run 실패로 전파한다. 프로세스 강제 종료는 미완료 span을 남기지 못할 수 있으며 기존 INTERRUPTED 복구를 따른다. 완료 순서로 저장하므로 자식이 루트보다 먼저 조회될 수 있다.
+
+`GET /runs/{id}/traces?after=-1&limit=100`은 원본 metric 페이지에서 span을 골라 반환한다. 응답 형식은 metrics/nextAfter다. **빈 metrics여도 nextAfter가 있으면 계속 조회**한다. limit은 혼합 원본의 스캔 상한이다. `/runs/{id}/metrics`와 NDJSON export에도 span이 포함되며 기존 실험 대시보드 preview에서는 제외한다. 전용 trace UI는 아직 없다.
+
+테스트는 예약 상한·작업 보존·실패 상태·게시 실패·비활성 모드·재개방·혼합 페이지 및 HTTP 선언적 실행의 부모 연결을 검증한다. `build/reports/observability/trace.json`은 1000회 빈 작업 계측과 JSON 직렬화의 총 시간 및 최대 payload 크기를 기록한다. 표준 UUID 입력의 point 크기가 1 KiB 미만인지 검증한다. DB envelope/인덱스·writer 대기·실제 실험 slowdown은 이 측정에 포함하지 않는다. 최대 10000개 설정에서 이 표준 point payload는 합계 10 MiB 미만이며 DB 파일 크기의 상한은 아니다. Trace를 켠 결과는 계측 비용이 포함된 별도 실험 조건으로 비교해야 한다.
