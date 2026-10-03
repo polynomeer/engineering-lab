@@ -1,6 +1,6 @@
 # 관측 schema, JVM 스냅샷, Trace와 JFR
 
-5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 상한이 있는 명시적 trace도 지원한다. 선택적 JFR BASIC_V1 녹화도 지원한다. 일반 로그 수집과 외부 인프라는 후속 작업이다.
+5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 상한이 있는 명시적 trace도 지원한다. 선택적 JFR BASIC_V1 녹화도 지원한다. Run lifecycle 로그도 선택적으로 수집한다. 원문 서버 로그 수집과 외부 인프라는 후속 확장이다.
 
 ## Metric catalog v2
 
@@ -31,7 +31,7 @@
 
 `./gradlew test`는 활성/비활성, 실패 종료와 수집 실패, 미지원 MXBean 값 생략, 최소 page limit에서의 preview 및 재개방, 실제 HTTP CLI를 통한 세 실험을 검증한다. `build/reports/observability/jvm-snapshot.json`은 20회 준비 후 100회 capture의 평균/최대 시간과 JSON payload 최대 바이트를 기록한다. 2 KiB 미만의 고정 sample shape를 검증한다(수집 단계 payload, 저장 envelope 제외). 이것은 publication/DB 대기나 전체 실행 slowdown의 보장이 아니다. summary의 captureNanos도 수집 호출만 포함하며 writer 배압 비용은 storage.enqueueWaitNanos에 포함된다.
 
-경계 전용 모드는 새로운 작업 thread를 만들지 않으며 기존 writer 종료 순서를 따른다. 시작 전 executor 거부는 snapshot이 없고, 강제 프로세스 종료는 end가 없을 수 있다. 이 경우 기존 INTERRUPTED 복구가 적용된다. 일반 로그는 아직 수집하지 않는다.
+경계 전용 모드는 새로운 작업 thread를 만들지 않으며 기존 writer 종료 순서를 따른다. 시작 전 executor 거부는 snapshot이 없고, 강제 프로세스 종료는 end가 없을 수 있다. 이 경우 기존 INTERRUPTED 복구가 적용된다. 원문 서버 로그는 수집하지 않으며 아래 명시적 Run lifecycle 로그를 지원한다.
 
 ## 주기적 관측
 
@@ -108,3 +108,35 @@ Recording.setMaxSize는 JVM repository의 **chunk 단위 보존 정책**이다. 
 JfrRecorderTest는 실제 녹화의 성공/실패·허용 이벤트·SHA-256·재개방·API/export 참조, 자동 정지, 비활성 모드, 복사 상한, 다른 녹화의 이벤트 거부·임시 파일 정리, 시작/등록 실패와 Recording 해제를 검증한다. LabCliIntegrationTest는 실제 서버에서 세 실험을 JVM sampling/Trace/JFR과 함께 실행한다.
 
 `build/reports/observability/jfr-success.json`과 `jfr-failed.json`에 파일 바이트 수와 observation.jfr.lifecycleNanos를 기록한다. observation.jfr.bytes는 검증을 마쳐 최종 파일로 보존한 바이트 수이며 파일 생성 실패 시 0이다(DB 등록 실패 시에는 복구용 파일의 크기). lifecycleNanos는 디렉터리 준비·시작 및 정지·복사·검증·종료의 호출 시간이며 DB 등록 시간과 실행 중 JVM 계측 비용은 제외한다. 최초 JFR 초기화 비용과 후속 실행은 다를 수 있다. 이 수치는 전체 실행 slowdown이나 특정 성능 우위를 보장하지 않으며 활성화한 실행은 별도 측정 조건으로 비교한다.
+
+## 선택적 Run 로그 — LIFECYCLE_V1
+
+```bash
+./gradlew bootRun --args='--lab.logs.enabled=true --lab.logs.max-events=100 --lab.logs.max-bytes=65536'
+```
+
+| 설정 | 기본값 | 허용 범위 |
+| --- | --- | --- |
+| lab.logs.enabled | false | true/false |
+| lab.logs.max-events | 100 | 2–10000 |
+| lab.logs.max-bytes | 65536 | 4096–1048576 bytes |
+
+이번 버전의 수집 범위는 runner가 명시적으로 발생시키는 Run lifecycle 이벤트다. EXECUTION 시작·성공·실패·중단, JVM/JFR/metric 저장 실패와 EVIDENCE_FINISHED를 기록한다. 기본 OFF이며 Run parameters에 mode=LIFECYCLE_V1/OFF와 두 상한을 남긴다. 임의 SLF4J 메시지나 console 출력, worker별 원문 로그, GC 텍스트 로그의 수집기는 아니다. MDC/ThreadLocal에 의존하지 않고 Run별 session을 직접 전달하므로 동시 실행의 파일이 분리된다.
+
+한 줄에 schemaVersion, timestampEpochMs, job_id, stage, event, reason, droppedEvents를 담은 UTF-8 NDJSON이다. stage/event/reason은 고정 enum만 허용하고 예외 메시지·스택·입력 행·환경변수·경로·자유 형식 메시지를 넣지 않는다. job_id는 최대 100문자이며 JSON으로 escape한다. 기존 Run failureMessage와 서버 오류 로그의 보존 정책은 별개다.
+
+### 상한·실패·완료 경계
+
+이벤트 목록이나 추가 queue/thread를 만들지 않고 동기식으로 스트리밍한다. 각 줄은 최대 1 KiB다. 이벤트/바이트 예산에서 마지막 이벤트 1개와 1 KiB를 미리 확보하고, 남은 예산을 초과한 중간 이벤트는 droppedEvents를 증가시킨다. 마지막 줄과 summary의 observation.logs.dropped에서 누락을 확인한다. 한도 안에서도 현재 lifecycle 단계가 적으면 파일은 수 줄뿐이다. 마지막 reason은 가장 최근 실패 원인이며 원인 전체를 대표하지 않는다.
+
+metric writer drain 뒤 로그를 마무리하므로 STORAGE_FAILED도 기록할 수 있다. **EVIDENCE_FINISHED는 로그 artifact 등록과 Run의 DB 완료 이전**이다. reason=NONE이나 EXECUTION/SUCCEEDED가 Run의 최종 성공을 보장하지 않으며 최종 상태는 `/runs/{id}`에서 확인한다. 로그 쓰기 오류는 session에 보존했다가 finish에서 전파하고, 기존 metric drain을 마친 후 Run을 FAILED로 처리한다. 시작 시 파일을 열지 못하면 실험을 시작하지 않는다. 일반 Error가 실험에서 전파되어도 로그 마무리를 시도하며, 해당 Run의 기존 미완료 복구 정책은 유지한다.
+
+파일은 storage root 아래 `logs/log_<UUID>.ndjson`에 저장한다. 임시 파일을 닫고 원자적으로 이름을 변경한 다음 실제 크기·SHA-256을 기존 artifact로 등록한다. 파일명에 사용자 입력을 넣지 않는다. `/runs/{id}/artifacts`, 상세 화면과 export는 참조를 제공하며 파일 다운로드 API는 아직 없다. 중단/쓰기 실패 시 미완성 파일은 정리하고, 완성 후 DB 등록 실패 시 파일을 복구용으로 남긴다. 오류 로그의 job_id/artifact_id 및 파일 내용으로 Run을 확인하여 기존 artifact API로 복구할 수 있다. 강제 프로세스 종료에서는 `.partial`이 남을 수 있으며 자동 삭제하지 않는다.
+
+파일별 상한은 전체 보관 용량의 상한이 아니다. 자동 보관 기간/삭제는 아직 없으므로 운영자가 artifact 참조와 파일을 함께 관리한다. 로그 I/O는 실험 실행 시간에 영향을 주며 저장 장치가 멈출 때 독립적인 I/O timeout은 제공하지 않는다.
+
+### 검증과 비용
+
+RunLogRecorderTest는 성공/실패/중단, 재개방·export 참조, checksum·민감 문자열 제외, 두 상한과 마지막 이벤트 보존, 비활성/잘못된 설정, 시작/쓰기/등록/metric drain 실패, 임시 파일 정리 및 동시 session 분리를 검증한다. 실제 HTTP CLI 테스트는 JVM/Trace/JFR/로그를 함께 활성화해 세 실험의 완료를 확인한다.
+
+summary의 observation.logs.events/bytes는 성공한 쓰기 호출의 이벤트 수·바이트 수이며, 파일 생성 실패 시 삭제된 중간 데이터의 집계일 수 있다. captureNanos는 파일 준비·직렬화·쓰기·종료/rename 시간이며 DB 등록 비용은 제외한다. `build/reports/observability/run-logs.json`은 두 동시 session의 최대 파일 크기와 검증 읽기를 포함한 총 시간을 기록한다. 이 값은 전체 실험 slowdown의 보장이나 비활성 모드와의 성능 비교 결과가 아니다.

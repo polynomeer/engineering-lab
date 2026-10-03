@@ -13,7 +13,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 | `com/pnomeer/pipeline/ExcelPipelineApplication.java` | Spring Boot 진입점, `com.pnomeer` 컴포넌트 스캔 |
 | `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `RunMetadata`/`RunEnvironment`, `LocalExperimentRunner`, 명시적 `TraceRecorder` |
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷, `MetricCatalog` 단위·범위·의미, `JvmSnapshot` |
-| `com/pnomeer/lab/runtime/` | 영속 runner, 제출/종료 lifecycle, Git provenance, JVM/trace/JFR 설정과 `JfrRecorder` artifact 수집 |
+| `com/pnomeer/lab/runtime/` | 영속 runner, 제출/종료 lifecycle, Git provenance, JVM/trace/JFR/log 설정과 `JfrRecorder`·`RunLogRecorder` artifact 수집 |
 | `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
 | `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 조회·비교·export·artifact 참조와 오류 응답 |
 | `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI |
@@ -71,6 +71,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
+| Run 로그 | `RunLogRecorderTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | JFR 수집 | `JfrRecorderTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | 명시적 Trace | `TraceRecorderTest`, `TraceIntegrationTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | JVM 관측 | `JvmObservationTest`, `JvmPeriodicObservationTest`, `JvmSnapshotTest`, `MetricCatalogTest`; [관측 가이드](observability.md) |

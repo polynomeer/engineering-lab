@@ -20,7 +20,7 @@ public final class MetricCatalog {
         add(map, "items/s", "run", "throughput.itemsPerSec");
         add(map, "rows/s", "run", "throughput.producedPerSec throughput.mappedPerSec throughput.insertedPerSec");
         add(map, "%", "run", "queue.raw.saturationPct queue.mapped.saturationPct backpressure.producerSlowdownPct errors.validationRatePct");
-        add(map, "events", "run", "blocking.events backpressure.stallEvents retry.count storage.retries storage.failures");
+        add(map, "events", "run", "blocking.events backpressure.stallEvents retry.count storage.retries storage.failures observation.logs.events observation.logs.dropped");
         add(map, "events/min", "run", "backpressure.stallFrequencyPerMin");
         add(map, "events/s", "run", "retry.ratePerSec");
         add(map, "batches", "run", "batches.completed storage.batches");
@@ -32,8 +32,8 @@ public final class MetricCatalog {
         add(map, "boolean", "run", "observation.jvm.capReached observation.jfr.durationLimitReached");
         add(map, "spans", "run", "trace.spans.recorded trace.spans.dropped");
         add(map, "ns", "span", "trace.durationNanos");
-        add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos observation.jfr.lifecycleNanos");
-        add(map, "bytes", "run", "observation.jfr.bytes");
+        add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos observation.jfr.lifecycleNanos observation.logs.captureNanos");
+        add(map, "bytes", "run", "observation.jfr.bytes observation.logs.bytes");
         add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes");
         add(map, "threads", "process", "jvm.threads.platformLive");
         add(map, "collections", "process", "jvm.gc.collectionCount");
@@ -41,7 +41,7 @@ public final class MetricCatalog {
     }
     private static Definition definition(String name, String unit, String scope) {
         String semantics = "UNKNOWN", aggregation = "Do not aggregate without checking the producer";
-        if (Set.of("items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
+        if (Set.of("observation.logs.events", "observation.logs.dropped", "observation.logs.bytes", "observation.logs.captureNanos", "items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
                 "requests.virtualCompleted", "requests.reactiveCompleted", "requests.totalCompleted", "blocking.events", "backpressure.stallEvents",
                 "observation.jfr.bytes", "observation.jfr.lifecycleNanos", "trace.spans.recorded", "trace.spans.dropped", "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
                 "storage.enqueueWaitNanos", "storage.writeNanos", "observation.jvm.samples", "observation.jvm.periodicSamples",

@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties({StorageProperties.class, com.pnomeer.lab.runtime.ObservationProperties.class, com.pnomeer.lab.runtime.TraceProperties.class, com.pnomeer.lab.runtime.JfrProperties.class})
+@EnableConfigurationProperties({StorageProperties.class, com.pnomeer.lab.runtime.ObservationProperties.class, com.pnomeer.lab.runtime.TraceProperties.class, com.pnomeer.lab.runtime.JfrProperties.class, com.pnomeer.lab.runtime.RunLogProperties.class})
 public class RunStorageConfiguration {
     @Bean(destroyMethod = "close")
     public JdbcRunStore runStore(StorageProperties properties) {
@@ -18,11 +18,12 @@ public class RunStorageConfiguration {
         catch (RuntimeException ex) { store.close(); throw ex; }
     }
     @Bean(name = "experimentRunner", destroyMethod = "close")
-    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties, com.pnomeer.lab.runtime.ObservationProperties observation, com.pnomeer.lab.runtime.TraceProperties trace, com.pnomeer.lab.runtime.JfrProperties jfr) {
+    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties, com.pnomeer.lab.runtime.ObservationProperties observation, com.pnomeer.lab.runtime.TraceProperties trace, com.pnomeer.lab.runtime.JfrProperties jfr, com.pnomeer.lab.runtime.RunLogProperties logs) {
         return new DurableExperimentRunner(store,
                 new GitProvenanceProvider(Path.of(properties.gitDirectory()), Duration.ofMillis(properties.gitTimeoutMs())),
                 properties.writerOptions(), properties.previewLimit(), properties.maxActiveRuns(),
                 observation.jvmEnabled() ? com.pnomeer.lab.metrics.JvmSnapshot::capture : null,
-                observation.jvmIntervalMs(), observation.maxPeriodicSamples(), trace.enabled(), trace.maxSpans(), new com.pnomeer.lab.runtime.JfrRecorder(Path.of(properties.root()), jfr));
+                observation.jvmIntervalMs(), observation.maxPeriodicSamples(), trace.enabled(), trace.maxSpans(), new com.pnomeer.lab.runtime.JfrRecorder(Path.of(properties.root()), jfr),
+                new com.pnomeer.lab.runtime.RunLogRecorder(Path.of(properties.root()), logs));
     }
 }

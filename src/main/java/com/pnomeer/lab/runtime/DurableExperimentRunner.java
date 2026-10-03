@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 public final class DurableExperimentRunner implements ExperimentRunner, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(DurableExperimentRunner.class);
     private final JfrRecorder jfr;
+    private final RunLogRecorder runLogs;
     private final boolean traceEnabled;
     private final int traceMaxSpans;
     private final Supplier<MetricPoint> jvmProbe;
@@ -52,6 +53,15 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
             long jvmIntervalMs, int maxPeriodicSamples, boolean traceEnabled, int traceMaxSpans, JfrRecorder jfr) {
+        this(store, provenance, options, previewLimit, maxActiveRuns, jvmProbe, jvmIntervalMs,
+                maxPeriodicSamples, traceEnabled, traceMaxSpans, jfr, null);
+    }
+
+    public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
+            long jvmIntervalMs, int maxPeriodicSamples, boolean traceEnabled, int traceMaxSpans,
+            JfrRecorder jfr, RunLogRecorder runLogs) {
+        this.runLogs = runLogs;
         this.jfr = jfr;
         new TraceProperties(traceEnabled, traceMaxSpans);
         this.traceEnabled=traceEnabled; this.traceMaxSpans=traceMaxSpans;
@@ -76,6 +86,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         parameters.put("observation.trace.schemaVersion", "1");
         parameters.put("observation.trace.maxSpans", String.valueOf(traceEnabled ? traceMaxSpans : 0));
         parameters.putAll(jfr == null ? Map.of("observation.jfr.mode", "OFF") : jfr.parameters());
+        parameters.putAll(runLogs == null ? Map.of("observation.logs.mode", "OFF") : runLogs.parameters());
         var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
         synchronized (active) {
             if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
@@ -107,6 +118,9 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             var writer = new BoundedMetricWriter(store, run.runId(), options);
             var trace = new TraceRecorder(traceEnabled ? writer : null, run.runId(), traceMaxSpans);
             JfrRecorder.Session recording = null;
+            RunLogRecorder.Session runLog = null;
+            var logReason = RunLogRecorder.Reason.NONE;
+            var executionStage = RunLogRecorder.Stage.EXECUTION;
             ExperimentSummary summary = ExperimentSummary.empty();
             RunStatus status = RunStatus.SUCCEEDED;
             String failure = null;
@@ -114,8 +128,12 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             var observation = new JvmObservationSession(jvmProbe, writer, jvmIntervalMs,
                     maxPeriodicSamples, options.shutdownTimeoutMs(), run.runId());
             try {
+                if (runLogs != null) runLog = runLogs.start(run.runId());
+                executionStage = RunLogRecorder.Stage.JFR;
                 if (jfr != null) recording = jfr.start(run.runId());
+                executionStage = RunLogRecorder.Stage.JVM;
                 observation.start();
+                executionStage = RunLogRecorder.Stage.EXECUTION;
                 summary = trace.call(TraceRecorder.Stage.EXPERIMENT, null, rootSpan -> experiment.execute(scenario, point -> {
                     observation.checkFailure();
                     writer.accept(point);
@@ -124,41 +142,77 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                         preview.addLast(point);
                     }
                 }, trace, rootSpan));
+                if (runLog != null) runLog.record(RunLogRecorder.Stage.EXECUTION, RunLogRecorder.Event.SUCCEEDED, RunLogRecorder.Reason.NONE);
             } catch (Exception | OutOfMemoryError ex) {
                 status = ex instanceof InterruptedException ? RunStatus.INTERRUPTED : RunStatus.FAILED;
                 failure = ex instanceof OutOfMemoryError ? "Out of memory"
                         : ex.getMessage() == null ? "Experiment failed" : ex.getMessage();
                 interrupted = Thread.interrupted() || ex instanceof InterruptedException;
+                logReason = ex instanceof InterruptedException ? RunLogRecorder.Reason.INTERRUPTED
+                        : ex instanceof OutOfMemoryError ? RunLogRecorder.Reason.OUT_OF_MEMORY
+                        : switch (executionStage) {
+                            case JFR -> RunLogRecorder.Reason.JFR_FAILED;
+                            case JVM -> RunLogRecorder.Reason.JVM_FAILED;
+                            default -> RunLogRecorder.Reason.EXECUTION_FAILED;
+                        };
+                if (runLog != null) runLog.record(executionStage,
+                        ex instanceof InterruptedException ? RunLogRecorder.Event.INTERRUPTED : RunLogRecorder.Event.FAILED, logReason);
+            } catch (Error ex) {
+                logReason = RunLogRecorder.Reason.EXECUTION_FAILED;
+                if (runLog != null) runLog.record(executionStage, RunLogRecorder.Event.FAILED, logReason);
+                throw ex;
             } finally {
-                trace.close();
-                try { observation.finish(); }
-                catch (RuntimeException | OutOfMemoryError ex) {
-                    status = RunStatus.FAILED;
-                    failure = "JVM observation failed" + (failure == null ? "" : "; experiment: " + failure);
-                    log.error("job_id={} stage=jvm-observation reason=capture_or_publish_failed", run.runId(), ex);
-                    interrupted |= Thread.interrupted();
-                }
-                if (recording != null) {
-                    ArtifactReference capture = null;
-                    try {
-                        capture = recording.finish();
-                        store.registerArtifact(capture);
-                    }
-                    catch (Exception | OutOfMemoryError ex) {
+                try {
+                    trace.close();
+                    try { observation.finish(); }
+                    catch (RuntimeException | OutOfMemoryError ex) {
                         status = RunStatus.FAILED;
-                        failure = "JFR capture or registration failed" + (failure == null ? "" : "; experiment: " + failure);
-                        log.error("job_id={} stage=jfr reason=capture_or_registration_failed artifact_id={}",
-                                run.runId(), capture == null ? "unavailable" : capture.artifactId(), ex);
+                        logReason = RunLogRecorder.Reason.JVM_FAILED;
+                        if (runLog != null) runLog.record(RunLogRecorder.Stage.JVM, RunLogRecorder.Event.FAILED, logReason);
+                        failure = "JVM observation failed" + (failure == null ? "" : "; experiment: " + failure);
+                        log.error("job_id={} stage=jvm-observation reason=capture_or_publish_failed", run.runId(), ex);
                         interrupted |= Thread.interrupted();
-                    } finally { recording.close(); }
-                }
-                try { writer.close(); }
-                catch (RuntimeException ex) {
-                    status = RunStatus.FAILED;
-                    failure = "Observation storage failed: " + ex.getMessage()
-                            + (failure == null ? "" : "; experiment: " + failure);
-                    log.error("job_id={} stage=metric-storage reason=drain_failed", run.runId(), ex);
-                    interrupted |= Thread.interrupted();
+                    }
+                    if (recording != null) {
+                        ArtifactReference capture = null;
+                        try {
+                            capture = recording.finish();
+                            store.registerArtifact(capture);
+                        }
+                        catch (Exception | OutOfMemoryError ex) {
+                            status = RunStatus.FAILED;
+                            logReason = RunLogRecorder.Reason.JFR_FAILED;
+                            if (runLog != null) runLog.record(RunLogRecorder.Stage.JFR, RunLogRecorder.Event.FAILED, logReason);
+                            failure = "JFR capture or registration failed" + (failure == null ? "" : "; experiment: " + failure);
+                            log.error("job_id={} stage=jfr reason=capture_or_registration_failed artifact_id={}",
+                                    run.runId(), capture == null ? "unavailable" : capture.artifactId(), ex);
+                            interrupted |= Thread.interrupted();
+                        } finally { recording.close(); }
+                    }
+                    try { writer.close(); }
+                    catch (RuntimeException ex) {
+                        status = RunStatus.FAILED;
+                        logReason = RunLogRecorder.Reason.STORAGE_FAILED;
+                        if (runLog != null) runLog.record(RunLogRecorder.Stage.STORAGE, RunLogRecorder.Event.FAILED, logReason);
+                        failure = "Observation storage failed: " + ex.getMessage()
+                                + (failure == null ? "" : "; experiment: " + failure);
+                        log.error("job_id={} stage=metric-storage reason=drain_failed", run.runId(), ex);
+                        interrupted |= Thread.interrupted();
+                    }
+                } finally {
+                    if (runLog != null) {
+                        ArtifactReference capture = null;
+                        try {
+                            capture = runLog.finish(logReason);
+                            store.registerArtifact(capture);
+                        } catch (Exception | OutOfMemoryError ex) {
+                            status = RunStatus.FAILED;
+                            failure = "Run log capture or registration failed" + (failure == null ? "" : "; experiment: " + failure);
+                            log.error("job_id={} stage=run-log reason=capture_or_registration_failed artifact_id={}",
+                                    run.runId(), capture == null ? "unavailable" : capture.artifactId(), ex);
+                            interrupted |= Thread.interrupted();
+                        }
+                    }
                 }
             }
             if (summary == null) summary = ExperimentSummary.empty();
@@ -166,6 +220,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             counters.putAll(writer.counters());
             counters.putAll(observation.counters());
             counters.putAll(trace.counters());
+            if (runLog != null) counters.putAll(runLog.counters());
             if (recording != null) counters.putAll(recording.counters());
             counters.put("storage.preview.limit", (long) previewLimit);
             summary = new ExperimentSummary(counters, summary.gauges(), summary.details());

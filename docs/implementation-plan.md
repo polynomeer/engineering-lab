@@ -56,10 +56,11 @@
 - [x] semantic metric schema v2에 의미·집계 지침을 추가한다.
 - [x] 상한이 있는 명시적 trace v1과 조회 API를 추가한다. 전체 실행 및 IO 요청 span을 지원하며 Excel/큐 내부 단계는 후속 확장이다.
 - [x] 선택적 JFR BASIC_V1: 시간·최종 파일 크기 제한, 이벤트 검증, checksum과 artifact 자동 등록, 실패/재개방/해제 검증을 구현한다.
-- [ ] 선택적 일반 로그 수집을 추가한다. 로그별 크기·민감정보·보존 정책을 먼저 정의한다.
+- [x] 선택적 LIFECYCLE_V1 로그: 고정 이벤트/사유 코드, 이벤트·바이트 상한, 마지막 기록 예약, checksum/artifact 등록과 실패 전파를 구현한다.
+- 확장 과제: 원문 서버/GC 로그의 선별 수집과 자동 보관 정책은 별도 설계 후 도입한다. 현재 lifecycle 로그가 이 기능들을 포함하지는 않는다.
 - 실험 요구가 생기면 Testcontainers 기반 DB/Redis/Kafka 시나리오를 별도 작업으로 도입한다.
 - Java Agent는 플랫폼 필수 기능이 아닌 독립 실험으로 남긴다.
 
-현재 검증: 전체 `./gradlew test` 84개 통과. Trace 상한·실패·재개방·페이지·HTTP 부모 연결도 검증한다. 주기 수집의 표본 상한·배압 종료 순서·종료 timeout·비동기 실패와 실제 HTTP 설정 적용도 검증했다. JVM 수집 활성/비활성·실패·미지원 값·재개방·최소 preview와 세 실험 HTTP 실행을 확인했다. 수집 비용/크기 리포트는 `build/reports/observability/jvm-snapshot.json`에 생성한다. JFR 실제 파일·시간 제한·외부 이벤트 거부·등록 실패와 HTTP 설정을 검증했으며 비용/파일 크기는 `build/reports/observability/jfr-*.json`에 기록한다. Trace 비용/크기는 `build/reports/observability/trace.json`에 기록한다. 5단계 전체는 아직 미완료다.
+현재 검증: 전체 `./gradlew test` 93개 통과. Trace 상한·실패·재개방·페이지·HTTP 부모 연결도 검증한다. 주기 수집의 표본 상한·배압 종료 순서·종료 timeout·비동기 실패와 실제 HTTP 설정 적용도 검증했다. JVM 수집 활성/비활성·실패·미지원 값·재개방·최소 preview와 세 실험 HTTP 실행을 확인했다. 수집 비용/크기 리포트는 `build/reports/observability/jvm-snapshot.json`에 생성한다. JFR 실제 파일·시간 제한·외부 이벤트 거부·등록 실패와 HTTP 설정을 검증했으며 비용/파일 크기는 `build/reports/observability/jfr-*.json`에 기록한다. Trace 비용/크기는 `build/reports/observability/trace.json`에 기록한다. Run 로그의 실패·상한·민감 문자열 제외·동시 실행 분리·재개방을 검증했으며 비용/크기는 `build/reports/observability/run-logs.json`에 기록한다. 기본 관측 경로는 완료했으며 원문 로그·보관 정책과 외부 인프라는 확장 과제로 남는다.
 
 완료 기준: 각 관측 기능의 overhead·데이터 용량·종료 처리·민감정보 제외 정책을 검증한다. 인프라가 필요 없는 기존 테스트는 Docker 없이 실행 가능해야 한다.

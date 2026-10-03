@@ -19,6 +19,10 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  logs:
+    enabled: false
+    max-events: 100
+    max-bytes: 65536
   jfr:
     enabled: false
     duration-seconds: 60

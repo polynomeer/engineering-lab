@@ -537,4 +537,8 @@ Examples:
 
 ### 선택적 JFR 수집
 
-`--lab.jfr.enabled=true`로 CPU load·GC·GC heap summary를 녹화한다(기본 OFF, 60초, 최종 파일 최대 16 MiB). `.lab/jfr/` 파일과 checksum을 Run artifact로 자동 등록한다. 프로세스 전체 관측이며 저장 상한·외부 녹화 간섭·보관 및 비용 측정은 [관측 가이드](docs/observability.md)를 참고한다. 일반 로그 수집은 아직 미지원이다.
+`--lab.jfr.enabled=true`로 CPU load·GC·GC heap summary를 녹화한다(기본 OFF, 60초, 최종 파일 최대 16 MiB). `.lab/jfr/` 파일과 checksum을 Run artifact로 자동 등록한다. 프로세스 전체 관측이며 저장 상한·외부 녹화 간섭·보관 및 비용 측정은 [관측 가이드](docs/observability.md)를 참고한다. 원문 서버 로그 수집은 아직 미지원이다.
+
+### 선택적 Run 로그
+
+`--lab.logs.enabled=true`로 실행 시작·결과·관측/저장 실패를 NDJSON artifact에 기록한다(기본 OFF, 최대 100개 이벤트/64 KiB). 고정 이벤트와 사유 코드만 기록하며 예외 메시지·입력 데이터는 포함하지 않는다. 파일 위치와 완료 경계, 누락 집계·보관 정책은 [관측 가이드](docs/observability.md)를 참고한다.
