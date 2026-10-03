@@ -53,6 +53,7 @@ public class PipelineRunner {
                 "pipeline.queue.mapped-capacity", String.valueOf(properties.getQueue().getMappedCapacity()),
                 "pipeline.threads.validator", String.valueOf(properties.getThreads().getValidator()),
                 "pipeline.threads.inserter", String.valueOf(properties.getThreads().getInserter()),
+                "pipeline.insert.flush-interval-ms", String.valueOf(properties.getInsert().getFlushIntervalMs()),
                 "pipeline.insert.chunk-size", String.valueOf(properties.getInsert().getChunkSize()),
                 "pipeline.backpressure.offer-timeout-ms", String.valueOf(properties.getBackpressure().getOfferTimeoutMs()),
                 "pipeline.insert.delay-ms", String.valueOf(insertDelayMs));
@@ -210,6 +211,8 @@ public class PipelineRunner {
         StageLatencyMetrics stageLatencyMetrics = new StageLatencyMetrics();
         ResourceMetricsTracker resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
         List<MappedRow> chunk = new ArrayList<>(chunkSize);
+        AtomicLong firstRowNanos = new AtomicLong();
+        long flushIntervalNanos = TimeUnit.MILLISECONDS.toNanos(properties.getInsert().getFlushIntervalMs());
 
         AtomicLong lastNanos = new AtomicLong(startNanos);
         AtomicInteger lastProduced = new AtomicInteger(0);
@@ -218,6 +221,13 @@ public class PipelineRunner {
         AtomicInteger lastBatches = new AtomicInteger(0);
 
         excelReader.readFirstSheet(excelInputStream, rawRow -> {
+            if (!chunk.isEmpty() && System.nanoTime() - firstRowNanos.get() >= flushIntervalNanos) {
+                try { flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker); }
+                catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while flushing chunk", ex);
+                }
+            }
             producedCount.incrementAndGet();
             long parseStart = System.nanoTime();
 
@@ -301,6 +311,7 @@ public class PipelineRunner {
             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
 
             long mappingStart = System.nanoTime();
+            if (chunk.isEmpty()) firstRowNanos.set(System.nanoTime());
             chunk.add(new MappedRow(rawRow.getRowIndex(), new IngestItem(col1, col2, col3Int)));
             mappedCount.incrementAndGet();
             stageLatencyMetrics.addMappingNanos(System.nanoTime() - mappingStart);
@@ -459,13 +470,26 @@ public class PipelineRunner {
         for (int i = 0; i < workerCount; i++) {
             futures.add(pool.submit(() -> {
                 List<MappedRow> chunk = new ArrayList<>(chunkSize);
+                long firstRowNanos = 0;
+                long intervalNanos = TimeUnit.MILLISECONDS.toNanos(properties.getInsert().getFlushIntervalMs());
                 try {
                     while (true) {
-                        Envelope<MappedRow> envelope = mappedChannel.take();
+                        long remaining = intervalNanos - (System.nanoTime() - firstRowNanos);
+                        if (!chunk.isEmpty() && remaining <= 0) {
+                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                            continue;
+                        }
+                        Envelope<MappedRow> envelope = chunk.isEmpty() ? mappedChannel.take()
+                                : mappedChannel.poll(remaining, TimeUnit.NANOSECONDS);
+                        if (envelope == null) {
+                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                            continue;
+                        }
                         if (envelope.isEnd()) {
                             flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
                             return;
                         }
+                        if (chunk.isEmpty()) firstRowNanos = System.nanoTime();
                         chunk.add(envelope.getPayload());
                         if (chunk.size() >= chunkSize) {
                             flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);

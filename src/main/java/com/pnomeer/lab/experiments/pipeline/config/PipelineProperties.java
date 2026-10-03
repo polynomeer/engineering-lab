@@ -70,6 +70,15 @@ public class PipelineProperties {
 
     public static class Insert {
         private int chunkSize;
+        private long flushIntervalMs = 1000;
+
+        public long getFlushIntervalMs() { return flushIntervalMs; }
+        public void setFlushIntervalMs(long flushIntervalMs) {
+            if (flushIntervalMs < 1 || flushIntervalMs > 60000) {
+                throw new IllegalArgumentException("insert.flushIntervalMs must be 1..60000");
+            }
+            this.flushIntervalMs = flushIntervalMs;
+        }
 
         public int getChunkSize() {
             return chunkSize;

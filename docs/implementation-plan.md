@@ -66,3 +66,18 @@
 현재 검증: 전체 `./gradlew test` 98개 통과. Trace 상한·실패·재개방·페이지·HTTP 부모 연결도 검증한다. 주기 수집의 표본 상한·배압 종료 순서·종료 timeout·비동기 실패와 실제 HTTP 설정 적용도 검증했다. JVM 수집 활성/비활성·실패·미지원 값·재개방·최소 preview와 세 실험 HTTP 실행을 확인했다. 수집 비용/크기 리포트는 `build/reports/observability/jvm-snapshot.json`에 생성한다. JFR 실제 파일·시간 제한·외부 이벤트 거부·등록 실패와 HTTP 설정을 검증했으며 비용/파일 크기는 `build/reports/observability/jfr-*.json`에 기록한다. Trace 비용/크기는 `build/reports/observability/trace.json`에 기록한다. Run 로그의 실패·상한·민감 문자열 제외·동시 실행 분리·재개방을 검증했으며 비용/크기는 `build/reports/observability/run-logs.json`에 기록한다. 기본 관측 경로는 완료했으며 원문 로그·보관 정책과 외부 인프라는 확장 과제로 남는다.
 
 완료 기준: 각 관측 기능의 overhead·데이터 용량·종료 처리·민감정보 제외 정책을 검증한다. 인프라가 필요 없는 기존 테스트는 Docker 없이 실행 가능해야 한다.
+
+## 6. Excel 파이프라인 완성 — 진행 중
+
+다음 항목은 각각 테스트와 커밋으로 완료하는 독립 작업 단위다. 기본 관측 경로 완료와 전체 ingestion 완성을 구분한다.
+
+- [x] 크기·시간·종료 기반 batch flush: worker별 첫 행 기준 기한, 선택적 시나리오 설정과 실제 적용값 기록. SINGLE_THREAD는 callback 시점에 확인하며 입력 정지 중 시간 보장은 하지 않는다.
+- [ ] insert 실패의 제한된 retry/backoff와 재시도 시 멱등성 검증.
+- [ ] 행 문맥을 보존하는 영속 dead-letter 출력과 조회·실패 처리.
+- [ ] 업로드와 오류 누적 경로의 메모리 상한 및 대용량 입력 검증.
+- [ ] 실패·중단 시 worker 종료, queue drain과 partial batch 보존 검증.
+- [ ] 전체 ingestion의 단일 스레드 대비 처리량·메모리 상한 측정, 실행 증거와 Finding 및 최종 문서 정리.
+
+시간 flush 검증: 입력 정지·지속 유입 중 종료 신호 전 저장, invalid row callback에서 단일 스레드 flush, 종료 partial batch, timed poll timeout/interrupt, 설정 범위와 기존 시나리오 호환, HTTP 명시값/CLI 기본값 적용을 확인한다.
+
+검증 결과: 전체 `./gradlew test` 103개 통과(실패·오류·skip 없음).

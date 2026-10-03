@@ -40,6 +40,7 @@ public class RegistryConfiguration {
         p.getThreads().setValidator(integer(d,"validatorThreads"));
         p.getThreads().setInserter(integer(d,"inserterThreads"));
         p.getInsert().setChunkSize(integer(d,"chunkSize"));
+        p.getInsert().setFlushIntervalMs(((Number)d.parameters().getOrDefault("flushIntervalMs",1000)).longValue());
         p.getBackpressure().setOfferTimeoutMs((long)integer(d,"offerTimeoutMs"));
         return p;
     }

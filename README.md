@@ -101,6 +101,7 @@ pipeline:
     inserter: 4
   insert:
     chunk-size: 500
+    flush-interval-ms: 1000
   backpressure:
     offer-timeout-ms: 200
 ```
@@ -109,9 +110,12 @@ Meaning:
 - `queue.raw-capacity` / `queue.mapped-capacity`: bounded queue sizes for backpressure.
 - `threads.validator` / `threads.inserter`: worker pool sizes.
 - `insert.chunk-size`: JDBC batch size per chunk/transaction.
+- `insert.flush-interval-ms`: partial batch residence interval, default 1000 ms, range 1–60000 ms.
 - `backpressure.offer-timeout-ms`: enqueue timeout for timed offers.
 - `spring.servlet.multipart.max-file-size`: max single upload size.
 - `spring.servlet.multipart.max-request-size`: max multipart request size.
+
+In PIPELINE mode, each insert worker flushes on size, elapsed time since accepting its first row, or end of input, whichever comes first. New rows do not reset the deadline. The interval excludes upstream queue waiting and is not a database completion timeout; scheduling and database latency can add time. SINGLE_THREAD checks the deadline at each row callback (including invalid rows) and flushes at end of input, so blocked input delays its time-based flush.
 
 ## Run locally
 1. Run tests first:

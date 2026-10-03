@@ -113,6 +113,64 @@ class PipelineRunnerIntegrationTest {
         assertEquals(singleResult.getInsertedCount(), singleJdbc.queryForObject("select count(*) from ingest_item", Integer.class));
     }
 
+    @Test
+    void partialBatchFlushesWhileProducerIsIdleBeforeEndSignal() throws Exception {
+        timedScenario(false, PipelineRunner.RunMode.PIPELINE);
+    }
+
+    @Test
+    void arrivingRowsDoNotExtendTheFirstRowsDeadline() throws Exception {
+        timedScenario(true, PipelineRunner.RunMode.PIPELINE);
+    }
+
+    @Test
+    void singleThreadChecksDeadlineOnInvalidRowAndFlushesFinalPartialBatch() throws Exception {
+        timedScenario(false, PipelineRunner.RunMode.SINGLE_THREAD);
+    }
+
+    private void timedScenario(boolean continuous, PipelineRunner.RunMode mode) throws Exception {
+        var properties = new PipelineProperties();
+        properties.getQueue().setRawCapacity(8);
+        properties.getQueue().setMappedCapacity(8);
+        properties.getThreads().setValidator(1);
+        properties.getThreads().setInserter(2);
+        properties.getInsert().setChunkSize(10000);
+        properties.getInsert().setFlushIntervalMs(40);
+        DataSource ds = createDataSource(); initializeSchema(ds);
+        var jdbc = new JdbcTemplate(ds);
+        var produced = new java.util.concurrent.atomic.AtomicInteger();
+        var reader = new com.pnomeer.lab.experiments.pipeline.parse.ExcelStreamingReader() {
+            @Override public int readFirstSheet(java.io.InputStream input,
+                    java.util.function.Consumer<com.pnomeer.lab.experiments.pipeline.model.RawRow> sink) throws java.io.IOException {
+                sink.accept(new com.pnomeer.lab.experiments.pipeline.model.RawRow(produced.incrementAndGet(), java.util.List.of("a","b","1")));
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+                try {
+                    if (mode == PipelineRunner.RunMode.SINGLE_THREAD) {
+                        Thread.sleep(70);
+                        sink.accept(new com.pnomeer.lab.experiments.pipeline.model.RawRow(produced.incrementAndGet(), java.util.List.of("","b","1")));
+                        assertEquals(1,jdbc.queryForObject("select count(*) from ingest_item",Integer.class));
+                    } else {
+                        while (jdbc.queryForObject("select count(*) from ingest_item",Integer.class) == 0) {
+                            assertTrue(System.nanoTime() < deadline, "Partial batch must commit before producer completion");
+                            if (continuous) sink.accept(new com.pnomeer.lab.experiments.pipeline.model.RawRow(produced.incrementAndGet(), java.util.List.of("a","b","1")));
+                            Thread.sleep(5);
+                        }
+                    }
+                } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new java.io.IOException(ex); }
+                // Normal shutdown must persist this final partial chunk too.
+                sink.accept(new com.pnomeer.lab.experiments.pipeline.model.RawRow(produced.incrementAndGet(), java.util.List.of("last","b","2")));
+                return produced.get();
+            }
+        };
+        var runner = new PipelineRunner(properties, reader, jdbc, new TransactionTemplate(new DataSourceTransactionManager(ds)), 0);
+        var result = runner.run(new ByteArrayInputStream(new byte[0]),mode,null);
+        int expected = produced.get() - (mode == PipelineRunner.RunMode.SINGLE_THREAD ? 1 : 0);
+        assertEquals(expected,result.getInsertedCount());
+        assertEquals(expected,jdbc.queryForObject("select count(*) from ingest_item",Integer.class));
+        assertEquals("40",runner.configurationSnapshot().get("pipeline.insert.flush-interval-ms"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> properties.getInsert().setFlushIntervalMs(0));
+    }
+
     private static byte[] createTestWorkbook() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {

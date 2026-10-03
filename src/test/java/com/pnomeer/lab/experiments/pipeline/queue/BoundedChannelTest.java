@@ -13,6 +13,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BoundedChannelTest {
 
     @Test
+    void timedPollDoesNotCountTimeoutAsADequeueAndRemainsInterruptible() throws Exception {
+        var channel = new BoundedChannel<String>(1, 100L);
+        org.junit.jupiter.api.Assertions.assertNull(channel.poll(20, TimeUnit.MILLISECONDS));
+        assertEquals(0, channel.getDequeuedCount());
+        channel.put("row");
+        assertEquals("row", channel.poll(1, TimeUnit.SECONDS));
+        assertEquals(1, channel.getDequeuedCount());
+        Thread.currentThread().interrupt();
+        try { org.junit.jupiter.api.Assertions.assertThrows(InterruptedException.class, () -> channel.poll(1, TimeUnit.SECONDS)); }
+        finally { Thread.interrupted(); }
+        assertEquals(1, channel.getDequeuedCount());
+    }
+
+    @Test
     void offerTimesOutWhenQueueIsFull() throws Exception {
         var channel = new BoundedChannel<String>(1, 80L);
         channel.put("first");

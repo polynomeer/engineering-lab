@@ -19,6 +19,19 @@ class ScenarioDocumentsTest {
     private ScenarioDefinition parse(String text) throws Exception {
         return documents.read(new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)), ScenarioDocuments.Format.YAML);
     }
+    @Test void optionalFlushIntervalPreservesOldDefinitionsAndValidatesExplicitValues() throws Exception {
+        String source = java.nio.file.Files.readString(java.nio.file.Path.of("experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml"));
+        var original = parse(source);
+        ExperimentDescriptors.PIPELINE.validate(original);
+        var fields = new java.util.HashMap<String,Object>(original.parameters());
+        for (Object value : List.of(25, 0, 60001, "25")) {
+            fields.put("flushIntervalMs",value);
+            var candidate = new ScenarioDefinition(original.schemaVersion(),original.experiment(),original.scenario(),fields,original.measurement(),original.input());
+            if (value.equals(25)) ExperimentDescriptors.PIPELINE.validate(candidate);
+            else assertThrows(ScenarioException.class, () -> ExperimentDescriptors.PIPELINE.validate(candidate));
+        }
+    }
+
     @Test
     void canonicalHashIsStableAcrossYamlJsonOrderAndWhitespace() throws Exception {
         var definition = parse(YAML);

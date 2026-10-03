@@ -73,6 +73,19 @@ public class BoundedChannel<T> {
         }
     }
 
+    /** A timeout is not a dequeue; waiting time still contributes to channel metrics. */
+    public T poll(long timeout, TimeUnit unit) throws InterruptedException {
+        if (timeout < 0) throw new IllegalArgumentException("timeout must be >= 0");
+        long start = System.nanoTime();
+        try {
+            T value = queue.poll(timeout, unit);
+            if (value != null) dequeuedCount.increment();
+            return value;
+        } finally {
+            cumulativeDequeueWaitNanos.add(System.nanoTime() - start);
+        }
+    }
+
     public int size() {
         return queue.size();
     }
