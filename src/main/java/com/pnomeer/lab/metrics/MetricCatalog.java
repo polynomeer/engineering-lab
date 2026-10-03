@@ -29,10 +29,11 @@ public final class MetricCatalog {
         add(map, "MiB", "process", "resource.heapUsedMb resource.heapMaxMb resource.peakHeapMb");
         add(map, "ms", "process", "resource.gcPauseMs jvm.gc.collectionTimeMs");
         add(map, "observations", "run", "storage.metrics.written storage.queue.depth storage.queue.maxDepth storage.preview.limit observation.jvm.samples observation.jvm.periodicSamples");
-        add(map, "boolean", "run", "observation.jvm.capReached");
+        add(map, "boolean", "run", "observation.jvm.capReached observation.jfr.durationLimitReached");
         add(map, "spans", "run", "trace.spans.recorded trace.spans.dropped");
         add(map, "ns", "span", "trace.durationNanos");
-        add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos");
+        add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos observation.jfr.lifecycleNanos");
+        add(map, "bytes", "run", "observation.jfr.bytes");
         add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes");
         add(map, "threads", "process", "jvm.threads.platformLive");
         add(map, "collections", "process", "jvm.gc.collectionCount");
@@ -42,7 +43,7 @@ public final class MetricCatalog {
         String semantics = "UNKNOWN", aggregation = "Do not aggregate without checking the producer";
         if (Set.of("items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
                 "requests.virtualCompleted", "requests.reactiveCompleted", "requests.totalCompleted", "blocking.events", "backpressure.stallEvents",
-                "trace.spans.recorded", "trace.spans.dropped", "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
+                "observation.jfr.bytes", "observation.jfr.lifecycleNanos", "trace.spans.recorded", "trace.spans.dropped", "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
                 "storage.enqueueWaitNanos", "storage.writeNanos", "observation.jvm.samples", "observation.jvm.periodicSamples",
                 "observation.jvm.captureNanos", "time.elapsedMs", "timing.elapsedMs").contains(name)) {
             semantics = "RUN_CUMULATIVE"; aggregation = "Use the final value; never sum repeated snapshots";
@@ -70,6 +71,8 @@ public final class MetricCatalog {
             semantics = "SPAN_DURATION"; aggregation = "Inclusive monotonic duration; never sum overlapping parent and child spans";
         } else if (name.equals("storage.preview.limit")) {
             semantics = "CONFIGURATION"; aggregation = "Recorded limit, not an observation count";
+        } else if (name.equals("observation.jfr.durationLimitReached")) {
+            semantics = "FLAG"; aggregation = "0=false, 1=true; recording may end before the experiment";
         } else if (name.equals("observation.jvm.capReached")) {
             semantics = "FLAG"; aggregation = "0=false, 1=true; subsequent periodic observations may be absent";
         }

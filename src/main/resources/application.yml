@@ -19,6 +19,10 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  jfr:
+    enabled: false
+    duration-seconds: 60
+    max-bytes: 16777216
   trace:
     enabled: false
     max-spans: 1000

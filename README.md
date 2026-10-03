@@ -534,3 +534,7 @@ Examples:
 ### 선택적 명시적 Trace
 
 `--lab.trace.enabled=true --lab.trace.max-spans=1000`으로 전체 실행 및 IO 요청별 span을 기록한다(기본 OFF, 최대 10000개). `/runs/{id}/traces`와 NDJSON export에서 조회한다. Excel/큐 내부 단계 계측은 후속 과제다. 페이지 cursor 처리와 계측 비용·저장 상한은 [관측 가이드](docs/observability.md)를 참고한다.
+
+### 선택적 JFR 수집
+
+`--lab.jfr.enabled=true`로 CPU load·GC·GC heap summary를 녹화한다(기본 OFF, 60초, 최종 파일 최대 16 MiB). `.lab/jfr/` 파일과 checksum을 Run artifact로 자동 등록한다. 프로세스 전체 관측이며 저장 상한·외부 녹화 간섭·보관 및 비용 측정은 [관측 가이드](docs/observability.md)를 참고한다. 일반 로그 수집은 아직 미지원이다.

@@ -1,6 +1,6 @@
-# 관측 schema, JVM 스냅샷과 명시적 Trace
+# 관측 schema, JVM 스냅샷, Trace와 JFR
 
-5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 상한이 있는 명시적 trace도 지원한다. JFR/log 수집과 외부 인프라는 후속 작업이다.
+5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 상한이 있는 명시적 trace도 지원한다. 선택적 JFR BASIC_V1 녹화도 지원한다. 일반 로그 수집과 외부 인프라는 후속 작업이다.
 
 ## Metric catalog v2
 
@@ -31,7 +31,7 @@
 
 `./gradlew test`는 활성/비활성, 실패 종료와 수집 실패, 미지원 MXBean 값 생략, 최소 page limit에서의 preview 및 재개방, 실제 HTTP CLI를 통한 세 실험을 검증한다. `build/reports/observability/jvm-snapshot.json`은 20회 준비 후 100회 capture의 평균/최대 시간과 JSON payload 최대 바이트를 기록한다. 2 KiB 미만의 고정 sample shape를 검증한다(수집 단계 payload, 저장 envelope 제외). 이것은 publication/DB 대기나 전체 실행 slowdown의 보장이 아니다. summary의 captureNanos도 수집 호출만 포함하며 writer 배압 비용은 storage.enqueueWaitNanos에 포함된다.
 
-경계 전용 모드는 새로운 작업 thread를 만들지 않으며 기존 writer 종료 순서를 따른다. 시작 전 executor 거부는 snapshot이 없고, 강제 프로세스 종료는 end가 없을 수 있다. 이 경우 기존 INTERRUPTED 복구가 적용된다. JFR/log는 아직 수집하지 않는다.
+경계 전용 모드는 새로운 작업 thread를 만들지 않으며 기존 writer 종료 순서를 따른다. 시작 전 executor 거부는 snapshot이 없고, 강제 프로세스 종료는 end가 없을 수 있다. 이 경우 기존 INTERRUPTED 복구가 적용된다. 일반 로그는 아직 수집하지 않는다.
 
 ## 주기적 관측
 
@@ -72,3 +72,39 @@ source=trace.span인 MetricPoint를 기존 bounded writer로 저장한다. trace
 `GET /runs/{id}/traces?after=-1&limit=100`은 원본 metric 페이지에서 span을 골라 반환한다. 응답 형식은 metrics/nextAfter다. **빈 metrics여도 nextAfter가 있으면 계속 조회**한다. limit은 혼합 원본의 스캔 상한이다. `/runs/{id}/metrics`와 NDJSON export에도 span이 포함되며 기존 실험 대시보드 preview에서는 제외한다. 전용 trace UI는 아직 없다.
 
 테스트는 예약 상한·작업 보존·실패 상태·게시 실패·비활성 모드·재개방·혼합 페이지 및 HTTP 선언적 실행의 부모 연결을 검증한다. `build/reports/observability/trace.json`은 1000회 빈 작업 계측과 JSON 직렬화의 총 시간 및 최대 payload 크기를 기록한다. 표준 UUID 입력의 point 크기가 1 KiB 미만인지 검증한다. DB envelope/인덱스·writer 대기·실제 실험 slowdown은 이 측정에 포함하지 않는다. 최대 10000개 설정에서 이 표준 point payload는 합계 10 MiB 미만이며 DB 파일 크기의 상한은 아니다. Trace를 켠 결과는 계측 비용이 포함된 별도 실험 조건으로 비교해야 한다.
+
+## 선택적 JFR — BASIC_V1
+
+```bash
+./gradlew bootRun --args='--lab.jfr.enabled=true --lab.jfr.duration-seconds=60 --lab.jfr.max-bytes=16777216'
+```
+
+| 설정 | 기본값 | 허용 범위 |
+| --- | --- | --- |
+| lab.jfr.enabled | false | true/false |
+| lab.jfr.duration-seconds | 60 | 1–3600초 |
+| lab.jfr.max-bytes | 16777216 | 1–256 MiB |
+
+Run마다 Recording 하나를 실행 직전 시작하고, 실행 및 JVM 관측 종료 뒤 정지·파일 저장·artifact 등록을 마친 후 Run을 완료한다. 성공뿐 아니라 실패한 실험도 녹화를 보존한다. 거부된 실행은 녹화를 시작하지 않는다. 기존 max-active-runs가 동시 녹화 수도 제한한다. 비활성 상태에서는 Recording과 디렉터리를 생성하지 않는다. 설정은 observation.jfr.* parameters에 보존된다.
+
+BASIC_V1은 jdk.CPULoad(1초 주기), jdk.GarbageCollection, jdk.GCHeapSummary만 활성화하고 stack trace를 끈다. 표본은 **프로세스 전체** 값이며 다른 동시 실험·서버·DB 작업이 포함된다. 짧은 실험은 CPU 표본이 없을 수 있다. GCHeapSummary는 GC 전후 heap이고 peak 보장이 아니다. 실행 표본/할당 스택/virtual-thread pinning의 분석용 profile은 이 버전에 포함하지 않는다.
+
+### 저장과 상한
+
+파일은 lab.storage.root 아래 `jfr/jfr_<무작위 UUID>.jfr`에 저장한다. Run ID나 입력 경로를 파일명으로 사용하지 않는다. 8 KiB 복사 버퍼로 임시 파일에 스트리밍하며 max-bytes를 넘기기 전에 실패시켜 잘린 JFR을 등록하지 않는다. 파일을 검사하고 원자적으로 이름을 변경한 뒤 실제 바이트 수와 SHA-256을 기존 artifact metadata에 등록한다. `/runs/{id}/artifacts`, Run 상세 및 NDJSON export에서 참조를 확인한다. 참조 경로의 기준은 storage root이며 HTTP 파일 다운로드 API는 아직 없다. 파일은 서버의 해당 경로에서 직접 읽는다.
+
+Recording.setMaxSize는 JVM repository의 **chunk 단위 보존 정책**이다. 엄격한 repository 디스크 한도가 아니며 max-bytes의 엄격한 검사는 최종 파일 복사에 적용된다. 상한으로 오래된 chunk가 사라질 수 있어 파일을 전체 실행 기록으로 해석하지 않는다. duration-seconds 후에는 녹화만 자동 정지하고 실험은 계속된다. observation.jfr.durationLimitReached=1은 마무리 시 이미 정지된 녹화를 관측했음을 뜻하며 파일이 실험 전체를 포함한다는 보장이 아니다. [JDK Recording API](https://docs.oracle.com/en/java/javase/16/docs/api/jdk.jfr/jdk/jfr/Recording.html)의 크기/기간 보존 계약을 따르며 저장소의 Java 25에서도 실제 파일로 검증한다.
+
+자동 삭제 정책은 아직 없다. 누적 artifact 파일과 DB는 운영자가 함께 보관·정리해야 한다. 정상 종료는 recorder를 닫아 JVM repository 자원을 해제한다. 강제 종료 시 완성 artifact가 없거나 `.partial` 파일이 남을 수 있고 Run은 기존 INTERRUPTED 복구를 따른다. 시작 시 미완성 파일을 자동 삭제하지 않는다. 파일은 완성됐지만 DB 등록이 실패하면 Run을 FAILED로 기록하고 파일을 복구용으로 남긴다. 서버 오류 로그의 job_id와 artifact_id로 연결 대상을 확인하고 파일 크기/checksum을 계산해 기존 artifact 등록 API로 연결할 수 있다. JFR 정지·파일 I/O는 동기식이며 duration-seconds는 이 마무리 작업의 timeout이 아니다.
+
+### 민감정보와 실패 정책
+
+기본 JVM profile, 환경변수, 시스템 프로퍼티, JVM 인자, 파일/소켓 I/O, 예외 메시지 이벤트는 활성화하지 않는다. 다른 Recording과 설정이 합쳐질 수 있으므로 파일의 모든 이벤트를 한 번씩 읽어 허용된 세 종류와 stack 부재를 확인한다. 다른 이벤트나 stack이 있으면 임시 파일을 삭제하고 Run을 FAILED로 처리한다. JFR의 네이티브 metadata/상수 풀과 thread 정보까지 익명화하는 기능은 아니다. 외부 도구의 녹화와 함께 사용한 파일을 자동 정제한다고 간주하지 않는다.
+
+수집·검증·등록 실패를 성공으로 숨기지 않는다. writer의 metric drain은 JFR 실패 이후에도 수행한다. JFR 파일은 재시도 가능한 metric queue 항목과 별개이며 DB 참조 등록 실패 시 파일을 재생성하지 않는다.
+
+### 검증과 비용
+
+JfrRecorderTest는 실제 녹화의 성공/실패·허용 이벤트·SHA-256·재개방·API/export 참조, 자동 정지, 비활성 모드, 복사 상한, 다른 녹화의 이벤트 거부·임시 파일 정리, 시작/등록 실패와 Recording 해제를 검증한다. LabCliIntegrationTest는 실제 서버에서 세 실험을 JVM sampling/Trace/JFR과 함께 실행한다.
+
+`build/reports/observability/jfr-success.json`과 `jfr-failed.json`에 파일 바이트 수와 observation.jfr.lifecycleNanos를 기록한다. observation.jfr.bytes는 검증을 마쳐 최종 파일로 보존한 바이트 수이며 파일 생성 실패 시 0이다(DB 등록 실패 시에는 복구용 파일의 크기). lifecycleNanos는 디렉터리 준비·시작 및 정지·복사·검증·종료의 호출 시간이며 DB 등록 시간과 실행 중 JVM 계측 비용은 제외한다. 최초 JFR 초기화 비용과 후속 실행은 다를 수 있다. 이 수치는 전체 실행 slowdown이나 특정 성능 우위를 보장하지 않으며 활성화한 실행은 별도 측정 조건으로 비교한다.

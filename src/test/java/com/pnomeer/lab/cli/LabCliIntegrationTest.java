@@ -12,7 +12,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true", "lab.observation.jvm-interval-ms=100", "lab.observation.max-periodic-samples=2", "lab.trace.enabled=true", "lab.trace.max-spans=7"})
+        properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true", "lab.observation.jvm-interval-ms=100", "lab.observation.max-periodic-samples=2", "lab.trace.enabled=true", "lab.trace.max-spans=7", "lab.jfr.enabled=true", "lab.jfr.duration-seconds=60", "lab.jfr.max-bytes=1048576"})
 class LabCliIntegrationTest {
     @LocalServerPort int port;
     @Autowired RunStore store;
@@ -33,6 +33,9 @@ class LabCliIntegrationTest {
             String id = (String)submitted.get("runId");
             var result = store.find(id).orElseThrow();
             assertEquals(RunStatus.SUCCEEDED, result.status());
+            assertEquals("BASIC_V1", result.runMetadata().parameters().get("observation.jfr.mode"));
+            assertEquals(1, store.artifacts(id).size());
+            assertTrue(result.summary().counters().get("observation.jfr.bytes") <= 1048576);
             assertEquals("EXPLICIT", result.runMetadata().parameters().get("observation.trace.mode"));
             assertTrue(result.summary().counters().get("trace.spans.recorded") >= 1);
             assertTrue(result.summary().counters().get("trace.spans.recorded") <= 7);

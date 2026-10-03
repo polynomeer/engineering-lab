@@ -56,7 +56,7 @@ Git probe는 timeout/출력 제한이 있다. 없는 Git·저장소나 probe 실
 
 ## 관측과 실험 방법
 
-Metrics → JVM metrics → trace → JFR → logs 순으로 도입한다. 먼저 명시적 instrumentation을 제공하며, Java Agent는 별도 실험 주제로 남긴다. JFR/외부 인프라 실행은 명시적으로 선택하도록 한다.
+Metrics → JVM metrics → trace → JFR → logs 순으로 도입한다. 먼저 명시적 instrumentation을 제공하며, Java Agent는 별도 실험 주제로 남긴다. JFR/외부 인프라 실행은 명시적으로 선택하도록 한다. JFR BASIC_V1은 runtime의 JfrRecorder가 수집하고 storage root의 파일과 기존 ArtifactReference로 연결한다. 파일 크기 검사·이벤트 허용 목록·실패/복구 경계는 [관측 가이드](observability.md)에 정의한다. 일반 로그 수집은 다음 작업이다.
 
 시나리오 파일은 허용된 실험 ID와 명시적 파라미터 스키마로 검증하고 임의 클래스·명령 실행을 허용하지 않는다. warmup, 반복 횟수, 측정 기간, 시간 단위, seed와 입력 checksum을 기록한다. 기존 실험이 지원하지 않는 옵션은 무시하지 않고 거부한다.
 

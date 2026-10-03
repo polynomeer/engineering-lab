@@ -1,6 +1,6 @@
 package com.pnomeer.lab.core.storage;
 
-/** User-supplied metadata; registering a reference does not verify or serve file bytes. */
+/** Artifact metadata from a user or collector; registration itself does not verify or serve file bytes. */
 public record ArtifactReference(String artifactId, String runId, String relativePath,
         String mediaType, long byteSize, String sha256) {
     public ArtifactReference {
