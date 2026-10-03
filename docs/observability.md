@@ -2,9 +2,9 @@
 
 5단계 첫 작업은 공통 단위 catalog와 선택적 JVM 시작/종료 관측이다. 주기적 JVM sampling도 선택적으로 지원한다. 명시적 trace, JFR/log 수집, 외부 인프라는 후속 작업이다.
 
-## Metric catalog v1
+## Metric catalog v2
 
-`GET /metrics/schema`는 이름·단위·범위(run/process)를 제공한다. 비교 API도 같은 catalog를 쓴다. ms/ns, bytes/MiB, percent, rate를 구분하며 알 수 없는 이름은 unknown이다. 기존 MetricPoint와 DB schema는 변경하지 않는다. legacy counters/gauges는 저장 컨테이너일 뿐 의미론적 counter/gauge 보장은 아니다(예: throughput rate가 counters에 존재).
+`GET /metrics/schema`는 이름·단위·범위(run/process)·semantics·aggregation을 제공한다. 비교 API도 같은 catalog를 쓴다. ms/ns, bytes/MiB, percent, rate를 구분하며 알 수 없는 이름은 unknown이다. 기존 MetricPoint와 DB schema는 변경하지 않는다. legacy counters/gauges는 저장 컨테이너일 뿐 의미론적 counter/gauge 보장은 아니다(예: throughput rate가 counters에 존재).
 
 기존 heap `Mb` 필드는 실제 1024² byte 기준이므로 MiB로 설명한다. 기존 metric의 placeholder/구현 누락을 catalog가 실제 계측으로 바꾸지는 않는다. 특히 pipeline connection/lock/retry 지표는 구현 상태를 함께 확인한다. schema version은 새로운 Run의 parameters에 남기며 기존 실행에는 소급 기록하지 않는다.
 
@@ -27,7 +27,7 @@
 
 `GET /runs/{id}/metrics`와 NDJSON export에서 source=jvm.boundary, phase=start/end를 찾는다. 기존 실험별 대시보드는 역방향으로 제한된 페이지를 읽고 JVM point를 제외한 experiment preview를 복원한다. 실행이 짧아 원래 pipeline의 250ms progress tick 전에 끝난 경우 progress가 없을 수 있으며 summary 행 수는 그대로 보존한다. JVM point를 진행률 0으로 변환하지 않는다.
 
-새 schema version과 JVM mode는 parameters에 보존되므로 활성/비활성 Run의 비교에서 조건 차이가 드러난다. 기존 Run은 version이 없으며 v1 catalog는 알려진 legacy 이름의 설명으로만 사용된다. 단위 자동 변환이나 값 재작성은 하지 않는다.
+새 schema version과 JVM mode는 parameters에 보존되므로 활성/비활성 Run의 비교에서 조건 차이가 드러난다. 기존 Run은 version이 없으며 현재 catalog는 알려진 legacy 이름의 설명으로만 사용된다. 단위 자동 변환이나 값 재작성은 하지 않는다.
 
 `./gradlew test`는 활성/비활성, 실패 종료와 수집 실패, 미지원 MXBean 값 생략, 최소 page limit에서의 preview 및 재개방, 실제 HTTP CLI를 통한 세 실험을 검증한다. `build/reports/observability/jvm-snapshot.json`은 20회 준비 후 100회 capture의 평균/최대 시간과 JSON payload 최대 바이트를 기록한다. 2 KiB 미만의 고정 sample shape를 검증한다(수집 단계 payload, 저장 envelope 제외). 이것은 publication/DB 대기나 전체 실행 slowdown의 보장이 아니다. summary의 captureNanos도 수집 호출만 포함하며 writer 배압 비용은 storage.enqueueWaitNanos에 포함된다.
 
@@ -52,3 +52,7 @@ summary의 observation.jvm.periodicSamples와 observation.jvm.capReached(0/1)는
 종료 요청은 sampler 대기를 깨우고 진행 중인 게시가 끝나기를 기다린 후 end를 게시하고 writer를 drain한다. sampler 실패는 다음 실험 metric 게시 또는 실행 종료에서 Run 실패로 전파한다. 끝나지 않는 실험을 sampler가 강제 종료하지 않는다. 기존 storage.shutdown-timeout-ms 이내에 sampler가 정지하지 않으면 interrupt하고 Run을 실패 처리하며 정상 end를 보장하지 않는다. 인터럽트를 무시하는 JVM 호출을 강제로 종료할 수는 없다.
 
 검증은 표본 상한·메타데이터·재개방, 배압 중 종료 순서와 추가 표본 미발행, 비동기 실패 전파와 잘못된 설정 거부를 포함한다. 각 sample은 기존 고정 크기 스냅샷이며 정확한 시간 간격이나 실행 중 peak 포착을 보장하지 않는다.
+
+## 지표 의미와 집계
+
+Schema v2는 RUN_CUMULATIVE / PROCESS_CUMULATIVE / RUN_MEAN / INTERVAL_RATE / RUN_RATE / INTERVAL_DELTA / OBSERVED_MAXIMUM / INSTANTANEOUS / RATIO / CONFIGURATION / FLAG를 명시한다. 누적 snapshot을 시간축으로 합산하거나 평균의 평균을 내지 않는다. 구간 rate는 실제 구간 길이가 필요하며 반올림된 rate에서 정확한 건수를 복구할 수 없다. GC 누적 시간은 process 전체 collection time이다. 기존 DB 값과 이름은 변경하지 않는다. 과거 Run의 schema version은 보존하며 catalog의 설명을 소급 계측 증거로 해석하지 않는다.

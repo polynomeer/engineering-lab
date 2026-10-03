@@ -4,8 +4,8 @@ import java.util.*;
 
 /** Versioned descriptions of emitted values; never infer units from a name suffix. */
 public final class MetricCatalog {
-    public static final String VERSION = "1";
-    public record Definition(String name, String unit, String scope) { }
+    public static final String VERSION = "2";
+    public record Definition(String name, String unit, String scope, String semantics, String aggregation) { }
     private static final Map<String, Definition> DEFINITIONS = build();
     private MetricCatalog() { }
     public static Collection<Definition> definitions() { return DEFINITIONS.values(); }
@@ -36,9 +36,44 @@ public final class MetricCatalog {
         add(map, "collections", "process", "jvm.gc.collectionCount");
         return Collections.unmodifiableMap(map);
     }
+    private static Definition definition(String name, String unit, String scope) {
+        String semantics = "UNKNOWN", aggregation = "Do not aggregate without checking the producer";
+        if (Set.of("items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
+                "requests.virtualCompleted", "requests.reactiveCompleted", "requests.totalCompleted", "blocking.events", "backpressure.stallEvents",
+                "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
+                "storage.enqueueWaitNanos", "storage.writeNanos", "observation.jvm.samples", "observation.jvm.periodicSamples",
+                "observation.jvm.captureNanos", "time.elapsedMs", "timing.elapsedMs").contains(name)) {
+            semantics = "RUN_CUMULATIVE"; aggregation = "Use the final value; never sum repeated snapshots";
+        } else if (Set.of("jvm.gc.collectionCount", "jvm.gc.collectionTimeMs").contains(name)) {
+            semantics = "PROCESS_CUMULATIVE"; aggregation = "Delta within the same process; not attributable to one Run";
+        } else if (Set.of("queue.avgEnqueueWaitMs", "queue.raw.enqueueWaitMs", "queue.mapped.enqueueWaitMs", "queue.raw.dequeueLatencyMs",
+                "queue.mapped.dequeueLatencyMs", "virtual.avgLatencyMs", "reactive.avgLatencyMs", "latency.parseMs", "latency.validationMs",
+                "latency.mappingMs", "latency.insertMs", "resource.connectionWaitMs", "resource.lockWaitMs").contains(name)) {
+            semantics = "RUN_MEAN"; aggregation = "Do not average snapshot means; require matching counts and totals";
+        } else if (Set.of("throughput.producedPerSec", "throughput.mappedPerSec", "throughput.insertedPerSec", "throughput.batchPerSec", "retry.ratePerSec").contains(name)) {
+            semantics = "INTERVAL_RATE"; aggregation = "Weight by actual interval; rounded rates cannot recover exact counts";
+        } else if (Set.of("throughput.itemsPerSec", "throughput.virtualRequestsPerSec", "throughput.reactiveRequestsPerSec", "throughput.totalRequestsPerSec", "backpressure.stallFrequencyPerMin").contains(name)) {
+            semantics = "RUN_RATE"; aggregation = "Use the final rate; inspect producer denominator before comparing";
+        } else if (Set.of("backpressure.enqueueBlockingTimeMs", "resource.gcPauseMs").contains(name)) {
+            semantics = "INTERVAL_DELTA"; aggregation = "Sum only disjoint complete intervals; GC collection time is not pause latency";
+        } else if (Set.of("queue.maxDepth", "resource.peakHeapMb", "storage.queue.maxDepth").contains(name)) {
+            semantics = "OBSERVED_MAXIMUM"; aggregation = "Maximum of observed snapshots; unobserved peaks may be missed";
+        } else if (Set.of("queue.depth", "queue.raw.size", "queue.mapped.size", "resource.heapUsedMb", "resource.heapMaxMb",
+                "resource.activeConnections", "resource.awaitingConnections", "storage.queue.depth", "jvm.heap.usedBytes",
+                "jvm.heap.committedBytes", "jvm.heap.maxBytes", "jvm.threads.platformLive").contains(name)) {
+            semantics = "INSTANTANEOUS"; aggregation = "Use timestamped samples; never sum gauges across time";
+        } else if (Set.of("queue.raw.saturationPct", "queue.mapped.saturationPct", "backpressure.producerSlowdownPct", "errors.validationRatePct").contains(name)) {
+            semantics = "RATIO"; aggregation = "Inspect numerator and denominator; never sum percentages";
+        } else if (name.equals("storage.preview.limit")) {
+            semantics = "CONFIGURATION"; aggregation = "Recorded limit, not an observation count";
+        } else if (name.equals("observation.jvm.capReached")) {
+            semantics = "FLAG"; aggregation = "0=false, 1=true; subsequent periodic observations may be absent";
+        }
+        return new Definition(name,unit,scope,semantics,aggregation);
+    }
     private static void add(Map<String, Definition> map, String unit, String scope, String names) {
         for (String name : names.split(" ")) {
-            if (map.putIfAbsent(name, new Definition(name, unit, scope)) != null) throw new IllegalStateException("Duplicate metric: " + name);
+            if (map.putIfAbsent(name, definition(name, unit, scope)) != null) throw new IllegalStateException("Duplicate metric: " + name);
         }
     }
 }
