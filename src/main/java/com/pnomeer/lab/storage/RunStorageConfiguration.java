@@ -9,7 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties({StorageProperties.class, com.pnomeer.lab.runtime.ObservationProperties.class, com.pnomeer.lab.runtime.TraceProperties.class, com.pnomeer.lab.runtime.JfrProperties.class, com.pnomeer.lab.runtime.RunLogProperties.class})
+@EnableConfigurationProperties({ArtifactDownloadProperties.class, StorageProperties.class, com.pnomeer.lab.runtime.ObservationProperties.class, com.pnomeer.lab.runtime.TraceProperties.class, com.pnomeer.lab.runtime.JfrProperties.class, com.pnomeer.lab.runtime.RunLogProperties.class})
 public class RunStorageConfiguration {
     @Bean(destroyMethod = "close")
     public JdbcRunStore runStore(StorageProperties properties) {

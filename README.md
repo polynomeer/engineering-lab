@@ -542,3 +542,7 @@ Examples:
 ### 선택적 Run 로그
 
 `--lab.logs.enabled=true`로 실행 시작·결과·관측/저장 실패를 NDJSON artifact에 기록한다(기본 OFF, 최대 100개 이벤트/64 KiB). 고정 이벤트와 사유 코드만 기록하며 예외 메시지·입력 데이터는 포함하지 않는다. 파일 위치와 완료 경계, 누락 집계·보관 정책은 [관측 가이드](docs/observability.md)를 참고한다.
+
+### 관측 파일 다운로드
+
+종료 Run의 JFR·로그는 `GET /runs/{runId}/artifacts/{artifactId}/download`로 받는다. 등록된 크기와 SHA-256을 먼저 검증하며, 기본 상한은 파일당 256 MiB·동시 2개다. 관리 경로 제한과 설정/오류 응답은 [증거 가이드](docs/run-evidence.md)를 참고한다.

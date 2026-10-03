@@ -18,7 +18,7 @@ class LabCliIntegrationTest {
     @Autowired RunStore store;
     @Autowired com.pnomeer.lab.app.ingest.IngestionService ingestion;
     private final JsonMapper json = JsonMapper.builder().build();
-    @Test void validatesAndRunsAllCheckedInExamplesThroughTheActualHttpServer() {
+    @Test void validatesAndRunsAllCheckedInExamplesThroughTheActualHttpServer() throws Exception {
         for (String file : List.of("experiments/concurrency/queue-contention/scenarios/small-buffer.yaml",
                 "experiments/io/endpoint-comparison/scenarios/baseline.json",
                 "experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml")) {
@@ -35,6 +35,7 @@ class LabCliIntegrationTest {
             assertEquals(RunStatus.SUCCEEDED, result.status());
             assertEquals("BASIC_V1", result.runMetadata().parameters().get("observation.jfr.mode"));
             assertEquals(2, store.artifacts(id).size());
+            for (var reference : store.artifacts(id)) verifyDownload(reference);
             assertEquals("LIFECYCLE_V1", result.runMetadata().parameters().get("observation.logs.mode"));
             assertEquals(3L, result.summary().counters().get("observation.logs.events"));
             assertTrue(store.artifacts(id).stream().anyMatch(ref -> ref.mediaType().equals("application/x-ndjson")));
@@ -65,6 +66,18 @@ class LabCliIntegrationTest {
         var catalog = run("list", "--server", "http://localhost:"+port);
         assertEquals(0, catalog.code, catalog.err);
         assertEquals(3, json.readValue(catalog.out.strip(), List.class).size());
+    }
+    private void verifyDownload(ArtifactReference reference) throws Exception {
+        try (var client = java.net.http.HttpClient.newHttpClient()) {
+            var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port
+                    + "/runs/" + reference.runId() + "/artifacts/" + reference.artifactId() + "/download"))
+                    .timeout(java.time.Duration.ofSeconds(10)).GET().build();
+            var response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            assertEquals(200, response.statusCode());
+            assertEquals(reference.byteSize(), response.body().length);
+            assertEquals(reference.sha256(), java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(response.body())));
+        }
     }
     private Result run(String... args) {
         var out = new ByteArrayOutputStream(); var err = new ByteArrayOutputStream();

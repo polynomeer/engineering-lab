@@ -19,6 +19,10 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  artifacts:
+    download:
+      max-bytes: 268435456
+      max-concurrent: 2
   logs:
     enabled: false
     max-events: 100
