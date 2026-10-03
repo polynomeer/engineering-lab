@@ -9,7 +9,7 @@ import java.net.http.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties={"lab.storage.root=${java.io.tmpdir}/lab-ui-tests-${random.uuid}", "lab.storage.page-limit=2", "lab.storage.preview-limit=2"})
+        properties={"lab.storage.root=${java.io.tmpdir}/lab-ui-tests-${random.uuid}", "lab.storage.page-limit=2", "lab.storage.preview-limit=2", "lab.artifacts.download.max-bytes=4096"})
 class RunUiIntegrationTest {
     @LocalServerPort int port;
     @Test void servesUiAndAssetsWithoutShadowingRunApi() throws Exception {
@@ -21,7 +21,11 @@ class RunUiIntegrationTest {
                     assertTrue(response.headers().firstValue("content-type").orElseThrow().contains("text/html"));
                     assertTrue(response.body().contains("/run-browser/app.js"));
                 }
-                if (path.equals("/runs/ui/options")) assertTrue(response.body().contains("\"pageSize\":2"));
+                if (path.equals("/runs/ui/options")) {
+                    var options = tools.jackson.databind.json.JsonMapper.builder().build().readTree(response.body());
+                    assertEquals(2, options.get("pageSize").asInt());
+                    assertEquals(4096, options.get("artifactDownloadMaxBytes").asLong());
+                }
                 if (path.equals("/runs")) assertTrue(response.body().contains("\"runs\""));
             }
         }

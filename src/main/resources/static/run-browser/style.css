@@ -37,3 +37,5 @@ pre { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.6 ui-monospace,m
 td small, th small { display:block; font:12px/1.5 ui-monospace,monospace; color:var(--muted); margin-top:6px; }
 h2,h3 { overflow-wrap:anywhere; }
 @media(max-width:760px) { table { min-width:580px; } }
+
+.artifact-note { color:var(--muted); }

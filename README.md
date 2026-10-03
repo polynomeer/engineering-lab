@@ -545,4 +545,4 @@ Examples:
 
 ### 관측 파일 다운로드
 
-종료 Run의 JFR·로그는 `GET /runs/{runId}/artifacts/{artifactId}/download`로 받는다. 등록된 크기와 SHA-256을 먼저 검증하며, 기본 상한은 파일당 256 MiB·동시 2개다. 관리 경로 제한과 설정/오류 응답은 [증거 가이드](docs/run-evidence.md)를 참고한다.
+`/runs/ui` 상세의 Artifacts에서 Download JFR/Download log를 선택한다. 종료 Run의 JFR·로그는 `GET /runs/{runId}/artifacts/{artifactId}/download`로 받는다. 등록된 크기와 SHA-256을 먼저 검증하며, 기본 상한은 파일당 256 MiB·동시 2개다. 관리 경로 제한과 설정/오류 응답은 [증거 가이드](docs/run-evidence.md)를 참고한다.

@@ -21,7 +21,7 @@ Artifact는 사용자 제공 또는 내장 수집기가 생성한 파일의 참�
 
 사용자가 API로 등록한 참조의 checksum은 서버 검증을 의미하지 않는다. 원본 파일은 별도로 보관한다. export는 시작 시 읽은 참조 목록을 포함하고 이후 등록은 다음 export에 반영된다. 새로운 DB 스키마 변경 없이 기존 v1 lab_artifact 테이블을 사용한다.
 
-UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기를 받는다.
+UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기와 artifactDownloadMaxBytes를 받는다.
 
 ## 화면과 Finding
 
@@ -32,6 +32,7 @@ UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기를 
 - 상세의 Use as baseline/candidate로 대상을 정한 뒤 Compare runs를 누른다. 두 선택 ID만 sessionStorage에 보관하며 실행 데이터는 저장소에서 조회한다.
 - `/runs/ui?run=<id>` 또는 `/runs/ui?baseline=<id>&candidate=<id>`를 저장해 다시 연다. 브라우저 뒤로 가기도 지원한다.
 - 좁은 화면의 비교 표는 표 안에서 가로 스크롤한다. 로딩/빈 결과/오류를 명시하고 저장된 문자열은 HTML로 해석하지 않는다.
+- 상세 Artifacts 표의 Download JFR/Download log 링크로 관리 파일을 받는다. 새 탭에서 요청하므로 원래 상세 화면을 유지하고 오류 응답은 새 탭에 표시한다. JavaScript Blob으로 전체 파일을 버퍼링하지 않는다. 실행 중·서버 크기 상한 초과·참조 전용 항목에는 링크 대신 사유를 표시한다. 파일 존재/checksum의 최종 판단은 클릭 시 서버가 수행한다.
 - 실행 중에는 Refresh run으로 갱신한다. 자동 polling은 하지 않는다.
 - [Finding 템플릿](findings/TEMPLATE.md)에 증거와 해석을 기록한다. 결과 자동 판정이나 Finding 자동 저장은 제공하지 않는다.
 
@@ -64,6 +65,6 @@ storage root는 신뢰할 수 있는 서버 설정이다. 그 아래 jfr/logs �
 | 429 | 동시 다운로드 슬롯 소진; 큐에 무제한 적재하지 않음 |
 | 503 | SecureDirectoryStream 미지원 |
 
-임시 디스크 부족 등 그 밖의 I/O 오류는 서버 오류로 전파한다. 전송 중 연결이 끊어지면 완료된 응답으로 간주하지 말고 Content-Length와 SHA-256을 확인한다. Range/부분 다운로드, 자동 파일 보관·삭제와 UI 다운로드 버튼은 이번 API에 포함하지 않는다.
+임시 디스크 부족 등 그 밖의 I/O 오류는 서버 오류로 전파한다. 전송 중 연결이 끊어지면 완료된 응답으로 간주하지 말고 Content-Length와 SHA-256을 확인한다. Range/부분 다운로드와 자동 파일 보관·삭제는 이번 API에 포함하지 않는다.
 
 검증: ArtifactDownloadTest는 재개방 뒤 정확한 바이트·헤더, 누락/다른 Run/실행 중/일반 참조/상한 거부, 파일 변조와 링크, 원본 변경 후 사본 일치, 슬롯 상한 및 연결 실패 뒤 슬롯 반환을 확인한다. LabCliIntegrationTest는 실제 서버가 생성한 세 실험의 JFR/로그를 내려받아 저장된 SHA-256과 비교한다.
