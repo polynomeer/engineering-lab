@@ -7,6 +7,27 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
 public class BoundedChannel<T> {
+    private final java.util.concurrent.atomic.AtomicReference<RuntimeException> failure = new java.util.concurrent.atomic.AtomicReference<>();
+
+    public void fail(RuntimeException cause) { failure.compareAndSet(null, cause); }
+    private void checkFailure() {
+        RuntimeException cause = failure.get();
+        if (cause != null) throw new IllegalStateException("Channel aborted after worker failure", cause);
+    }
+
+    private T awaitValue(long timeoutNanos) throws InterruptedException {
+        long start = System.nanoTime();
+        long remaining = timeoutNanos;
+        do {
+            checkFailure();
+            T value = queue.poll(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)), TimeUnit.NANOSECONDS);
+            checkFailure();
+            if (value != null) return value;
+            remaining = timeoutNanos - (System.nanoTime() - start);
+        } while (remaining > 0);
+        return null;
+    }
+
     private final int capacity;
     private final ArrayBlockingQueue<T> queue;
     private final Long offerTimeoutMs;
@@ -31,7 +52,8 @@ public class BoundedChannel<T> {
     public void put(T value) throws InterruptedException {
         long start = System.nanoTime();
         try {
-            queue.put(value);
+            do { checkFailure(); } while (!queue.offer(value, 100, TimeUnit.MILLISECONDS));
+            checkFailure();
             enqueuedCount.increment();
         } finally {
             cumulativeEnqueueWaitNanos.add(System.nanoTime() - start);
@@ -52,7 +74,16 @@ public class BoundedChannel<T> {
         }
         long start = System.nanoTime();
         try {
-            boolean accepted = queue.offer(value, timeoutMs, TimeUnit.MILLISECONDS);
+            long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+            long remaining = timeoutNanos;
+            boolean accepted;
+            do {
+                checkFailure();
+                accepted = queue.offer(value, Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)), TimeUnit.NANOSECONDS);
+                checkFailure();
+                if (accepted) break;
+                remaining = timeoutNanos - (System.nanoTime() - start);
+            } while (remaining > 0);
             if (accepted) {
                 enqueuedCount.increment();
             }
@@ -65,7 +96,7 @@ public class BoundedChannel<T> {
     public T take() throws InterruptedException {
         long start = System.nanoTime();
         try {
-            T value = queue.take();
+            T value = awaitValue(Long.MAX_VALUE);
             dequeuedCount.increment();
             return value;
         } finally {
@@ -78,7 +109,7 @@ public class BoundedChannel<T> {
         if (timeout < 0) throw new IllegalArgumentException("timeout must be >= 0");
         long start = System.nanoTime();
         try {
-            T value = queue.poll(timeout, unit);
+            T value = awaitValue(unit.toNanos(timeout));
             if (value != null) dequeuedCount.increment();
             return value;
         } finally {

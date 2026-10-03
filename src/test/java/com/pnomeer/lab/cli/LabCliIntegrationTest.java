@@ -57,6 +57,9 @@ class LabCliIntegrationTest {
             assertTrue(result.summary().counters().get("observation.jvm.samples") <= 4L);
             if (result.experimentType().equals("pipeline.excel-ingestion")) {
                 assertEquals("1000", result.runMetadata().parameters().get("pipeline.insert.flush-interval-ms"));
+                assertEquals("3", result.runMetadata().parameters().get("pipeline.insert.max-attempts"));
+                assertEquals("100", result.runMetadata().parameters().get("pipeline.insert.retry-backoff-ms"));
+                assertEquals(0L, result.summary().counters().get("retry.count"));
                 assertEquals(5, ingestion.getJob(id).getInsertedCount());
                 assertTrue(ingestion.getJob(id).getMetricTimeline().stream()
                         .noneMatch(point -> Set.of("jvm.boundary", "jvm.periodic", "trace.span").contains(point.labels().getOrDefault("source", ""))));

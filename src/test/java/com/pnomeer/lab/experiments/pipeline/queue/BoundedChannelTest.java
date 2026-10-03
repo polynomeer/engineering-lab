@@ -11,6 +11,30 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BoundedChannelTest {
+    @Test
+    void abortReleasesBlockedProducerAndConsumer() throws Exception {
+        var full = new BoundedChannel<String>(1, 100L);
+        var empty = new BoundedChannel<String>(1, 100L);
+        full.put("occupied");
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var started = new CountDownLatch(2);
+            var producer = executor.submit(() -> {
+                started.countDown();
+                org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> full.put("blocked"));
+            });
+            var consumer = executor.submit(() -> {
+                started.countDown();
+                org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, empty::take);
+            });
+            assertTrue(started.await(1, TimeUnit.SECONDS));
+            var failure = new IllegalStateException("injected failure");
+            full.fail(failure); empty.fail(failure);
+            producer.get(2, TimeUnit.SECONDS); consumer.get(2, TimeUnit.SECONDS);
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> full.offer("row", 0));
+            assertEquals(1, full.getEnqueuedCount()); assertEquals(0, empty.getDequeuedCount());
+        }
+    }
+
 
     @Test
     void timedPollDoesNotCountTimeoutAsADequeueAndRemainsInterruptible() throws Exception {

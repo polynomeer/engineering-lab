@@ -92,3 +92,9 @@ com.pnomeer.lab.experiments.concurrency
 - Move reusable concerns first: job execution, metrics, dashboard models.
 - Move pipeline-specific code under `experiments.pipeline` second.
 - Add a second non-pipeline experiment early to validate that the platform boundaries are real.
+
+## Pipeline batch retry boundary
+
+Each insert attempt runs in a new transaction, suspending an ambient transaction if present. A private exception marks transient failures raised inside the batch callback. Only that marker returning through a successful rollback permits retry; acquisition, commit and rollback errors never enter the retry loop. The same bounded chunk remains with its worker until commit succeeds, then counts advance and the chunk is cleared. This provides duplicate-free replay after confirmed rollback, not cross-run deduplication or uncertain-commit recovery.
+
+Retry exhaustion aborts both channels. Blocking queue operations check the first failure at intervals of at most 100 ms, and worker interruption propagates as failure. Existing executor shutdown cancels remaining work. This does not guarantee durable drain, recovery of queued rows, or cancellation of a blocked input/DB call; those remain a separate lifecycle unit.

@@ -84,10 +84,10 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 아래는 이 가이드를 작성하며 확인한 차이다. 관련 기능을 구현하면 이 목록도 갱신한다. 별도 요청 없이 이 목록 전체를 구현하는 것으로 작업 범위를 확대하지 않는다.
 
-- insert chunk는 크기·시간·종료 조건으로 flush된다. 시간 기본값은 1000 ms이며 SINGLE_THREAD는 행 callback에서만 기한을 확인한다. insert 재시도/backoff는 아직 구현되어 있지 않다. retry 메트릭 필드만으로 재시도 지원을 판단하지 않는다.
+- insert chunk는 크기·시간·종료 조건으로 flush된다. 시간 기본값은 1000 ms이며 SINGLE_THREAD는 행 callback에서만 기한을 확인한다. insert는 batch 본문의 일시적 오류를 성공적으로 롤백한 경우 제한된 지수 backoff로 재시도한다(기본 총 3회, 100 ms 시작, 60000 ms 상한). 커밋·롤백 오류는 재시도하지 않는다. 별도 Run/불확실한 커밋의 재실행 멱등성은 보장하지 않는다.
 - 검증 오류는 행 문맥을 가진 메모리 컬렉션에 모이며 API에는 집계가 노출된다. 영속 dead-letter 출력은 아직 없다.
 - 단계 사이 큐는 bounded지만 업로드 파일은 `byte[]`로 읽고, 검증 오류도 메모리에 누적된다. 앱의 실행 이력은 영속화했고 metric writer와 preview는 bounded이다. 전체 경로의 bounded memory가 보장된 상태는 아니다.
-- 정상 종료 신호와 partial chunk flush는 존재한다. 실패·중단 경로까지 queue drain과 데이터 보존이 보장되는지는 별도 검증이 필요하다.
+- 정상 종료 신호와 partial chunk flush는 존재한다. worker 실패 시 채널을 중단해 대기자를 해제하며 실패를 전파한다. 실패·중단 경로까지 queue drain과 데이터 보존이 보장되는지는 별도 검증이 필요하다.
 - pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. 전체 Excel ingestion의 heap/throughput 비교 테스트는 여전히 별도 과제다.
 
 ## 작업 단위 커밋

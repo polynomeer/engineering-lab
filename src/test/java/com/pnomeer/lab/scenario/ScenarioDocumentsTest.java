@@ -32,6 +32,19 @@ class ScenarioDocumentsTest {
         }
     }
 
+    @Test void retryOptionsValidateBoundsAndTypes() throws Exception {
+        var original = parse(java.nio.file.Files.readString(java.nio.file.Path.of("experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml")));
+        for (String key : List.of("maxAttempts", "retryBackoffMs")) {
+            for (Object value : List.of(1, 0, key.equals("maxAttempts") ? 11 : 60001, "2")) {
+                var fields = new java.util.HashMap<String,Object>(original.parameters());
+                fields.put(key, value);
+                var candidate = new ScenarioDefinition(original.schemaVersion(), original.experiment(), original.scenario(), fields, original.measurement(), original.input());
+                if (value.equals(1)) ExperimentDescriptors.PIPELINE.validate(candidate);
+                else assertThrows(ScenarioException.class, () -> ExperimentDescriptors.PIPELINE.validate(candidate));
+            }
+        }
+    }
+
     @Test
     void canonicalHashIsStableAcrossYamlJsonOrderAndWhitespace() throws Exception {
         var definition = parse(YAML);

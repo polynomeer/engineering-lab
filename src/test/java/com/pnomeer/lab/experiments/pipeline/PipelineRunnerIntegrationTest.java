@@ -171,6 +171,48 @@ class PipelineRunnerIntegrationTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> properties.getInsert().setFlushIntervalMs(0));
     }
 
+    @Test
+    void retriesRolledBackBatchesInBothModesAndUnblocksFullQueuesOnExhaustion() throws Exception {
+        byte[] workbook = createValidWorkbook(100);
+        for (var mode : PipelineRunner.RunMode.values()) {
+            for (boolean exhaust : new boolean[]{false, true}) {
+                DataSource ds = createDataSource(); initializeSchema(ds);
+                var attempts = new java.util.concurrent.atomic.AtomicInteger();
+                var jdbc = new JdbcTemplate(ds) {
+                    @Override public <T> int[][] batchUpdate(String sql, java.util.Collection<T> rows, int size,
+                            org.springframework.jdbc.core.ParameterizedPreparedStatementSetter<T> setter) {
+                        int[][] result = super.batchUpdate(sql, rows, size, setter);
+                        if (attempts.incrementAndGet() == 1 || exhaust) {
+                            throw new org.springframework.dao.CannotAcquireLockException("injected after batch write");
+                        }
+                        return result;
+                    }
+                };
+                var properties = new PipelineProperties();
+                properties.getQueue().setRawCapacity(1); properties.getQueue().setMappedCapacity(1);
+                properties.getThreads().setValidator(1); properties.getThreads().setInserter(1);
+                properties.getInsert().setChunkSize(10); properties.getInsert().setRetryBackoffMs(1);
+                var runner = new PipelineRunner(properties, jdbc, new TransactionTemplate(new DataSourceTransactionManager(ds)));
+                org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(5), () -> {
+                    if (exhaust) {
+                        var failure = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
+                                () -> runner.run(new ByteArrayInputStream(workbook), mode, null));
+                        Throwable root = failure;
+                        while (root.getCause() != null) root = root.getCause();
+                        org.junit.jupiter.api.Assertions.assertInstanceOf(org.springframework.dao.CannotAcquireLockException.class, root);
+                        assertEquals(3, attempts.get());
+                        assertEquals(0, jdbc.queryForObject("select count(*) from ingest_item", Integer.class));
+                    } else {
+                        var result = runner.run(new ByteArrayInputStream(workbook), mode, null);
+                        assertEquals(100, result.getInsertedCount());
+                        assertEquals(1, result.getRetryCount());
+                        assertEquals(100, jdbc.queryForObject("select count(*) from ingest_item", Integer.class));
+                    }
+                });
+            }
+        }
+    }
+
     private static byte[] createTestWorkbook() throws Exception {
         try (XSSFWorkbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {

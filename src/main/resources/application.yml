@@ -16,6 +16,8 @@ pipeline:
   insert:
     chunk-size: 500
     flush-interval-ms: 1000
+    max-attempts: 3
+    retry-backoff-ms: 100
   backpressure:
     offer-timeout-ms: 200
 

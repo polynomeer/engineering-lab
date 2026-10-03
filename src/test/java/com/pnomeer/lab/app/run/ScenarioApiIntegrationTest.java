@@ -71,7 +71,7 @@ class ScenarioApiIntegrationTest {
                 schemaVersion: 1
                 experiment: pipeline.excel-ingestion
                 scenario: {id: excel-small-batch, hypothesis: Small batches preserve valid rows}
-                parameters: {mode: SINGLE_THREAD, rawCapacity: 2, mappedCapacity: 3, validatorThreads: 1, inserterThreads: 1, chunkSize: 1, offerTimeoutMs: 50, flushIntervalMs: 25}
+                parameters: {mode: SINGLE_THREAD, rawCapacity: 2, mappedCapacity: 3, validatorThreads: 1, inserterThreads: 1, chunkSize: 1, offerTimeoutMs: 50, flushIntervalMs: 25, maxAttempts: 2, retryBackoffMs: 7}
                 measurement: {mode: SINGLE_PASS}
                 input: {file: sample.xlsx, sha256: '%s'}
                 """.formatted(ScenarioDocuments.sha256(bytes));
@@ -84,6 +84,8 @@ class ScenarioApiIntegrationTest {
         assertEquals("excel-small-batch", run.scenarioId());
         assertEquals("1", run.runMetadata().parameters().get("pipeline.insert.chunk-size"));
         assertEquals("25", run.runMetadata().parameters().get("pipeline.insert.flush-interval-ms"));
+        assertEquals("2", run.runMetadata().parameters().get("pipeline.insert.max-attempts"));
+        assertEquals("7", run.runMetadata().parameters().get("pipeline.insert.retry-backoff-ms"));
         assertEquals(1, ingestion.getJob(id).getInsertedCount());
         assertEquals(com.pnomeer.lab.experiments.pipeline.PipelineRunner.RunMode.SINGLE_THREAD, ingestion.getJob(id).getRunMode());
         int before = store.list(null, Long.MAX_VALUE, 500).size();

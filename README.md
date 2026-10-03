@@ -102,6 +102,8 @@ pipeline:
   insert:
     chunk-size: 500
     flush-interval-ms: 1000
+    max-attempts: 3
+    retry-backoff-ms: 100
   backpressure:
     offer-timeout-ms: 200
 ```
@@ -111,11 +113,15 @@ Meaning:
 - `threads.validator` / `threads.inserter`: worker pool sizes.
 - `insert.chunk-size`: JDBC batch size per chunk/transaction.
 - `insert.flush-interval-ms`: partial batch residence interval, default 1000 ms, range 1–60000 ms.
+- `insert.max-attempts`: total batch attempts including the initial write, default 3, range 1–10 (1 disables retry).
+- `insert.retry-backoff-ms`: initial retry delay, default 100 ms, range 1–60000 ms; doubles per retry with a 60000 ms cap.
 - `backpressure.offer-timeout-ms`: enqueue timeout for timed offers.
 - `spring.servlet.multipart.max-file-size`: max single upload size.
 - `spring.servlet.multipart.max-request-size`: max multipart request size.
 
 In PIPELINE mode, each insert worker flushes on size, elapsed time since accepting its first row, or end of input, whichever comes first. New rows do not reset the deadline. The interval excludes upstream queue waiting and is not a database completion timeout; scheduling and database latency can add time. SINGLE_THREAD checks the deadline at each row callback (including invalid rows) and flushes at end of input, so blocked input delays its time-based flush.
+
+Each batch uses its own transaction. Only transient data-access failures inside the batch body are retried after a successful rollback, so partial writes cannot accumulate across these attempts. Permanent errors and uncertain commit/rollback failures are propagated without replay. This does not deduplicate separate runs or recover an uncertain commit. Successful run summaries include `retry.count`; in-progress metrics use the same counter. Exhausted insert workers abort the channels to release blocked producers/consumers; this is fail-fast termination, not durable queue drain or resumable ingestion.
 
 ## Run locally
 1. Run tests first:

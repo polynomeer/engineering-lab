@@ -44,7 +44,7 @@ public class PipelineRunner {
     private final PipelineProperties properties;
     private final ExcelStreamingReader excelReader;
     private final JdbcTemplate jdbcTemplate;
-    private final TransactionTemplate transactionTemplate;
+    private final RetryingBatchTransaction batchTransaction;
     private final long insertDelayMs;
 
     public java.util.Map<String, String> configurationSnapshot() {
@@ -54,6 +54,8 @@ public class PipelineRunner {
                 "pipeline.threads.validator", String.valueOf(properties.getThreads().getValidator()),
                 "pipeline.threads.inserter", String.valueOf(properties.getThreads().getInserter()),
                 "pipeline.insert.flush-interval-ms", String.valueOf(properties.getInsert().getFlushIntervalMs()),
+                "pipeline.insert.max-attempts", String.valueOf(properties.getInsert().getMaxAttempts()),
+                "pipeline.insert.retry-backoff-ms", String.valueOf(properties.getInsert().getRetryBackoffMs()),
                 "pipeline.insert.chunk-size", String.valueOf(properties.getInsert().getChunkSize()),
                 "pipeline.backpressure.offer-timeout-ms", String.valueOf(properties.getBackpressure().getOfferTimeoutMs()),
                 "pipeline.insert.delay-ms", String.valueOf(insertDelayMs));
@@ -88,7 +90,7 @@ public class PipelineRunner {
         this.properties = properties;
         this.excelReader = excelReader;
         this.jdbcTemplate = jdbcTemplate;
-        this.transactionTemplate = transactionTemplate;
+        this.batchTransaction = new RetryingBatchTransaction(transactionTemplate, properties.getInsert());
         this.insertDelayMs = Math.max(0L, insertDelayMs);
     }
 
@@ -162,8 +164,10 @@ public class PipelineRunner {
                     inserterPool,
                     inserterWorkers,
                     mappedChannel,
+                    rawChannel,
                     insertedCount,
                     batchCount,
+                    retryCount,
                     stageLatencyMetrics,
                     resourceMetricsTracker);
 
@@ -178,6 +182,7 @@ public class PipelineRunner {
             return new PipelineRunResult(
                     producedCount.get(),
                     insertedCount.get(),
+                    retryCount.get(),
                     new ArrayList<>(validationErrors),
                     rawChannel.getCumulativeEnqueueWaitNanos(),
                     mappedChannel.getCumulativeEnqueueWaitNanos(),
@@ -222,7 +227,7 @@ public class PipelineRunner {
 
         excelReader.readFirstSheet(excelInputStream, rawRow -> {
             if (!chunk.isEmpty() && System.nanoTime() - firstRowNanos.get() >= flushIntervalNanos) {
-                try { flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker); }
+                try { flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker); }
                 catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while flushing chunk", ex);
@@ -317,7 +322,7 @@ public class PipelineRunner {
             stageLatencyMetrics.addMappingNanos(System.nanoTime() - mappingStart);
             if (chunk.size() >= chunkSize) {
                 try {
-                    flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                    flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while flushing chunk", ex);
@@ -342,7 +347,7 @@ public class PipelineRunner {
                     progressListener);
         });
 
-        flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+        flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
         emitSingleThreadProgress(
                 startNanos,
                 lastNanos,
@@ -364,6 +369,7 @@ public class PipelineRunner {
         return new PipelineRunResult(
                 producedCount.get(),
                 insertedCount.get(),
+                retryCount.get(),
                 List.copyOf(validationErrors),
                 0L,
                 0L,
@@ -447,6 +453,14 @@ public class PipelineRunner {
                     }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
+                    var failure = new IllegalStateException("Pipeline worker interrupted", ex);
+                    rawChannel.fail(failure);
+                    mappedChannel.fail(failure);
+                    throw failure;
+                } catch (RuntimeException failure) {
+                    rawChannel.fail(failure);
+                    mappedChannel.fail(failure);
+                    throw failure;
                 }
             }));
         }
@@ -457,8 +471,10 @@ public class PipelineRunner {
             ExecutorService pool,
             int workerCount,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
+            BoundedChannel<Envelope<RawRow>> rawChannel,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
+            AtomicInteger retryCount,
             StageLatencyMetrics stageLatencyMetrics,
             ResourceMetricsTracker resourceMetricsTracker) {
         int chunkSize = properties.getInsert().getChunkSize();
@@ -476,27 +492,35 @@ public class PipelineRunner {
                     while (true) {
                         long remaining = intervalNanos - (System.nanoTime() - firstRowNanos);
                         if (!chunk.isEmpty() && remaining <= 0) {
-                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                            flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                             continue;
                         }
                         Envelope<MappedRow> envelope = chunk.isEmpty() ? mappedChannel.take()
                                 : mappedChannel.poll(remaining, TimeUnit.NANOSECONDS);
                         if (envelope == null) {
-                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                            flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                             continue;
                         }
                         if (envelope.isEnd()) {
-                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                            flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                             return;
                         }
                         if (chunk.isEmpty()) firstRowNanos = System.nanoTime();
                         chunk.add(envelope.getPayload());
                         if (chunk.size() >= chunkSize) {
-                            flushChunk(chunk, insertedCount, batchCount, stageLatencyMetrics, resourceMetricsTracker);
+                            flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                         }
                     }
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
+                    var failure = new IllegalStateException("Pipeline worker interrupted", ex);
+                    rawChannel.fail(failure);
+                    mappedChannel.fail(failure);
+                    throw failure;
+                } catch (RuntimeException failure) {
+                    rawChannel.fail(failure);
+                    mappedChannel.fail(failure);
+                    throw failure;
                 }
             }));
         }
@@ -507,6 +531,7 @@ public class PipelineRunner {
             List<MappedRow> chunk,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
+            AtomicInteger retryCount,
             StageLatencyMetrics stageLatencyMetrics,
             ResourceMetricsTracker resourceMetricsTracker)
             throws InterruptedException {
@@ -514,14 +539,11 @@ public class PipelineRunner {
             return;
         }
         long insertStart = System.nanoTime();
-        long connectionAcquireStart = System.nanoTime();
         if (insertDelayMs > 0) {
             Thread.sleep(insertDelayMs);
         }
 
-        Integer inserted = transactionTemplate.execute(status -> {
-            long callbackStart = System.nanoTime();
-            resourceMetricsTracker.recordConnectionWaitNanos(Math.max(0L, callbackStart - connectionAcquireStart));
+        Integer inserted = batchTransaction.execute(() -> {
             long dbBatchStart = System.nanoTime();
             int[][] updated = jdbcTemplate.batchUpdate(
                     INSERT_SQL,
@@ -535,7 +557,7 @@ public class PipelineRunner {
                     });
             resourceMetricsTracker.recordLockWaitEstimateNanos(System.nanoTime() - dbBatchStart);
             return normalizeBatchUpdateCount(updated, chunk.size());
-        });
+        }, retryCount, resourceMetricsTracker::recordConnectionWaitNanos);
         insertedCount.addAndGet(inserted == null ? 0 : inserted);
         batchCount.incrementAndGet();
         stageLatencyMetrics.addInsertNanos(System.nanoTime() - insertStart);
@@ -822,6 +844,7 @@ public class PipelineRunner {
     public static final class PipelineRunResult {
         private final int producedCount;
         private final int insertedCount;
+        private final int retryCount;
         private final List<ValidationError> validationErrors;
         private final long rawChannelEnqueueWaitNanos;
         private final long mappedChannelEnqueueWaitNanos;
@@ -832,6 +855,7 @@ public class PipelineRunner {
         public PipelineRunResult(
                 int producedCount,
                 int insertedCount,
+                int retryCount,
                 List<ValidationError> validationErrors,
                 long rawChannelEnqueueWaitNanos,
                 long mappedChannelEnqueueWaitNanos,
@@ -840,6 +864,7 @@ public class PipelineRunner {
                 long elapsedMillis) {
             this.producedCount = producedCount;
             this.insertedCount = insertedCount;
+            this.retryCount = retryCount;
             this.validationErrors = List.copyOf(validationErrors);
             this.rawChannelEnqueueWaitNanos = rawChannelEnqueueWaitNanos;
             this.mappedChannelEnqueueWaitNanos = mappedChannelEnqueueWaitNanos;
@@ -847,6 +872,8 @@ public class PipelineRunner {
             this.mappedChannelEnqueuedCount = mappedChannelEnqueuedCount;
             this.elapsedMillis = elapsedMillis;
         }
+
+        public int getRetryCount() { return retryCount; }
 
         public int getProducedCount() {
             return producedCount;

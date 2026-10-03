@@ -72,7 +72,7 @@
 다음 항목은 각각 테스트와 커밋으로 완료하는 독립 작업 단위다. 기본 관측 경로 완료와 전체 ingestion 완성을 구분한다.
 
 - [x] 크기·시간·종료 기반 batch flush: worker별 첫 행 기준 기한, 선택적 시나리오 설정과 실제 적용값 기록. SINGLE_THREAD는 callback 시점에 확인하며 입력 정지 중 시간 보장은 하지 않는다.
-- [ ] insert 실패의 제한된 retry/backoff와 재시도 시 멱등성 검증.
+- [x] insert 본문의 일시적 오류를 롤백한 경우 제한된 retry/backoff로 복구하고 중복 없는 저장을 검증한다. 커밋·롤백 오류는 재시도하지 않으며 별도 Run/불확실한 커밋의 멱등성은 포함하지 않는다. 재시도 소진 시 채널 대기 해제와 실패 전파를 검증한다.
 - [ ] 행 문맥을 보존하는 영속 dead-letter 출력과 조회·실패 처리.
 - [ ] 업로드와 오류 누적 경로의 메모리 상한 및 대용량 입력 검증.
 - [ ] 실패·중단 시 worker 종료, queue drain과 partial batch 보존 검증.
@@ -81,3 +81,5 @@
 시간 flush 검증: 입력 정지·지속 유입 중 종료 신호 전 저장, invalid row callback에서 단일 스레드 flush, 종료 partial batch, timed poll timeout/interrupt, 설정 범위와 기존 시나리오 호환, HTTP 명시값/CLI 기본값 적용을 확인한다.
 
 검증 결과: 전체 `./gradlew test` 103개 통과(실패·오류·skip 없음).
+
+재시도 검증: 전체 `./gradlew test` 113개 통과(실패·오류·skip 없음). 실제 DB 부분 쓰기 후 롤백·복구, 지수 backoff, 소진/영구 오류, 커밋 응답 유실과 롤백 실패의 재시도 금지, 외부 트랜잭션 격리, 인터럽트, 두 모드의 중복 없는 저장과 작은 큐의 실패 전파, HTTP 명시값/CLI 기본값 및 retry.count를 확인했다.

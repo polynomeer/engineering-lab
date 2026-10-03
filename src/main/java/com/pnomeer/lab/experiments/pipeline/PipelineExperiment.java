@@ -58,6 +58,7 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
                 .map(ValidationError::getReason)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         Map<String, Long> counters = Map.of(
+                "retry.count", (long) result.getRetryCount(),
                 "rows.produced", (long) result.getProducedCount(),
                 "rows.inserted", (long) result.getInsertedCount(),
                 "rows.validationErrors", (long) result.getValidationErrors().size());

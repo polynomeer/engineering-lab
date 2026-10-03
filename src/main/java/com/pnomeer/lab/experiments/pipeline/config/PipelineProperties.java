@@ -71,6 +71,19 @@ public class PipelineProperties {
     public static class Insert {
         private int chunkSize;
         private long flushIntervalMs = 1000;
+        private int maxAttempts = 3;
+        private long retryBackoffMs = 100;
+
+        public int getMaxAttempts() { return maxAttempts; }
+        public void setMaxAttempts(int value) {
+            if (value < 1 || value > 10) throw new IllegalArgumentException("insert.maxAttempts must be 1..10");
+            maxAttempts = value;
+        }
+        public long getRetryBackoffMs() { return retryBackoffMs; }
+        public void setRetryBackoffMs(long value) {
+            if (value < 1 || value > 60000) throw new IllegalArgumentException("insert.retryBackoffMs must be 1..60000");
+            retryBackoffMs = value;
+        }
 
         public long getFlushIntervalMs() { return flushIntervalMs; }
         public void setFlushIntervalMs(long flushIntervalMs) {

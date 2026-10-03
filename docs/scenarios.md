@@ -30,11 +30,13 @@ Canonical JSON은 고정된 v1 구조와 정렬된 key, UTF-8, 정수 값을 사
 
 - Queue: `queueCapacity` 1–100000, `producerThreads`/`consumerThreads` 1–64, `itemsPerProducer` 1–1000000, `consumerDelayMs` 0–60000.
 - IO: `requests` 1–10000, `delayMs`/`pinDelayMs` 0–60000, `pinning` boolean. pinning이라는 옵션 이름만으로 특정 JDK의 pinning 발생을 결론내리지 않는다.
-- Excel: `mode` PIPELINE 또는 SINGLE_THREAD, `rawCapacity`/`mappedCapacity` 1–100000, `validatorThreads`/`inserterThreads` 1–64, `chunkSize` 1–10000, `offerTimeoutMs` 1–60000. 선택 항목 `flushIntervalMs` 1–60000 ms, 생략 시 1000 ms.
+- Excel: `mode` PIPELINE 또는 SINGLE_THREAD, `rawCapacity`/`mappedCapacity` 1–100000, `validatorThreads`/`inserterThreads` 1–64, `chunkSize` 1–10000, `offerTimeoutMs` 1–60000. 선택 항목 `flushIntervalMs` 1–60000 ms, 생략 시 1000 ms. 선택 항목 `maxAttempts` 1–10(기본 3, 최초 시도 포함), `retryBackoffMs` 1–60000 ms(기본 100).
 
 단위와 타입은 `ExperimentDescriptors`의 명시적 schema로 관리한다. 범위를 변경하면 이 문서와 테스트도 갱신한다. Excel 정의의 설정은 실행별 PipelineRunner에 적용하고 기존 singleton 설정을 변경하지 않는다. 선언적 시나리오의 flush 기본값은 1000 ms이며 실제 적용값을 Run metadata의 `pipeline.insert.flush-interval-ms`에 기록한다. 기존 ingestion API는 서버의 `pipeline.insert.flush-interval-ms` 설정을 사용한다.
 
 PIPELINE은 insert worker별 첫 행 수신 시점부터 시간을 재며 크기·시간·종료 중 먼저 충족되는 조건에서 flush한다. 후속 행은 기한을 연장하지 않는다. 이 값은 upstream 큐 대기나 DB 완료 시간을 제한하지 않는다. SINGLE_THREAD는 각 행 callback(검증 실패 행 포함)에서 기한을 확인하므로 입력이 멈추면 다음 callback 또는 입력 종료까지 flush가 지연될 수 있다.
+
+재시도는 batch 본문의 일시적 DB 오류를 성공적으로 롤백한 경우에만 수행한다. 대기는 설정값부터 두 배씩 증가하고 60000 ms로 제한한다. 커밋·롤백 결과가 불확실하면 재시도 없이 실패하며 별도 Run 간 중복 제거는 하지 않는다. 적용한 재시도 설정은 Run metadata에, 성공 Run의 실제 재시도 수는 summary `retry.count`에 남는다.
 
 Excel 정의에는 다음 input도 필수다.
 

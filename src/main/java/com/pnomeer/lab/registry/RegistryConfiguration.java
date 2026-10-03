@@ -39,6 +39,8 @@ public class RegistryConfiguration {
         p.getQueue().setMappedCapacity(integer(d,"mappedCapacity"));
         p.getThreads().setValidator(integer(d,"validatorThreads"));
         p.getThreads().setInserter(integer(d,"inserterThreads"));
+        p.getInsert().setMaxAttempts(((Number)d.parameters().getOrDefault("maxAttempts",3)).intValue());
+        p.getInsert().setRetryBackoffMs(((Number)d.parameters().getOrDefault("retryBackoffMs",100)).longValue());
         p.getInsert().setChunkSize(integer(d,"chunkSize"));
         p.getInsert().setFlushIntervalMs(((Number)d.parameters().getOrDefault("flushIntervalMs",1000)).longValue());
         p.getBackpressure().setOfferTimeoutMs((long)integer(d,"offerTimeoutMs"));
