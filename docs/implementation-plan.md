@@ -75,7 +75,7 @@
 - [x] insert 본문의 일시적 오류를 롤백한 경우 제한된 retry/backoff로 복구하고 중복 없는 저장을 검증한다. 커밋·롤백 오류는 재시도하지 않으며 별도 Run/불확실한 커밋의 멱등성은 포함하지 않는다. 재시도 소진 시 채널 대기 해제와 실패 전파를 검증한다.
 - [x] 검증 실패 행의 번호·사유·셀 문자열을 Run별 영속 dead-letter로 저장하고 종료 Run의 페이지 조회를 제공한다. v1→v2 이행, 재개방, 두 모드의 저장 실패 전파와 64 KiB 상한을 검증한다. insert 실패 행 재처리와 미저장 큐 복구는 포함하지 않는다.
 - [x] HTTP 업로드를 제한된 임시 파일로 이행하고 오류 원본은 설정된 미리보기만 유지한다. XLSX의 파일 기반 파싱·압축 해제/metadata/행 상한을 추가하고 3만 오류 행의 두 모드에서 전체 집계와 dead-letter 전달을 검증한다. 전체 JVM heap/처리량 실측은 마지막 단계에 남는다.
-- [ ] 실패·중단 시 worker 종료, queue drain과 partial batch 보존 검증.
+- [x] 입력 실패·coordinator 중단 뒤 bounded drain과 안전한 partial batch flush, worker/progress callback 종료 대기, timeout/저장 장애 시 abort를 검증한다. 실패 Run에 확인된 집계와 미확인 행/미종료 executor를 남긴다. 강제 프로세스 종료·비협조적 I/O 강제 종료·미확인 행 영속 재처리는 범위 밖이다.
 - [ ] 전체 ingestion의 단일 스레드 대비 처리량·메모리 상한 측정, 실행 증거와 Finding 및 최종 문서 정리.
 
 시간 flush 검증: 입력 정지·지속 유입 중 종료 신호 전 저장, invalid row callback에서 단일 스레드 flush, 종료 partial batch, timed poll timeout/interrupt, 설정 범위와 기존 시나리오 호환, HTTP 명시값/CLI 기본값 적용을 확인한다.
@@ -87,3 +87,5 @@
 Dead-letter 검증: 전체 `./gradlew test` 118개 통과(실패·오류·skip 없음). 실제 앱 재시작 후 행 문맥/API 조회, 선언적 시나리오의 sink 전달, 두 모드의 저장 장애/크기 초과 실패, 동시 저장·동일 행 재전송·충돌 거부, v1→v2 이행, 페이지 경계와 실행 중 조회 거부를 확인했다.
 
 입력/오류 상한 검증: 전체 `./gradlew test` 126개 통과(실패·오류·skip 없음). 12 MiB 생성 스트림의 8 KiB 읽기, 16개 staging 포화/회수, 크기·읽기·source close 실패 정리, executor 거부/완료와 hash 검증 실패의 소유권 해제, 3만 오류 행의 양 모드 전체 집계·sink 전달/7행 미리보기, metadata 압축 해제 상한, HTTP 명시값/CLI 기본값을 확인했다.
+
+종료 검증: 전체 `./gradlew test` 133개 통과(실패·오류·skip 없음). 양 모드의 입력 실패/중단 후 7개 유효 행과 3개 dead-letter 보존, 실패/중단 Run의 부분 summary, 실제 coordinator 인터럽트 중 drain, timeout의 협조적 worker 종료, 비협조적 executor 미종료 표시, 진행 callback 실패/정상 완료 대기와 명시/기본 설정 적용을 확인했다.

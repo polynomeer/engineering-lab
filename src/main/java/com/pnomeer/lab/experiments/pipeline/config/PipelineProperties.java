@@ -5,6 +5,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "pipeline")
 public class PipelineProperties {
 
+    private long shutdownTimeoutMs = 30000;
+    public long getShutdownTimeoutMs() { return shutdownTimeoutMs; }
+    public void setShutdownTimeoutMs(long value) {
+        if (value < 1 || value > 60000) throw new IllegalArgumentException("shutdownTimeoutMs must be 1..60000");
+        shutdownTimeoutMs = value;
+    }
+
     private int errorPreviewLimit = 100;
     public int getErrorPreviewLimit() { return errorPreviewLimit; }
     public void setErrorPreviewLimit(int value) {

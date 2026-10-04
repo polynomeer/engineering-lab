@@ -34,6 +34,7 @@ public final class InputPayload implements AutoCloseable {
             try (var out = Files.newOutputStream(file)) {
                 int count;
                 while ((count = source.read(buffer, 0, (int)Math.min(buffer.length, limit - size + 1))) != -1) {
+                    if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Upload interrupted");
                     size += count;
                     if (size > limit) throw new LimitExceeded();
                     out.write(buffer, 0, count); digest.update(buffer, 0, count);

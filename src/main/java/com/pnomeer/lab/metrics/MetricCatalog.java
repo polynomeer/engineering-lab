@@ -14,7 +14,7 @@ public final class MetricCatalog {
         var map = new TreeMap<String, Definition>();
         add(map, "ms", "run", "time.elapsedMs timing.elapsedMs queue.avgEnqueueWaitMs virtual.avgLatencyMs reactive.avgLatencyMs queue.raw.enqueueWaitMs queue.mapped.enqueueWaitMs queue.raw.dequeueLatencyMs queue.mapped.dequeueLatencyMs backpressure.enqueueBlockingTimeMs latency.parseMs latency.validationMs latency.mappingMs latency.insertMs resource.connectionWaitMs resource.lockWaitMs");
         add(map, "items", "run", "items.produced items.consumed queue.depth queue.maxDepth queue.raw.size queue.mapped.size");
-        add(map, "rows", "run", "rows.produced rows.mapped rows.inserted rows.failed rows.validationErrors");
+        add(map, "rows", "run", "rows.produced rows.mapped rows.inserted rows.failed rows.validationErrors rows.unconfirmed");
         add(map, "requests", "run", "requests.virtualCompleted requests.reactiveCompleted requests.totalCompleted");
         add(map, "requests/s", "run", "throughput.virtualRequestsPerSec throughput.reactiveRequestsPerSec throughput.totalRequestsPerSec");
         add(map, "items/s", "run", "throughput.itemsPerSec");
@@ -35,13 +35,16 @@ public final class MetricCatalog {
         add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos observation.jfr.lifecycleNanos observation.logs.captureNanos");
         add(map, "bytes", "run", "observation.jfr.bytes observation.logs.bytes");
         add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes");
+        add(map, "executors", "run", "shutdown.unfinishedExecutors");
         add(map, "threads", "process", "jvm.threads.platformLive");
         add(map, "collections", "process", "jvm.gc.collectionCount");
         return Collections.unmodifiableMap(map);
     }
     private static Definition definition(String name, String unit, String scope) {
         String semantics = "UNKNOWN", aggregation = "Do not aggregate without checking the producer";
-        if (Set.of("observation.logs.events", "observation.logs.dropped", "observation.logs.bytes", "observation.logs.captureNanos", "items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
+        if (Set.of("rows.unconfirmed", "shutdown.unfinishedExecutors").contains(name)) {
+            semantics = "RUN_GAUGE"; aggregation = "Failure-time snapshot; unfinished executors can still change counts";
+        } else if (Set.of("observation.logs.events", "observation.logs.dropped", "observation.logs.bytes", "observation.logs.captureNanos", "items.produced", "items.consumed", "rows.produced", "rows.mapped", "rows.inserted", "rows.failed", "rows.validationErrors",
                 "requests.virtualCompleted", "requests.reactiveCompleted", "requests.totalCompleted", "blocking.events", "backpressure.stallEvents",
                 "observation.jfr.bytes", "observation.jfr.lifecycleNanos", "trace.spans.recorded", "trace.spans.dropped", "retry.count", "batches.completed", "storage.batches", "storage.retries", "storage.failures", "storage.metrics.written",
                 "storage.enqueueWaitNanos", "storage.writeNanos", "observation.jvm.samples", "observation.jvm.periodicSamples",

@@ -59,6 +59,7 @@ class LabCliIntegrationTest {
                 assertEquals("1000", result.runMetadata().parameters().get("pipeline.insert.flush-interval-ms"));
                 assertEquals("3", result.runMetadata().parameters().get("pipeline.insert.max-attempts"));
                 assertEquals("100", result.runMetadata().parameters().get("pipeline.error-preview-limit"));
+                assertEquals("30000", result.runMetadata().parameters().get("pipeline.shutdown-timeout-ms"));
                 assertEquals("100", result.runMetadata().parameters().get("pipeline.insert.retry-backoff-ms"));
                 assertEquals(0L, result.summary().counters().get("retry.count"));
                 assertEquals(5, ingestion.getJob(id).getInsertedCount());

@@ -10,7 +10,7 @@ public class BoundedChannel<T> {
     private final java.util.concurrent.atomic.AtomicReference<RuntimeException> failure = new java.util.concurrent.atomic.AtomicReference<>();
 
     public void fail(RuntimeException cause) { failure.compareAndSet(null, cause); }
-    private void checkFailure() {
+    public void checkFailure() {
         RuntimeException cause = failure.get();
         if (cause != null) throw new IllegalStateException("Channel aborted after worker failure", cause);
     }

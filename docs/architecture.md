@@ -97,7 +97,7 @@ com.pnomeer.lab.experiments.concurrency
 
 Each insert attempt runs in a new transaction, suspending an ambient transaction if present. A private exception marks transient failures raised inside the batch callback. Only that marker returning through a successful rollback permits retry; acquisition, commit and rollback errors never enter the retry loop. The same bounded chunk remains with its worker until commit succeeds, then counts advance and the chunk is cleared. This provides duplicate-free replay after confirmed rollback, not cross-run deduplication or uncertain-commit recovery.
 
-Retry exhaustion aborts both channels. Blocking queue operations check the first failure at intervals of at most 100 ms, and worker interruption propagates as failure. Existing executor shutdown cancels remaining work. This does not guarantee durable drain, recovery of queued rows, or cancellation of a blocked input/DB call; those remain a separate lifecycle unit.
+Retry exhaustion aborts both channels. Blocking queue operations check the first failure at intervals of at most 100 ms, and worker interruption propagates as failure. Executor shutdown now waits within a deadline and records partial progress; the termination contract below specifies drain and abort boundaries.
 
 ## Durable validation dead letters
 
@@ -114,3 +114,11 @@ HTTP uploads transfer ownership of a file-backed `InputPayload` to the submissio
 The parser copies its InputStream to a second bounded temporary file to preserve the existing reader contract, then opens POI in read-only file mode. ZIP expansion is scanned with an 8 KiB buffer before shared strings/styles are loaded: total 256 MiB, non-worksheet metadata 8 MiB, 1024 entries, compressed input 50 MiB. SAX limits cell text accumulation and completed raw rows have cell/character caps. This trades additional disk IO and an expansion scan for explicit package/row memory bounds. These bounds do not claim a fixed total JVM heap or throughput improvement.
 
 ValidationErrors synchronizes a bounded preview and the three fixed validation reason counters. Every rejected row still reaches the durable sink before it is counted; truncating the preview cannot change Run totals. Shutdown durability, crash leftovers, total heap measurement and throughput comparison remain separate units.
+
+## Pipeline termination contract
+
+Input failure and coordinator interruption stop production but permit bounded drain of acknowledged rows: raw END signals, validator completion, mapped END signals, insert completion. One monotonic deadline covers that drain. Interrupts during drain are recorded, cleared temporarily and restored after cleanup. A separate deadline covers executor termination; no new progress callbacks start, and an in-flight callback may finish normally. Callback failures abort the channels and cannot be hidden by scheduled-task cancellation. Additional suppressed failures are capped at eight.
+
+Worker/DB/dead-letter failure or drain timeout aborts further writes and interrupts workers. No uncertain batch is replayed. `PartialExecutionFailure` carries acknowledged row/retry counts and reason totals to both runners; durable Runs distinguish INTERRUPTED from FAILED and retain this summary. `rows.unconfirmed` is the nonnegative difference between acknowledged produced rows and acknowledged inserts/validation failures. It is not a durable row checkpoint or a promise that an uncertain DB commit did not happen. If any executor survives cleanup, `shutdown.progress=UNCONFIRMED` warns that counts may still change.
+
+SINGLE_THREAD has no stage executors: input failure flushes a safe existing chunk, while callback/storage failure does not replay the chunk. Its IO remains cooperative. Buffer copying and ZIP preflight observe interrupts between reads; arbitrary blocked InputStream/JDBC methods cannot be forcibly stopped by this contract. Process crash recovery, late writes from uncooperative drivers and durable replay of unconfirmed rows require separate mechanisms.

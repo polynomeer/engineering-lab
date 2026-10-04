@@ -86,3 +86,15 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 XLSX 허용 상한은 ZIP entry 1024개, 압축 해제 총량 256 MiB, worksheet XML을 제외한 metadata 총량 8 MiB(공유 문자열·스타일 포함)다. POI 메모리 할당 전에 스트리밍 검사하며, 실제 worksheet는 SAX로 처리한다. 행당 셀 16384개/문자 65536개, 셀 XML 텍스트 누적 65536개를 넘기면 Run이 실패한다. 큰 공유 문자열 테이블을 사용하는 파일은 압축 크기가 작아도 거부될 수 있다. 상한을 조용히 자르거나 무시하지 않는다.
 
 원본 오류 행 미리보기는 기본 100행, `pipeline.error-preview-limit` 또는 시나리오 `errorPreviewLimit`로 0–1000을 설정한다. `getValidationErrors()`는 이 미리보기이고 `getValidationErrorCount()`/사유별 집계가 전체 오류 수다. API summary의 기존 오류 건수와 사유 집계, 영속 dead-letter에는 모든 확인된 실패 행을 반영한다. 로컬 byte[] 생성자는 호환용이며 HTTP 경로에서는 사용하지 않는다. 이 변경은 파일·행 개수에 비례한 무제한 보유를 제거하며 JVM 전체 heap/성능 수치는 최종 성능 단계에서 측정한다.
+
+## 실패·중단 시 파이프라인 종료
+
+`pipeline.shutdown-timeout-ms`/시나리오 `shutdownTimeoutMs`는 기본 30000 ms, 범위 1–60000 ms다. PIPELINE의 입력 종료/실패 뒤 END 전달·validator 완료·insert 완료 전체에 한 번 적용하고, executor 정리에는 별도의 동일 길이 deadline을 적용한다. 따라서 입력 처리가 반환한 뒤 최대 대기 예산은 대략 두 배이며 JVM scheduling 시간은 추가될 수 있다. 입력 읽기 자체의 전체 실행 timeout은 아니다.
+
+입력 파싱 실패나 coordinator 인터럽트에서는 추가 입력을 멈추고 이미 접수한 큐의 유효 행·검증 실패 행을 drain하며 partial batch도 저장한다. drain 중 인터럽트는 기록하고 일시 해제한 뒤 정리가 끝나면 다시 설정한다. SINGLE_THREAD도 입력 실패로 끝난 경우 기존 안전한 partial batch를 flush하지만, callback/DB/dead-letter 실패로 끝난 batch는 다시 시도하지 않는다. SINGLE_THREAD의 동기 DB 호출에는 executor 종료 deadline이 적용되지 않는다.
+
+DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중단하고 worker에 interrupt를 전달한다. worker 종료를 확인한 뒤 실패 결과를 저장한다. 기본 진행 callback도 종료를 기다리며 비동기 callback 실패가 성공 Run으로 숨겨지지 않는다. 입력 복사·ZIP 검사도 읽기 사이에서 인터럽트를 확인한다.
+
+실패 Run summary는 `rows.produced`, `rows.inserted`, `rows.validationErrors`, `retry.count`, `rows.unconfirmed`, `shutdown.unfinishedExecutors`와 기존 검증 사유 집계를 보존한다. `rows.unconfirmed=max(0, produced-inserted-validationErrors)`는 접수/저장 확인 기준이며 읽지 않은 입력이나 커밋 결과 불확실성을 해결하지 않는다. 0이어도 전체 파일 처리가 끝났다는 의미는 아니다.
+
+`shutdown.progress=QUIESCENT`는 관련 executor 종료가 확인됐다는 뜻이다. 비협조적 드라이버 등으로 deadline을 넘긴 경우 `UNCONFIRMED`와 남은 executor 수를 기록하며 성공으로 보고하지 않는다. 이때 늦은 DB 변경이 가능하므로 snapshot 집계를 최종 확정값으로 해석하거나 자동 재실행하지 않는다. 강제 프로세스 종료, 실행되지 않은 대기 작업의 임시 파일, 미확인 행의 영속 재처리는 이 계약에 포함되지 않는다.

@@ -72,7 +72,7 @@ class ScenarioApiIntegrationTest {
                 schemaVersion: 1
                 experiment: pipeline.excel-ingestion
                 scenario: {id: excel-small-batch, hypothesis: Small batches preserve valid rows}
-                parameters: {mode: SINGLE_THREAD, rawCapacity: 2, mappedCapacity: 3, validatorThreads: 1, inserterThreads: 1, chunkSize: 1, offerTimeoutMs: 50, flushIntervalMs: 25, maxAttempts: 2, retryBackoffMs: 7, errorPreviewLimit: 0}
+                parameters: {mode: SINGLE_THREAD, rawCapacity: 2, mappedCapacity: 3, validatorThreads: 1, inserterThreads: 1, chunkSize: 1, offerTimeoutMs: 50, flushIntervalMs: 25, maxAttempts: 2, retryBackoffMs: 7, errorPreviewLimit: 0, shutdownTimeoutMs: 1000}
                 measurement: {mode: SINGLE_PASS}
                 input: {file: sample.xlsx, sha256: '%s'}
                 """.formatted(ScenarioDocuments.sha256(bytes));
@@ -88,6 +88,7 @@ class ScenarioApiIntegrationTest {
         assertEquals("2", run.runMetadata().parameters().get("pipeline.insert.max-attempts"));
         assertEquals("7", run.runMetadata().parameters().get("pipeline.insert.retry-backoff-ms"));
         assertEquals("0", run.runMetadata().parameters().get("pipeline.error-preview-limit"));
+        assertEquals("1000", run.runMetadata().parameters().get("pipeline.shutdown-timeout-ms"));
         assertEquals(1L, run.summary().counters().get("rows.validationErrors"));
         assertEquals(1, ingestion.getJob(id).getInsertedCount());
         assertEquals(1, store.deadLetters(id, -1, 100).size());

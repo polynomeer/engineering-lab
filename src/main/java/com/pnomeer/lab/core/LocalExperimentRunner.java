@@ -38,7 +38,7 @@ public final class LocalExperimentRunner implements ExperimentRunner {
                     ExperimentStatus.FAILED,
                     startedAtEpochMs,
                     System.currentTimeMillis(),
-                    ExperimentSummary.empty(),
+                    ex instanceof PartialExecutionFailure partial ? partial.summary() : ExperimentSummary.empty(),
                     ex.getMessage() == null ? "Experiment failed" : ex.getMessage(),
                     timeline,
                     runMetadata);

@@ -152,11 +152,14 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                 })));
                 if (runLog != null) runLog.record(RunLogRecorder.Stage.EXECUTION, RunLogRecorder.Event.SUCCEEDED, RunLogRecorder.Reason.NONE);
             } catch (Exception | OutOfMemoryError ex) {
-                status = ex instanceof InterruptedException ? RunStatus.INTERRUPTED : RunStatus.FAILED;
+                boolean executionInterrupted = ex instanceof InterruptedException
+                        || ex instanceof PartialExecutionFailure partial && partial.interrupted();
+                if (ex instanceof PartialExecutionFailure partial) summary = partial.summary();
+                status = executionInterrupted ? RunStatus.INTERRUPTED : RunStatus.FAILED;
                 failure = ex instanceof OutOfMemoryError ? "Out of memory"
                         : ex.getMessage() == null ? "Experiment failed" : ex.getMessage();
-                interrupted = Thread.interrupted() || ex instanceof InterruptedException;
-                logReason = ex instanceof InterruptedException ? RunLogRecorder.Reason.INTERRUPTED
+                interrupted = Thread.interrupted() || executionInterrupted;
+                logReason = executionInterrupted ? RunLogRecorder.Reason.INTERRUPTED
                         : ex instanceof OutOfMemoryError ? RunLogRecorder.Reason.OUT_OF_MEMORY
                         : switch (executionStage) {
                             case JFR -> RunLogRecorder.Reason.JFR_FAILED;
@@ -164,7 +167,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                             default -> RunLogRecorder.Reason.EXECUTION_FAILED;
                         };
                 if (runLog != null) runLog.record(executionStage,
-                        ex instanceof InterruptedException ? RunLogRecorder.Event.INTERRUPTED : RunLogRecorder.Event.FAILED, logReason);
+                        executionInterrupted ? RunLogRecorder.Event.INTERRUPTED : RunLogRecorder.Event.FAILED, logReason);
             } catch (Error ex) {
                 logReason = RunLogRecorder.Reason.EXECUTION_FAILED;
                 if (runLog != null) runLog.record(executionStage, RunLogRecorder.Event.FAILED, logReason);

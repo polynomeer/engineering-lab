@@ -8,6 +8,7 @@ spring:
       max-request-size: 50MB
 
 pipeline:
+  shutdown-timeout-ms: 30000
   error-preview-limit: 100
   queue:
     raw-capacity: 2000

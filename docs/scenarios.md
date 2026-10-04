@@ -30,7 +30,7 @@ Canonical JSON은 고정된 v1 구조와 정렬된 key, UTF-8, 정수 값을 사
 
 - Queue: `queueCapacity` 1–100000, `producerThreads`/`consumerThreads` 1–64, `itemsPerProducer` 1–1000000, `consumerDelayMs` 0–60000.
 - IO: `requests` 1–10000, `delayMs`/`pinDelayMs` 0–60000, `pinning` boolean. pinning이라는 옵션 이름만으로 특정 JDK의 pinning 발생을 결론내리지 않는다.
-- Excel: `mode` PIPELINE 또는 SINGLE_THREAD, `rawCapacity`/`mappedCapacity` 1–100000, `validatorThreads`/`inserterThreads` 1–64, `chunkSize` 1–10000, `offerTimeoutMs` 1–60000. 선택 항목 `flushIntervalMs` 1–60000 ms, 생략 시 1000 ms. 선택 항목 `maxAttempts` 1–10(기본 3, 최초 시도 포함), `retryBackoffMs` 1–60000 ms(기본 100), `errorPreviewLimit` 0–1000행(기본 100, 0은 원본 행 미리보기 생략). 오류 전체 건수·사유별 집계·영속 dead-letter는 미리보기 크기와 무관하다.
+- Excel: `mode` PIPELINE 또는 SINGLE_THREAD, `rawCapacity`/`mappedCapacity` 1–100000, `validatorThreads`/`inserterThreads` 1–64, `chunkSize` 1–10000, `offerTimeoutMs` 1–60000. 선택 항목 `flushIntervalMs` 1–60000 ms, 생략 시 1000 ms. 선택 항목 `maxAttempts` 1–10(기본 3, 최초 시도 포함), `retryBackoffMs` 1–60000 ms(기본 100), `errorPreviewLimit` 0–1000행(기본 100, 0은 원본 행 미리보기 생략). 오류 전체 건수·사유별 집계·영속 dead-letter는 미리보기 크기와 무관하다. 선택 항목 `shutdownTimeoutMs` 1–60000 ms(기본 30000)는 PIPELINE drain과 별도의 executor 종료 대기에 각각 적용한다.
 
 단위와 타입은 `ExperimentDescriptors`의 명시적 schema로 관리한다. 범위를 변경하면 이 문서와 테스트도 갱신한다. Excel 정의의 설정은 실행별 PipelineRunner에 적용하고 기존 singleton 설정을 변경하지 않는다. 선언적 시나리오의 flush 기본값은 1000 ms이며 실제 적용값을 Run metadata의 `pipeline.insert.flush-interval-ms`에 기록한다. 기존 ingestion API는 서버의 `pipeline.insert.flush-interval-ms` 설정을 사용한다.
 

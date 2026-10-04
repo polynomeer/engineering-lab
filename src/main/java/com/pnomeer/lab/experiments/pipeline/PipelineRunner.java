@@ -8,7 +8,6 @@ import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
 import com.pnomeer.lab.experiments.pipeline.parse.ExcelStreamingReader;
 import com.pnomeer.lab.experiments.pipeline.queue.BoundedChannel;
 import com.pnomeer.lab.experiments.pipeline.stage.Envelope;
-import com.pnomeer.lab.experiments.pipeline.stage.ShutdownSignals;
 import com.pnomeer.lab.experiments.pipeline.config.PipelineProperties;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
@@ -25,7 +24,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -58,6 +56,7 @@ public class PipelineRunner {
                 "pipeline.insert.chunk-size", String.valueOf(properties.getInsert().getChunkSize()),
                 "pipeline.backpressure.offer-timeout-ms", String.valueOf(properties.getBackpressure().getOfferTimeoutMs()),
                 "pipeline.insert.delay-ms", String.valueOf(insertDelayMs)));
+        snapshot.put("pipeline.shutdown-timeout-ms", String.valueOf(properties.getShutdownTimeoutMs()));
         snapshot.put("pipeline.error-preview-limit", String.valueOf(properties.getErrorPreviewLimit()));
         return java.util.Map.copyOf(snapshot);
     }
@@ -143,8 +142,11 @@ public class PipelineRunner {
         var stageLatencyMetrics = new StageLatencyMetrics();
         var resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
 
-        ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers);
-        ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers);
+        var lifecycle = new PipelineLifecycle(properties.getShutdownTimeoutMs());
+        ExecutorService validatorPool = Executors.newFixedThreadPool(validatorWorkers,
+                Thread.ofPlatform().name("pipeline-validator-", 0).factory());
+        ExecutorService inserterPool = Executors.newFixedThreadPool(inserterWorkers,
+                Thread.ofPlatform().name("pipeline-inserter-", 0).factory());
         ScheduledExecutorService metricsLogger = startMetricsLogger(
                 rawChannel,
                 mappedChannel,
@@ -180,30 +182,46 @@ public class PipelineRunner {
                     stageLatencyMetrics,
                     resourceMetricsTracker);
 
-            produceFromExcel(excelInputStream, rawChannel, producedCount, stageLatencyMetrics);
-            ShutdownSignals.publishEndSignals(rawChannel, validatorWorkers);
-
-            waitForWorkers(validatorFutures);
-            ShutdownSignals.publishEndSignals(mappedChannel, inserterWorkers);
-            waitForWorkers(inserterFutures);
-
-            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-            return new PipelineRunResult(
-                    producedCount.get(),
-                    insertedCount.get(),
-                    retryCount.get(),
-                    validationErrors.preview(),
-                    validationErrors.reasons(),
-                    rawChannel.getCumulativeEnqueueWaitNanos(),
-                    mappedChannel.getCumulativeEnqueueWaitNanos(),
-                    rawChannel.getEnqueuedCount(),
-                    mappedChannel.getEnqueuedCount(),
-                    elapsedMillis);
+            try { produceFromExcel(excelInputStream, rawChannel, producedCount, stageLatencyMetrics); }
+            catch (Exception ex) { lifecycle.record(ex); }
+            long deadline = lifecycle.deadline();
+            lifecycle.end(rawChannel, validatorWorkers, deadline);
+            lifecycle.await(validatorFutures, deadline);
+            lifecycle.end(mappedChannel, inserterWorkers, deadline);
+            lifecycle.await(inserterFutures, deadline);
+        } catch (Exception ex) {
+            lifecycle.record(ex);
         } finally {
-            metricsLogger.shutdownNow();
-            validatorPool.shutdownNow();
-            inserterPool.shutdownNow();
+            metricsLogger.shutdown();
+            int unfinishedPools = lifecycle.stop(metricsLogger, validatorPool, inserterPool);
+            try { rawChannel.checkFailure(); mappedChannel.checkFailure(); }
+            catch (RuntimeException ex) { lifecycle.record(ex); }
+            if (lifecycle.failed()) {
+                lifecycle.restoreInterrupt();
+                throw partialFailure(lifecycle, producedCount.get(), insertedCount.get(), validationErrors,
+                        retryCount.get(), unfinishedPools);
+            }
+            lifecycle.restoreInterrupt();
         }
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        return new PipelineRunResult(producedCount.get(), insertedCount.get(), retryCount.get(),
+                validationErrors.preview(), validationErrors.reasons(), rawChannel.getCumulativeEnqueueWaitNanos(),
+                mappedChannel.getCumulativeEnqueueWaitNanos(), rawChannel.getEnqueuedCount(), mappedChannel.getEnqueuedCount(), elapsedMillis);
+    }
+
+    private static com.pnomeer.lab.core.PartialExecutionFailure partialFailure(PipelineLifecycle lifecycle,
+            int produced, int inserted, ValidationErrors errors, int retries, int unfinishedPools) {
+        var reasons = errors.reasons();
+        long rejected = reasons.values().stream().mapToLong(Long::longValue).sum();
+        var counters = java.util.Map.of("rows.produced", (long) produced, "rows.inserted", (long) inserted,
+                "rows.validationErrors", rejected, "rows.unconfirmed", Math.max(0L, produced - inserted - rejected),
+                "retry.count", (long) retries, "shutdown.unfinishedExecutors", (long) unfinishedPools);
+        var details = new java.util.HashMap<String, String>();
+        reasons.forEach((reason, count) -> details.put("validation." + reason, String.valueOf(count)));
+        details.put("shutdown.failureType", lifecycle.failure().getClass().getSimpleName());
+        details.put("shutdown.progress", unfinishedPools == 0 ? "QUIESCENT" : "UNCONFIRMED");
+        return new com.pnomeer.lab.core.PartialExecutionFailure(lifecycle.failure(),
+                new com.pnomeer.lab.core.ExperimentSummary(counters, java.util.Map.of(), details), lifecycle.interrupted());
     }
 
     private PipelineRunResult runSingleThread(
@@ -235,7 +253,12 @@ public class PipelineRunner {
         AtomicInteger lastInserted = new AtomicInteger(0);
         AtomicInteger lastBatches = new AtomicInteger(0);
 
+        var lifecycle = new PipelineLifecycle(properties.getShutdownTimeoutMs());
+        var callbackFailed = new java.util.concurrent.atomic.AtomicBoolean();
+        try {
         excelReader.readFirstSheet(excelInputStream, rawRow -> {
+            if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Input interrupted", new InterruptedException());
+            try {
             if (!chunk.isEmpty() && System.nanoTime() - firstRowNanos.get() >= flushIntervalNanos) {
                 try { flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker); }
                 catch (InterruptedException ex) {
@@ -355,9 +378,25 @@ public class PipelineRunner {
                     lastInserted,
                     lastBatches,
                     progressListener);
+            } catch (RuntimeException | Error ex) { callbackFailed.set(true); throw ex; }
         });
+        } catch (Exception ex) {
+            lifecycle.record(ex);
+            if (!callbackFailed.get()) {
+                try { flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker); }
+                catch (Exception flushFailure) { lifecycle.record(flushFailure); }
+            }
+            lifecycle.restoreInterrupt();
+            throw partialFailure(lifecycle, producedCount.get(), insertedCount.get(), validationErrors, retryCount.get(), 0);
+        }
 
-        flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
+
+        try { flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker); }
+        catch (Exception ex) {
+            lifecycle.record(ex); lifecycle.restoreInterrupt();
+            throw partialFailure(lifecycle, producedCount.get(), insertedCount.get(), validationErrors, retryCount.get(), 0);
+        }
+        try {
         emitSingleThreadProgress(
                 startNanos,
                 lastNanos,
@@ -374,6 +413,10 @@ public class PipelineRunner {
                 lastInserted,
                 lastBatches,
                 progressListener);
+        } catch (RuntimeException ex) {
+            lifecycle.record(ex); lifecycle.restoreInterrupt();
+            throw partialFailure(lifecycle, producedCount.get(), insertedCount.get(), validationErrors, retryCount.get(), 0);
+        }
 
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         return new PipelineRunResult(
@@ -608,6 +651,7 @@ public class PipelineRunner {
         AtomicInteger stallEventCount = new AtomicInteger(0);
         AtomicInteger wasStalled = new AtomicInteger(0);
         scheduler.scheduleAtFixedRate(() -> {
+            try {
             long now = System.nanoTime();
             long deltaNanos = now - lastNanos.getAndSet(now);
             double seconds = Math.max(0.001d, deltaNanos / 1_000_000_000.0d);
@@ -731,6 +775,7 @@ public class PipelineRunner {
                         stageLatencyMetrics.avgInsertMs(),
                         elapsedMillis));
             }
+            } catch (RuntimeException ex) { rawChannel.fail(ex); mappedChannel.fail(ex); }
         }, 250, 250, TimeUnit.MILLISECONDS);
         return scheduler;
     }
@@ -839,16 +884,6 @@ public class PipelineRunner {
                 .flatMapToInt(Arrays::stream)
                 .map(value -> value > 0 ? value : 1)
                 .sum();
-    }
-
-    private static void waitForWorkers(List<Future<?>> futures) throws InterruptedException {
-        for (Future<?> future : futures) {
-            try {
-                future.get();
-            } catch (ExecutionException ex) {
-                throw new IllegalStateException("worker failed", ex.getCause());
-            }
-        }
     }
 
     private static String cellAt(RawRow row, int index) {

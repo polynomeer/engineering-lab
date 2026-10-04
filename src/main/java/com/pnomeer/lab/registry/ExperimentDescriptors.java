@@ -25,6 +25,7 @@ public final class ExperimentDescriptors {
                     Map.entry("flushIntervalMs", optionalInteger(1,60000,"ms",1000)),
                     Map.entry("maxAttempts", optionalInteger(1,10,"attempts",3)),
                     Map.entry("retryBackoffMs", optionalInteger(1,60000,"ms",100)),
+                    Map.entry("shutdownTimeoutMs", optionalInteger(1,60000,"ms",30000)),
                     Map.entry("errorPreviewLimit", optionalInteger(0,1000,"rows",100))), List.of("SINGLE_PASS"));
     public static List<ExperimentDescriptor> all() { return List.of(QUEUE, IO, PIPELINE); }
     public static ExperimentDescriptor get(String id) {
