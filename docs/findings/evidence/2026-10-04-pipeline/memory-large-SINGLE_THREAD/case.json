@@ -1,0 +1,24 @@
+{
+  "mode" : "SINGLE_THREAD",
+  "rows" : 100000,
+  "invalidEvery" : 10,
+  "batchDelayMs" : 0,
+  "inputSha256" : "242768bf7e8b0d6d0ef7ddcf4a50d1ec693f36d4ca1b748996c4f7139a3db9b3",
+  "warmups" : 1,
+  "repeats" : 1,
+  "trials" : [ {
+    "runId" : "348b2a56-d545-4d8e-87fe-faed38ee68c0",
+    "wallMs" : 2315.211375,
+    "inputRowsPerSecond" : 43192.60050283746,
+    "sampledHeapPeakBytes" : 80638032,
+    "maxHeapBytes" : 134217728,
+    "gcMillis" : 171,
+    "rawQueuePeak" : 0,
+    "mappedQueuePeak" : 0,
+    "inserted" : 90000,
+    "errors" : 10000,
+    "previewSize" : 16,
+    "exportFile" : "trial-0.ndjson",
+    "exportSha256" : "895ddff66be8099a711c13f321ff937529d54d8e814f3d9c3f0b5dde7982ecd1"
+  } ]
+}

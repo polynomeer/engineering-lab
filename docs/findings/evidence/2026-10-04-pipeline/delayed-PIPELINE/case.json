@@ -1,0 +1,52 @@
+{
+  "mode" : "PIPELINE",
+  "rows" : 6000,
+  "invalidEvery" : 0,
+  "batchDelayMs" : 40,
+  "inputSha256" : "b1c055e8bfc1d54814749ccca938c8b42104c89505ccc458de7cc8fc96cf79f2",
+  "warmups" : 1,
+  "repeats" : 3,
+  "trials" : [ {
+    "runId" : "d1ce8e8c-3329-4e9e-85a5-3a65d02a912b",
+    "wallMs" : 745.136541,
+    "inputRowsPerSecond" : 8052.215493213881,
+    "sampledHeapPeakBytes" : 36485592,
+    "maxHeapBytes" : 134217728,
+    "gcMillis" : 9,
+    "rawQueuePeak" : 64,
+    "mappedQueuePeak" : 64,
+    "inserted" : 6000,
+    "errors" : 0,
+    "previewSize" : 0,
+    "exportFile" : "trial-0.ndjson",
+    "exportSha256" : "7d896e6af2d57265173fa22b488bf68a48b794d24684e8694b54a5fa39457766"
+  }, {
+    "runId" : "5a16337f-b4c9-4574-b82f-f420ba597845",
+    "wallMs" : 860.732417,
+    "inputRowsPerSecond" : 6970.807514038361,
+    "sampledHeapPeakBytes" : 36219280,
+    "maxHeapBytes" : 134217728,
+    "gcMillis" : 66,
+    "rawQueuePeak" : 64,
+    "mappedQueuePeak" : 64,
+    "inserted" : 6000,
+    "errors" : 0,
+    "previewSize" : 0,
+    "exportFile" : "trial-1.ndjson",
+    "exportSha256" : "445f20b042f8474a9558d50788753583a45e34301b25e86050fc14df47c8baa0"
+  }, {
+    "runId" : "fefe664e-bdc8-4a83-b870-c6c809fa9cfc",
+    "wallMs" : 723.259042,
+    "inputRowsPerSecond" : 8295.782909824997,
+    "sampledHeapPeakBytes" : 37417760,
+    "maxHeapBytes" : 134217728,
+    "gcMillis" : 14,
+    "rawQueuePeak" : 64,
+    "mappedQueuePeak" : 64,
+    "inserted" : 6000,
+    "errors" : 0,
+    "previewSize" : 0,
+    "exportFile" : "trial-2.ndjson",
+    "exportSha256" : "45b82218f05b6d6703424acbac6bd21865429b6f1a3935c442a29d8147998ede"
+  } ]
+}

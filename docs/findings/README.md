@@ -9,3 +9,7 @@
 5. 사실·재현 조건·가설·측정 결과·해석·한계를 분리해 작성하고 코드와 함께 리뷰한다.
 
 [API와 증거 보관 경계](../run-evidence.md)를 참고한다. UI에는 Finding 문서를 자동 생성하거나 결론을 판정하는 기능이 없다.
+
+## 측정된 Finding
+
+- [2026-10-04: 저장 대기 시간의 병렬화와 제한 힙 Excel ingestion](2026-10-04-pipeline-throughput-heap.md) — 16개 Run export와 체크섬, 재현 명령, 성능 우위의 적용 범위.

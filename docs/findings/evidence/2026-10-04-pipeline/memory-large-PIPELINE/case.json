@@ -1,0 +1,24 @@
+{
+  "mode" : "PIPELINE",
+  "rows" : 100000,
+  "invalidEvery" : 10,
+  "batchDelayMs" : 0,
+  "inputSha256" : "242768bf7e8b0d6d0ef7ddcf4a50d1ec693f36d4ca1b748996c4f7139a3db9b3",
+  "warmups" : 1,
+  "repeats" : 1,
+  "trials" : [ {
+    "runId" : "3948d8f8-3898-4e06-9ea9-4a27712b435c",
+    "wallMs" : 1420.421708,
+    "inputRowsPerSecond" : 70401.62751441138,
+    "sampledHeapPeakBytes" : 86181352,
+    "maxHeapBytes" : 134217728,
+    "gcMillis" : 100,
+    "rawQueuePeak" : 54,
+    "mappedQueuePeak" : 9,
+    "inserted" : 90000,
+    "errors" : 10000,
+    "previewSize" : 16,
+    "exportFile" : "trial-0.ndjson",
+    "exportSha256" : "0dc6a2f8109263451445049f5322c49d39c1c5844501c93d1e5faa24f6adedba"
+  } ]
+}

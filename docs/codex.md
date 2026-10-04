@@ -86,9 +86,9 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 - insert chunk는 크기·시간·종료 조건으로 flush된다. 시간 기본값은 1000 ms이며 SINGLE_THREAD는 행 callback에서만 기한을 확인한다. insert는 batch 본문의 일시적 오류를 성공적으로 롤백한 경우 제한된 지수 backoff로 재시도한다(기본 총 3회, 100 ms 시작, 60000 ms 상한). 커밋·롤백 오류는 재시도하지 않는다. 별도 Run/불확실한 커밋의 재실행 멱등성은 보장하지 않는다.
 - 앱 Run의 검증 오류는 evidence DB의 dead-letter로 즉시 영속화되며 종료 Run의 `/runs/{runId}/dead-letters`에서 행 문맥을 페이지 조회한다. 행당 64 KiB 초과·저장 실패는 Run 실패다. 직접/local 실행은 영속 저장 없이 제한된 미리보기와 전체 집계를 제공한다. 앱도 `pipeline.error-preview-limit`(기본 100, 0–1000)만 원본 오류 행을 보유한다.
-- HTTP 업로드는 8 KiB 버퍼의 임시 파일로 처리하며 최대 16개/파일당 50 MiB로 제한한다. XLSX는 파일 기반 POI와 압축 해제/metadata/행 크기 상한을 사용한다. 오류 미리보기·큐·metric writer는 bounded이고 전체 JVM heap/처리량 실측은 마지막 검증 단계에 남는다.
+- HTTP 업로드는 8 KiB 버퍼의 임시 파일로 처리하며 최대 16개/파일당 50 MiB로 제한한다. XLSX는 파일 기반 POI와 압축 해제/metadata/행 크기 상한을 사용한다. 오류 미리보기·큐·metric writer는 bounded다. [전체 ingestion benchmark](pipeline-benchmark.md)는 독립 128 MiB JVM에서 1만/10만 행을 비교하며, 측정 범위와 한계는 [Finding](findings/2026-10-04-pipeline-throughput-heap.md)에 남겼다.
 - PIPELINE은 입력 실패·coordinator 중단 후 받은 행을 제한 시간 안에 drain/flush하고 worker와 진행 callback 종료를 기다린다. 저장/worker 실패는 abort하고 실패 Run에 확인된 집계·rows.unconfirmed·shutdown.unfinishedExecutors를 남긴다. SINGLE_THREAD는 입력 실패 시 안전한 partial batch만 flush한다. 비협조적 I/O의 강제 종료·프로세스 강제 종료·미확인 행 재처리는 보장하지 않는다.
-- pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. 전체 Excel ingestion의 heap/throughput 비교 테스트는 여전히 별도 과제다.
+- pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. `PipelinePerformanceTest`는 128 MiB JVM에서 전체 ingestion·영속 dead-letter·제어된 batch 지연의 처리량 개선을 검증한다. `./gradlew pipelineBenchmark`로 기본 H2/지연/입력 크기별 원시 측정과 Run export를 생성한다. 일반 환경의 성능 우위나 RSS 상한을 보장하지 않는다.
 
 ## 작업 단위 커밋
 

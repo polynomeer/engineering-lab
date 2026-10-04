@@ -48,7 +48,7 @@
 
 검증: 전체 `./gradlew test` 61개 통과. DB 재개방 뒤 비교/export, 페이지 전체 metric export, artifact 불변성·상한·입력 거부, 실제 HTTP UI/정적 자산/API 경로를 검증했다. 브라우저에서 빈 목록, 실제 두 Run의 선택→비교, 상세, 404 오류와 375px 레이아웃을 확인했다. 실제 서버를 재시작한 뒤 같은 비교 URL로 두 결과가 복원되는 것도 확인했다. 파일 수집/호스팅은 이 단계의 artifact 참조에 포함되지 않는다.
 
-## 5. 관측과 외부 인프라 — 진행 중
+## 5. 관측과 외부 인프라 — 기본 관측 완료, 인프라 확장은 선택 과제
 
 - [x] `GET /metrics/schema`와 공통 단위·범위 catalog v1을 추가하고 비교 API에서 재사용한다. 기존 이름·저장 형식은 유지한다.
 - [x] 선택적 JVM 시작/종료 스냅샷을 bounded writer로 저장한다. 기본 OFF, 최대 두 point/Run, 프로세스 범위와 수집 비용을 명시한다. [관측 가이드](observability.md) 참조.
@@ -67,16 +67,16 @@
 
 완료 기준: 각 관측 기능의 overhead·데이터 용량·종료 처리·민감정보 제외 정책을 검증한다. 인프라가 필요 없는 기존 테스트는 Docker 없이 실행 가능해야 한다.
 
-## 6. Excel 파이프라인 완성 — 진행 중
+## 6. Excel 파이프라인 완성 — 완료
 
 다음 항목은 각각 테스트와 커밋으로 완료하는 독립 작업 단위다. 기본 관측 경로 완료와 전체 ingestion 완성을 구분한다.
 
 - [x] 크기·시간·종료 기반 batch flush: worker별 첫 행 기준 기한, 선택적 시나리오 설정과 실제 적용값 기록. SINGLE_THREAD는 callback 시점에 확인하며 입력 정지 중 시간 보장은 하지 않는다.
 - [x] insert 본문의 일시적 오류를 롤백한 경우 제한된 retry/backoff로 복구하고 중복 없는 저장을 검증한다. 커밋·롤백 오류는 재시도하지 않으며 별도 Run/불확실한 커밋의 멱등성은 포함하지 않는다. 재시도 소진 시 채널 대기 해제와 실패 전파를 검증한다.
 - [x] 검증 실패 행의 번호·사유·셀 문자열을 Run별 영속 dead-letter로 저장하고 종료 Run의 페이지 조회를 제공한다. v1→v2 이행, 재개방, 두 모드의 저장 실패 전파와 64 KiB 상한을 검증한다. insert 실패 행 재처리와 미저장 큐 복구는 포함하지 않는다.
-- [x] HTTP 업로드를 제한된 임시 파일로 이행하고 오류 원본은 설정된 미리보기만 유지한다. XLSX의 파일 기반 파싱·압축 해제/metadata/행 상한을 추가하고 3만 오류 행의 두 모드에서 전체 집계와 dead-letter 전달을 검증한다. 전체 JVM heap/처리량 실측은 마지막 단계에 남는다.
+- [x] HTTP 업로드를 제한된 임시 파일로 이행하고 오류 원본은 설정된 미리보기만 유지한다. XLSX의 파일 기반 파싱·압축 해제/metadata/행 상한을 추가하고 3만 오류 행의 두 모드에서 전체 집계와 dead-letter 전달을 검증한다. 이 작업 당시 미측정이던 전체 JVM heap/처리량은 아래 최종 검증에서 확인했다.
 - [x] 입력 실패·coordinator 중단 뒤 bounded drain과 안전한 partial batch flush, worker/progress callback 종료 대기, timeout/저장 장애 시 abort를 검증한다. 실패 Run에 확인된 집계와 미확인 행/미종료 executor를 남긴다. 강제 프로세스 종료·비협조적 I/O 강제 종료·미확인 행 영속 재처리는 범위 밖이다.
-- [ ] 전체 ingestion의 단일 스레드 대비 처리량·메모리 상한 측정, 실행 증거와 Finding 및 최종 문서 정리.
+- [x] 전체 ingestion의 단일 스레드 대비 처리량·제한 힙 측정을 완료했다. 독립 128 MiB JVM, 제어된 지연과 기본 H2 비교, 1만/10만 행 및 오류 10%의 보존을 확인했다. [Finding과 원본 증거](findings/2026-10-04-pipeline-throughput-heap.md), [재현 가이드](pipeline-benchmark.md)를 참고한다.
 
 시간 flush 검증: 입력 정지·지속 유입 중 종료 신호 전 저장, invalid row callback에서 단일 스레드 flush, 종료 partial batch, timed poll timeout/interrupt, 설정 범위와 기존 시나리오 호환, HTTP 명시값/CLI 기본값 적용을 확인한다.
 
@@ -89,3 +89,7 @@ Dead-letter 검증: 전체 `./gradlew test` 118개 통과(실패·오류·skip �
 입력/오류 상한 검증: 전체 `./gradlew test` 126개 통과(실패·오류·skip 없음). 12 MiB 생성 스트림의 8 KiB 읽기, 16개 staging 포화/회수, 크기·읽기·source close 실패 정리, executor 거부/완료와 hash 검증 실패의 소유권 해제, 3만 오류 행의 양 모드 전체 집계·sink 전달/7행 미리보기, metadata 압축 해제 상한, HTTP 명시값/CLI 기본값을 확인했다.
 
 종료 검증: 전체 `./gradlew test` 133개 통과(실패·오류·skip 없음). 양 모드의 입력 실패/중단 후 7개 유효 행과 3개 dead-letter 보존, 실패/중단 Run의 부분 summary, 실제 coordinator 인터럽트 중 drain, timeout의 협조적 worker 종료, 비협조적 executor 미종료 표시, 진행 callback 실패/정상 완료 대기와 명시/기본 설정 적용을 확인했다.
+
+처리량/힙 검증: 전체 `./gradlew test` 134개 통과(실패·오류·skip 없음). 제어된 지연의 3회 중앙값 개선, 양 모드의 128 MiB 제한 실행과 데이터/오류 보존을 검증한다. 별도 전체 benchmark 16개 측정 Run이 성공했고 export hash·end 개수도 검증했다. 지연 조건 약 3.73배, 기본 H2는 개선 없음으로 기록한다. 10만 행은 양 모드에서 유효 9만/오류 1만 건을 보존했다. 측정값은 해당 환경·입력에만 적용한다.
+
+기본 플랫폼과 6단계의 필수 작업은 완료했다. 외부 DB/Redis/Kafka, 원문 로그 수집·자동 보관, Java Agent 및 불확실한 커밋/강제 종료 뒤 영속 재처리는 완료 범위에 포함하지 않는다.

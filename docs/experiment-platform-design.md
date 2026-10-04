@@ -66,4 +66,4 @@ Metrics → JVM metrics → trace → JFR → logs 순으로 도입한다. 먼�
 
 첫 단계: ID 연결, 파라미터 snapshot 불변성, 실패 실행의 metadata 보존, 실제 JVM 정보, 기존 HTTP 응답 호환성, 전체 테스트 통과.
 
-영속화 단계: 재시작 후 조회, 비정상 종료 복구, queue blocking, 크기·시간·종료 flush, 재시도 중 중복 방지, 저장 실패 노출, 페이지 제한, bounded memory 및 baseline 비교를 각각 테스트한다. 기존 pipeline retry/dead-letter 등 미구현 항목은 `docs/codex.md`를 참고하고 플랫폼 기능 완성과 혼동하지 않는다.
+영속화 단계: 재시작 후 조회, 비정상 종료 복구, queue blocking, 크기·시간·종료 flush, 재시도 중 중복 방지, 저장 실패 노출, 페이지 제한, bounded memory 및 baseline 비교를 각각 테스트한다. pipeline retry/dead-letter/종료 처리의 구현 범위와 한계는 `docs/codex.md`를 참고한다. 전체 ingestion의 제한 힙·처리량 측정과 원본 Run 증거는 [Finding](findings/2026-10-04-pipeline-throughput-heap.md)에 기록했다.
