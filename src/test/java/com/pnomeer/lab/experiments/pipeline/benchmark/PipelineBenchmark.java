@@ -33,6 +33,8 @@ public final class PipelineBenchmark {
             int warmups, int repeats, List<Trial> trials) { }
 
     public static void main(String[] args) throws Exception {
+        // POI font initialization must not start the macOS AWT event loop in this CLI.
+        System.setProperty("java.awt.headless", "true");
         if (args.length > 0 && args[0].equals("case")) {
             measure(Path.of(args[1]), Path.of(args[2]), PipelineRunner.RunMode.valueOf(args[3]),
                     Integer.parseInt(args[4]), Integer.parseInt(args[5]), Long.parseLong(args[6]), Integer.parseInt(args[7]));
