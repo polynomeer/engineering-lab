@@ -1,0 +1,428 @@
+import React, { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  ApiError,
+  get,
+  optional,
+  apiUrl,
+  terminal,
+  artifactReason,
+  parseRoute,
+  type Run,
+  type Descriptor,
+  type Module,
+  type MetricPage,
+  type Artifact,
+  type Comparison,
+} from './api';
+import './style.css';
+import { Table, Raw, Badge, Actions, format } from './components';
+const route = parseRoute(location.pathname, location.search);
+const runLink = (id: string) => '/app/runs/' + encodeURIComponent(id);
+function App() {
+  const [modules, setModules] = useState<Module[]>([]),
+    [catalog, setCatalog] = useState<Descriptor[]>([]);
+  const [bootstrapError, setBootstrapError] = useState('');
+  const [error, setError] = useState(''),
+    [loading, setLoading] = useState(true),
+    [legacy, setLegacy] = useState(false);
+  const [options, setOptions] = useState({ pageSize: 20, artifactDownloadMaxBytes: 0 });
+  const [page, setPage] = useState<{ runs: Run[]; nextBefore: number | null }>({
+    runs: [],
+    nextBefore: null,
+  });
+  const [run, setRun] = useState<Run | null>(null),
+    [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [metrics, setMetrics] = useState<MetricPage>({ metrics: [], nextAfter: null }),
+    [after, setAfter] = useState(-1);
+  const [comparison, setComparison] = useState<Comparison | null>(null),
+    [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([
+      get<Descriptor[]>('/experiments', controller.signal),
+      optional<Module[]>('/modules', controller.signal),
+      optional<unknown>('/dashboard/v1/capabilities', controller.signal),
+      get<typeof options>('/runs/ui/options', controller.signal),
+    ])
+      .then(([items, groups, capabilities, limits]) => {
+        setCatalog(items);
+        setModules(groups ?? []);
+        setLegacy(capabilities === null);
+        setOptions(limits);
+        setBootstrapError('');
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setBootstrapError(String(e.message));
+      });
+    return () => controller.abort();
+  }, [refresh]);
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = 2000;
+    async function load() {
+      try {
+        setLoading(true);
+        if (route.kind === 'list') {
+          const params = new URLSearchParams({ limit: String(Math.min(options.pageSize, 100)) });
+          for (const key of ['experiment', 'before'])
+            if (route.query.get(key))
+              params.set(key === 'experiment' ? 'experimentType' : key, route.query.get(key)!);
+          setPage(await get('/runs?' + params, controller.signal));
+        } else if (route.kind === 'detail') {
+          const id = encodeURIComponent(route.id);
+          const [detail, refs, observations] = await Promise.all([
+            get<Run>('/runs/' + id, controller.signal),
+            get<Artifact[]>(`/runs/${id}/artifacts`, controller.signal),
+            get<MetricPage>(
+              `/runs/${id}/metrics?after=${after}&limit=${Math.min(options.pageSize, 100)}`,
+              controller.signal,
+            ),
+          ]);
+          setRun(detail);
+          setArtifacts(refs);
+          setMetrics(observations);
+          delay = 2000;
+          if (!terminal(detail) && !document.hidden) timer = setTimeout(load, delay);
+        } else if (
+          route.kind === 'compare' &&
+          route.query.get('baseline') &&
+          route.query.get('candidate')
+        ) {
+          setComparison(
+            await get(
+              '/runs/compare?' +
+                new URLSearchParams({
+                  baseline: route.query.get('baseline')!,
+                  candidate: route.query.get('candidate')!,
+                }),
+              controller.signal,
+            ),
+          );
+        }
+        setError('');
+      } catch (e) {
+        if (!controller.signal.aborted) {
+          setError(e instanceof Error ? e.message : String(e));
+          if (
+            route.kind === 'detail' &&
+            !document.hidden &&
+            (!(e instanceof ApiError) || e.status >= 500 || e.status === 429)
+          ) {
+            delay = Math.min(delay * 2, 15000);
+            timer = setTimeout(load, delay);
+          }
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    const hidden = () => {
+      if (document.hidden) clearTimeout(timer);
+    };
+    document.addEventListener('visibilitychange', hidden);
+    void load();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, [refresh, after, options.pageSize]);
+  useEffect(() => {
+    const visible = () => {
+      if (!document.hidden) setRefresh((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', visible);
+    return () => document.removeEventListener('visibilitychange', visible);
+  }, []);
+  const groups = modules.length
+    ? modules
+    : [
+        {
+          module: { id: 'all', title: '등록된 실험', collection: 'engineering' },
+          experiments: catalog,
+        },
+      ];
+  return (
+    <>
+      <a className="skip" href="#content">
+        본문으로 이동
+      </a>
+      <header>
+        <a className="brand" href="/app/runs">
+          ENGINEERING LAB<span>실험의 결과를, 검증 가능한 증거로.</span>
+        </a>
+        <nav aria-label="주 탐색">
+          <a href="/app/runs" aria-current={route.kind === 'list' ? 'page' : undefined}>
+            실행 기록
+          </a>
+          <a href="/app/compare" aria-current={route.kind === 'compare' ? 'page' : undefined}>
+            비교
+          </a>
+          <a
+            href={new URL('/ui', import.meta.env.VITE_LEGACY_BASE ?? 'http://127.0.0.1:8080').href}
+          >
+            기존 실험 실행 ↗
+          </a>
+        </nav>
+      </header>
+      <div className="layout">
+        <aside>
+          <p className="eyebrow">EXPERIMENT CATALOG</p>
+          <a href="/app/runs">모든 실행</a>
+          {groups.map((group) => (
+            <section key={group.module.id}>
+              <h2>{group.module.title}</h2>
+              <small>{group.module.collection}</small>
+              {group.experiments.map((item) => (
+                <a
+                  key={item.id}
+                  aria-current={route.query.get('experiment') === item.id ? 'page' : undefined}
+                  href={'/app/runs?experiment=' + encodeURIComponent(item.id)}
+                >
+                  {item.title}
+                </a>
+              ))}
+            </section>
+          ))}
+          <p className="note">Career Lab 실행 연동은 준비 중입니다.</p>
+        </aside>
+        <main id="content">
+          <div className="page-heading">
+            <div>
+              <p className="eyebrow">RUN EVIDENCE</p>
+              <h1>
+                {route.kind === 'detail'
+                  ? '실행 상세'
+                  : route.kind === 'compare'
+                    ? '실행 비교'
+                    : route.kind === 'missing'
+                      ? '페이지를 찾을 수 없습니다'
+                      : '실행 기록'}
+              </h1>
+            </div>
+            <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
+              새로고침
+            </button>
+          </div>
+          {legacy && <p className="note">기존 API 호환 모드 · 저장된 실행 증거를 조회합니다.</p>}
+          <p role="status" className="status">
+            {loading ? '증거를 불러오는 중…' : '저장소에서 조회한 실행 증거'}
+          </p>
+          {(error || bootstrapError) && (
+            <div role="alert" className="error">
+              {error || bootstrapError}{' '}
+              <button onClick={() => setRefresh((n) => n + 1)}>다시 시도</button>
+            </div>
+          )}
+          {route.kind === 'missing' && <a href="/app/runs">실행 기록으로 돌아가기</a>}
+          {route.kind === 'list' && (
+            <>
+              <p>입력과 환경을 확인하고, 같은 조건의 실행을 비교하세요.</p>
+              <Table
+                label="저장된 실행 · 최신순"
+                headers={['시나리오 / Run ID', '실험', '상태', '생성 시각']}
+                rows={page.runs.map((r) => [
+                  <>
+                    <a href={runLink(r.runId)}>{r.scenarioId}</a>
+                    <small>{r.runId}</small>
+                  </>,
+                  r.experimentType,
+                  <Badge run={r} />,
+                  new Date(r.createdAtEpochMs).toLocaleString(),
+                ])}
+              />
+              {!loading && !error && !page.runs.length && (
+                <p>
+                  이 페이지에 저장된 실행이 없습니다. 기존 실행 화면이나 CLI에서 실험을 실행하세요.
+                </p>
+              )}
+              <div className="actions">
+                <a
+                  href={
+                    '/app/runs' +
+                    (route.query.get('experiment')
+                      ? '?experiment=' + encodeURIComponent(route.query.get('experiment')!)
+                      : '')
+                  }
+                >
+                  최신 실행
+                </a>
+                {page.nextBefore !== null && (
+                  <a
+                    href={
+                      '/app/runs?' +
+                      new URLSearchParams({
+                        ...Object.fromEntries(route.query),
+                        before: String(page.nextBefore),
+                      })
+                    }
+                  >
+                    이전 실행
+                  </a>
+                )}
+              </div>
+            </>
+          )}
+          {route.kind === 'detail' && run && (
+            <>
+              <h2>{run.scenarioId}</h2>
+              <p className="mono">{run.runId}</p>
+              <Badge run={run} />
+              <Actions run={run} />
+              {run.failureMessage && <p className="error">{run.failureMessage}</p>}
+              <h2>가설</h2>
+              <p>
+                {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
+              </p>
+              <h2>결과 요약</h2>
+              <Table
+                label="원본 metric 이름과 값"
+                headers={['측정값', '종류', '값']}
+                rows={[
+                  ...Object.entries(run.summary.counters).map(([k, v]) => [
+                    k,
+                    'counter',
+                    format(v),
+                  ]),
+                  ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
+                ]}
+              />
+              <Raw label="결과 상세" value={run.summary.details} />
+              <h2>입력과 실행 환경</h2>
+              <Raw label="파라미터와 시나리오 정의" value={run.runMetadata.parameters} />
+              <Raw
+                label="JVM / 운영체제 / Git"
+                value={{ ...run.runMetadata.environment, git: run.runMetadata.git }}
+              />
+              <h2>관측 기록</h2>
+              <Table
+                label="원본 관측 · 한 페이지씩 조회"
+                headers={['순서 / 시각', '관측값']}
+                rows={metrics.metrics.map((m) => [
+                  <>
+                    {m.sequence}
+                    <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
+                  </>,
+                  <pre>{format(m.point)}</pre>,
+                ])}
+              />
+              <div className="actions">
+                <button onClick={() => setAfter(-1)} disabled={loading}>
+                  첫 관측
+                </button>
+                {metrics.nextAfter !== null && (
+                  <button disabled={loading} onClick={() => setAfter(metrics.nextAfter!)}>
+                    다음 관측
+                  </button>
+                )}
+              </div>
+              <h2>첨부 증거</h2>
+              <p className="note">
+                다운로드 시 서버가 크기와 SHA-256을 검증합니다. 오류는 새 탭에 표시됩니다.
+              </p>
+              {!artifacts.length ? (
+                <p>등록된 첨부 증거가 없습니다.</p>
+              ) : (
+                <Table
+                  label="첨부 파일과 무결성"
+                  headers={['경로', '크기 / SHA-256', '다운로드']}
+                  rows={artifacts.map((a) => [
+                    a.relativePath,
+                    <>
+                      {a.byteSize} bytes<small>{a.sha256}</small>
+                    </>,
+                    artifactReason(run, a, options.artifactDownloadMaxBytes) ?? (
+                      <a
+                        target="_blank"
+                        rel="noopener"
+                        href={apiUrl(
+                          `/runs/${encodeURIComponent(run.runId)}/artifacts/${encodeURIComponent(a.artifactId)}/download`,
+                        )}
+                      >
+                        다운로드 ↗
+                      </a>
+                    ),
+                  ])}
+                />
+              )}
+            </>
+          )}
+          {route.kind === 'compare' && (
+            <>
+              <form action="/app/compare">
+                <label>
+                  기준 Run ID
+                  <input
+                    name="baseline"
+                    required
+                    defaultValue={route.query.get('baseline') ?? ''}
+                  />
+                </label>
+                <label>
+                  비교 Run ID
+                  <input
+                    name="candidate"
+                    required
+                    defaultValue={route.query.get('candidate') ?? ''}
+                  />
+                </label>
+                <button type="submit">비교하기</button>
+              </form>
+              {comparison && (
+                <>
+                  <ul className="warning">
+                    {comparison.cautions.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                  <div className="actions">
+                    <a href={runLink(comparison.baseline.runId)}>기준 실행 상세</a>
+                    <a href={runLink(comparison.candidate.runId)}>비교 실행 상세</a>
+                  </div>
+                  <Table
+                    label="실행 상태"
+                    headers={['항목', '기준', '비교']}
+                    rows={[
+                      ['상태', comparison.baseline.status, comparison.candidate.status],
+                      [
+                        '실패 사유',
+                        format(comparison.baseline.failureMessage),
+                        format(comparison.candidate.failureMessage),
+                      ],
+                    ]}
+                  />
+                  <Table
+                    label="측정값 · 누락은 0이 아닙니다"
+                    headers={['측정값 / 종류', '단위', '기준', '비교']}
+                    rows={comparison.values.map((v) => [
+                      `${v.name} / ${v.kind}`,
+                      v.unit,
+                      format(v.baseline),
+                      format(v.candidate),
+                    ])}
+                  />
+                  <Table
+                    label="기록된 조건의 차이"
+                    headers={['조건', '기준', '비교', '일치 여부']}
+                    rows={comparison.conditions.map((c) => [
+                      c.field,
+                      <pre>{format(c.baseline)}</pre>,
+                      <pre>{format(c.candidate)}</pre>,
+                      c.different ? '다름' : '같음',
+                    ])}
+                  />
+                  <p>
+                    단일 실행으로 성능 향상을 단정하지 않습니다. 원본 증거와 조건을 함께 보관하세요.
+                  </p>
+                </>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </>
+  );
+}
+createRoot(document.getElementById('root')!).render(<App />);

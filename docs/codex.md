@@ -28,7 +28,7 @@
 | `com/pnomeer/lab/app/HomeController.java` | `/`, `/ui` 홈 |
 | `com/pnomeer/pipeline/tools/` | 테스트 XLSX 생성 도구 |
 
-- 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
+- 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 기존 화면 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. `frontend/`에는 별도 React/TypeScript/Vite Run 조회 화면이 있으며 [frontend 안내](../frontend/README.md)의 Node 버전과 검증 명령을 따른다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
 - `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 각 실험의 `*ExperimentModule`과 [시나리오 가이드](scenarios.md)를 함께 수정한다.
 - ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`과 additive `schema-v2.sql`이며 v1→v2 이행을 지원한다. 추가 변경도 명시적인 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
@@ -39,7 +39,7 @@
 
 ## 다음 구조 변경
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend/worker 연동은 설계 상태다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회는 구현했고 실행 폼 이행/worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
 
 ## 실행 흐름
 

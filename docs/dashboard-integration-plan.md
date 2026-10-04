@@ -1,8 +1,8 @@
 # 공통 대시보드 이행 계획
 
-상태: **등록 확장 기반 완료, frontend/worker 구현 미착수** · 기준: [통합 설계](dashboard-integration-design.md)
+상태: **등록 확장 기반·D1 완료, D2부터 후속 구현** · 기준: [통합 설계](dashboard-integration-design.md)
 
-복구된 Career Lab과 현재 실험 플랫폼을 유지한 채 단계적으로 연결한다. 아래 작업은 각각 검증 후 독립 커밋한다. 이번 설계 문서 작성은 실제 frontend/worker 구현 완료를 뜻하지 않는다.
+복구된 Career Lab과 현재 실험 플랫폼을 유지한 채 단계적으로 연결한다. 아래 작업은 각각 검증 후 독립 커밋한다. 각 단계의 완료 표시를 구현 기준으로 삼는다. 전체 worker 연동은 아직 완료되지 않았다.
 
 ## 진행 원칙
 
@@ -31,16 +31,18 @@
 
 검증: 루트 141개 테스트 통과, 임시 Gradle 프로젝트 기반 발견/거부 테스트 4개 통과. Career 전체 테스트도 성공했으며 기존 42개 테스트 결과를 재사용했다(UP-TO-DATE). 이 단계는 D3의 executor 분리나 D4의 worker 연동을 완료한 것이 아니다.
 
-## D1. 현재 계약 고정과 프론트엔드 골격
+## D1. 현재 계약 고정과 프론트엔드 골격 — 완료 (2026-10-05)
 
-- [ ] 현 API 응답 fixture와 HTTP status/header 계약을 고정한다. 기존 Run·비교·artifact·에러·cursor fixture를 우선한다.
-- [ ] `frontend/`에 제안 스택을 도입하고 Node/package manager 버전·lockfile을 고정한다. 공통 API client, `/app` router, `/api` 개발 proxy, 오류/로딩 상태를 만든다.
-- [ ] Run 목록·상세·비교 읽기 화면을 실제 기존 서버와 연결한다. 신규 capabilities 404는 legacy 모드로 처리한다.
-- [ ] CI/local 검증 명령을 README와 Codex 안내에 기록한다. 루트 Gradle 빌드에 frontend 개발 환경을 강제하지 않는다.
+- [x] 현 API 응답 fixture와 HTTP status/header 계약을 고정한다. 기존 Run·비교·artifact·에러·cursor fixture를 우선한다.
+- [x] `frontend/`에 제안 스택을 도입하고 Node/package manager 버전·lockfile을 고정한다. 공통 API client, `/app` router, `/api` 개발 proxy, 오류/로딩 상태를 만든다.
+- [x] Run 목록·상세·비교 읽기 화면을 실제 기존 서버와 연결한다. 신규 capabilities 404는 legacy 모드로 처리한다.
+- [x] CI/local 검증 명령을 README와 Codex 안내에 기록한다. 루트 Gradle 빌드에 frontend 개발 환경을 강제하지 않는다.
 
 완료 기준: 기존 서버를 수정하지 않고 별도 frontend에서 저장된 Run 두 개를 비교·export하고, deep link를 새로고침해도 동작한다. API 오류는 HTML 성공으로 가려지지 않는다. 기존 모든 화면은 계속 제공된다.
 
-예상 커밋: `test(ui): pin existing dashboard API contracts`, `feat(ui): add standalone run dashboard`.
+계약 고정 커밋: `632e29f`. 화면 구현 커밋 제목: `feat(ui): add standalone run dashboard`.
+
+검증: 루트 전체 테스트 142개 통과, frontend typecheck/build 및 단위 테스트 5개 통과. 실제 서버의 생성·목록·상세·비교·export·deep link·375px·키보드·legacy fallback·오류/cursor를 브라우저 테스트 3개로 확인했다. [사용 가이드와 캡처](standalone-dashboard.md), [실행 명령](../frontend/README.md)을 참고한다.
 
 ## D2. 기존 실행 화면과 상태 이행
 
@@ -120,4 +122,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D1: 기존 API 계약 고정과 별도 Run 조회 화면**이다. 먼저 기존 데이터로 프론트엔드 분리를 검증한 뒤 모듈 실행 연동을 시작한다.
+다음 실행 작업은 **D2: 기존 실행 폼과 브라우저 상태 이행**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.

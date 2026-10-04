@@ -21,7 +21,8 @@ and offline CLI validation; startup verifies runtime bindings against that catal
 `GET /modules` exposes ownership without changing existing experiment IDs or APIs.
 New module metrics extend the catalog without replacing existing definitions.
 See [the extension guide](adding-experiments.md). This is package-level modularity;
-the frontend and external worker integration remain planned work. Career build
+the standalone frontend now supports Run evidence browsing (D1), while execution
+form migration and external worker integration remain planned work. Career build
 projects are discovered from explicit `lab-module.properties` declarations, so new
 projects do not require edits to a fixed Gradle include list.
 

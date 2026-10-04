@@ -1,8 +1,8 @@
 # 공통 대시보드 분리와 Career Lab 연동 설계
 
-상태: **프론트엔드/worker 설계안, 등록 확장 기반 구현** · 최초 기준: `2707da8` · 갱신: 2026-10-05
+상태: **D1 독립 조회 화면·등록 확장 기반 구현, 실행 폼/worker 설계안** · 최초 기준: `2707da8` · 갱신: 2026-10-05
 
-실행 계획은 [이행 계획](dashboard-integration-plan.md), 현재 동작은 [API 참조](api-reference.md)와 [Career Lab](../career-lab/README.md)를 따른다. 아래 frontend/worker 신규 API·설정·디렉터리는 아직 존재하지 않는다. 내장 실험의 module provider·공통 catalog와 `/modules`, Career 빌드 선언은 [확장 가이드](adding-experiments.md)에 구현 상태를 구분한다.
+실행 계획은 [이행 계획](dashboard-integration-plan.md), 현재 동작은 [API 참조](api-reference.md)와 [Career Lab](../career-lab/README.md)를 따른다. 독립 Run 조회 화면 `frontend/`와 `/app/*`·개발 `/api` proxy는 구현했다. 아래 worker와 dashboard extension API·embedded 배포는 아직 구현 전이다. 내장 실험의 module provider·공통 catalog와 `/modules`, Career 빌드 선언은 [확장 가이드](adding-experiments.md)에 구현 상태를 구분한다.
 
 ## 1. 결정과 범위
 
