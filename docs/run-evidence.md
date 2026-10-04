@@ -7,7 +7,7 @@
 
 비교는 수치의 우열을 자동 판정하지 않는다. 실험 종류·상태·환경·Git·입력 checksum·측정 모드·파라미터 차이를 명시한다. 단위를 아는 summary만 단위를 표시하고 나머지는 unknown으로 둔다. 누락값은 0으로 바꾸지 않는다. 실행 중/실패 결과는 완전한 성능 결과가 아니다.
 
-Export는 종료 Run만 허용하며 Run, 원본 metric, artifact 참조를 NDJSON으로 순차 전송한다. DB 조회는 page limit 이내로 하고 마지막 end 레코드로 완전한 다운로드인지 판별한다. 서버에 export 파일을 만들지 않는다.
+Export는 종료 Run만 허용하며 Run, 원본 metric, artifact 참조를 NDJSON으로 순차 전송한다. DB 조회는 page limit 이내로 하고 마지막 end 레코드로 완전한 다운로드인지 판별한다. dead-letter 행 본문과 원본 입력·artifact bytes는 포함하지 않으므로 별도 보관한다. 서버에 export 파일을 만들지 않는다.
 
 Artifact는 사용자 제공 또는 내장 수집기가 생성한 파일의 참조 metadata다. 등록 API 자체는 경로를 열거나 파일 내용을 검증/다운로드하지 않는다. 선택적 JFR·Run lifecycle 로그 수집기는 파일을 만들고 실제 크기·SHA-256을 계산해 등록한다. 수집 범위와 파일 위치는 [관측 가이드](observability.md)를 참조한다. 참조는 Run당 최대 100개이고 ID별 불변·재등록은 동일 내용에 한해 허용한다.
 
@@ -36,7 +36,9 @@ UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기와 
 - 실행 중에는 Refresh run으로 갱신한다. 자동 polling은 하지 않는다.
 - [Finding 템플릿](findings/TEMPLATE.md)에 증거와 해석을 기록한다. 결과 자동 판정이나 Finding 자동 저장은 제공하지 않는다.
 
-기존 화면의 어두운 색상 계열을 유지하고 system font, 명시적 표 헤더, 44px 조작 영역과 키보드 focus를 적용했다. summary 단위는 현재 알려진 이름만 명시한 최소 catalog이며 전체 metric schema 확장은 다음 관측 단계에서 진행한다.
+기존 화면의 어두운 색상 계열을 유지하고 system font, 명시적 표 헤더, 44px 조작 영역과 키보드 focus를 적용했다. 단위·의미는 `/metrics/schema`의 catalog v2에서 확인한다. 알려지지 않은 metric 이름의 단위는 추정하지 않는다.
+
+<a id="jfr-run-download"></a>
 
 ## JFR·Run 로그 다운로드
 

@@ -91,7 +91,7 @@ BASIC_V1은 jdk.CPULoad(1초 주기), jdk.GarbageCollection, jdk.GCHeapSummary�
 
 ### 저장과 상한
 
-파일은 lab.storage.root 아래 `jfr/jfr_<무작위 UUID>.jfr`에 저장한다. Run ID나 입력 경로를 파일명으로 사용하지 않는다. 8 KiB 복사 버퍼로 임시 파일에 스트리밍하며 max-bytes를 넘기기 전에 실패시켜 잘린 JFR을 등록하지 않는다. 파일을 검사하고 원자적으로 이름을 변경한 뒤 실제 바이트 수와 SHA-256을 기존 artifact metadata에 등록한다. `/runs/{id}/artifacts`, Run 상세 및 NDJSON export에서 참조를 확인한다. 참조 경로의 기준은 storage root다. 종료 Run은 [검증된 다운로드 API](run-evidence.md#jfr·run-로그-다운로드)로 파일을 받거나 서버의 해당 경로에서 직접 읽는다.
+파일은 lab.storage.root 아래 `jfr/jfr_<무작위 UUID>.jfr`에 저장한다. Run ID나 입력 경로를 파일명으로 사용하지 않는다. 8 KiB 복사 버퍼로 임시 파일에 스트리밍하며 max-bytes를 넘기기 전에 실패시켜 잘린 JFR을 등록하지 않는다. 파일을 검사하고 원자적으로 이름을 변경한 뒤 실제 바이트 수와 SHA-256을 기존 artifact metadata에 등록한다. `/runs/{id}/artifacts`, Run 상세 및 NDJSON export에서 참조를 확인한다. 참조 경로의 기준은 storage root다. 종료 Run은 [검증된 다운로드 API](run-evidence.md#jfr-run-download)로 파일을 받거나 서버의 해당 경로에서 직접 읽는다.
 
 Recording.setMaxSize는 JVM repository의 **chunk 단위 보존 정책**이다. 엄격한 repository 디스크 한도가 아니며 max-bytes의 엄격한 검사는 최종 파일 복사에 적용된다. 상한으로 오래된 chunk가 사라질 수 있어 파일을 전체 실행 기록으로 해석하지 않는다. duration-seconds 후에는 녹화만 자동 정지하고 실험은 계속된다. observation.jfr.durationLimitReached=1은 마무리 시 이미 정지된 녹화를 관측했음을 뜻하며 파일이 실험 전체를 포함한다는 보장이 아니다. [JDK Recording API](https://docs.oracle.com/en/java/javase/16/docs/api/jdk.jfr/jdk/jfr/Recording.html)의 크기/기간 보존 계약을 따르며 저장소의 Java 25에서도 실제 파일로 검증한다.
 
@@ -131,7 +131,7 @@ JfrRecorderTest는 실제 녹화의 성공/실패·허용 이벤트·SHA-256·�
 
 metric writer drain 뒤 로그를 마무리하므로 STORAGE_FAILED도 기록할 수 있다. **EVIDENCE_FINISHED는 로그 artifact 등록과 Run의 DB 완료 이전**이다. reason=NONE이나 EXECUTION/SUCCEEDED가 Run의 최종 성공을 보장하지 않으며 최종 상태는 `/runs/{id}`에서 확인한다. 로그 쓰기 오류는 session에 보존했다가 finish에서 전파하고, 기존 metric drain을 마친 후 Run을 FAILED로 처리한다. 시작 시 파일을 열지 못하면 실험을 시작하지 않는다. 일반 Error가 실험에서 전파되어도 로그 마무리를 시도하며, 해당 Run의 기존 미완료 복구 정책은 유지한다.
 
-파일은 storage root 아래 `logs/log_<UUID>.ndjson`에 저장한다. 임시 파일을 닫고 원자적으로 이름을 변경한 다음 실제 크기·SHA-256을 기존 artifact로 등록한다. 파일명에 사용자 입력을 넣지 않는다. `/runs/{id}/artifacts`, 상세 화면과 export는 참조를 제공하며 종료 Run의 관리 파일은 [다운로드 API](run-evidence.md#jfr·run-로그-다운로드)로 받을 수 있다. 중단/쓰기 실패 시 미완성 파일은 정리하고, 완성 후 DB 등록 실패 시 파일을 복구용으로 남긴다. 오류 로그의 job_id/artifact_id 및 파일 내용으로 Run을 확인하여 기존 artifact API로 복구할 수 있다. 강제 프로세스 종료에서는 `.partial`이 남을 수 있으며 자동 삭제하지 않는다.
+파일은 storage root 아래 `logs/log_<UUID>.ndjson`에 저장한다. 임시 파일을 닫고 원자적으로 이름을 변경한 다음 실제 크기·SHA-256을 기존 artifact로 등록한다. 파일명에 사용자 입력을 넣지 않는다. `/runs/{id}/artifacts`, 상세 화면과 export는 참조를 제공하며 종료 Run의 관리 파일은 [다운로드 API](run-evidence.md#jfr-run-download)로 받을 수 있다. 중단/쓰기 실패 시 미완성 파일은 정리하고, 완성 후 DB 등록 실패 시 파일을 복구용으로 남긴다. 오류 로그의 job_id/artifact_id 및 파일 내용으로 Run을 확인하여 기존 artifact API로 복구할 수 있다. 강제 프로세스 종료에서는 `.partial`이 남을 수 있으며 자동 삭제하지 않는다.
 
 파일별 상한은 전체 보관 용량의 상한이 아니다. 자동 보관 기간/삭제는 아직 없으므로 운영자가 artifact 참조와 파일을 함께 관리한다. 로그 I/O는 실험 실행 시간에 영향을 주며 저장 장치가 멈출 때 독립적인 I/O timeout은 제공하지 않는다.
 

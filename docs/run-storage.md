@@ -12,7 +12,7 @@
 
 DB가 완전히 접근 불가능하면 실패 상태 자체도 쓰지 못할 수 있다. API는 DB 접근 실패를 HTTP 503으로 노출하고 runner는 `job_id`와 원인을 로그에 남긴다. 이 경우 실행을 성공으로 표시하지 않으며, 저장소 복구 후 앱을 재시작하면 남은 실행을 INTERRUPTED로 처리한다. 프로세스 강제 종료 시 아직 commit되지 않은 metric은 없을 수 있다.
 
-동일 저장 경로는 한 앱만 소유할 수 있다. OS 파일 잠금과 H2 파일 잠금으로 중복 소유를 막는다. 백업은 앱을 정상 종료한 뒤 `.lab/` 전체를 복사한다. `lab_schema`가 v1이 아니면 DDL 변경 전에 시작을 거부한다. 향후 버전은 명시적인 migration이 필요하다.
+동일 저장 경로는 한 앱만 소유할 수 있다. OS 파일 잠금과 H2 파일 잠금으로 중복 소유를 막는다. 백업은 앱을 정상 종료한 뒤 `.lab/` 전체를 복사한다. 현재 schema는 v2이며 v1은 아래의 additive 이행으로 갱신한다. v1/v2 이외 버전은 DDL 변경 전에 시작을 거부한다. 향후 버전도 명시적인 migration이 필요하다.
 
 ## 설정
 
@@ -49,13 +49,13 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 
 기존 `/experiments/jobs*`, `/ingest/jobs*`도 DB에서 복원한다. 목록은 최대 최신 100개, timeline은 preview-limit 이내다. QUEUED는 기존 화면에 RUNNING, INTERRUPTED는 FAILED로 표시된다. Excel 화면의 원래 progress 형식은 공통 metric에서 복원한다. 원본 실험 데이터 테이블은 별도 in-memory DB이므로 재시작 후 DB row 화면이 비어 있어도 과거 실행 결과는 남는다.
 
-`POST /runs`로 registry의 JSON/YAML 정의를 제출할 수 있다. Excel은 scenario/file multipart를 사용한다. [시나리오 가이드](scenarios.md)의 CLI는 같은 API를 사용하며, 기존 실험별 POST도 유지된다. 기존 `lab_artifact` 테이블에 사용자 제공 artifact 참조 metadata를 등록/조회한다. 원본 파일 등록/다운로드는 제공하지 않는다. 비교와 NDJSON export는 [증거 가이드](run-evidence.md)를 참조한다.
+`POST /runs`로 registry의 JSON/YAML 정의를 제출할 수 있다. Excel은 scenario/file multipart를 사용한다. [시나리오 가이드](scenarios.md)의 CLI는 같은 API를 사용하며, 기존 실험별 POST도 유지된다. 기존 `lab_artifact` 테이블에 사용자 제공 artifact 참조 metadata를 등록/조회한다. 등록 API는 원본 파일을 업로드하지 않는다. 내장 수집기의 관리 JFR/log 파일은 종료 Run의 검증된 다운로드 API로 제공한다. 비교와 NDJSON export는 [증거 가이드](run-evidence.md)를 참조한다.
 
 ## 관측과 제한
 
 완료 summary의 `storage.*` counter에는 written metrics, batches, retries, failures, 현재/최대 queue depth, publication 대기 nanoseconds, 총 batch write nanoseconds, preview limit이 포함된다. 로그에는 job_id, stage, reason을 기록한다. 이 카운터 namespace는 플랫폼용으로 예약한다.
 
-메트릭 writer가 보유하는 관측 수는 실행당 queue-capacity + batch-size이며 결과 preview는 preview-limit 이하이다. 활성 실행 수와 executor 대기열도 제한된다. 이것이 앱 전체의 메모리 상한 보장은 아니다. HTTP 업로드와 validation 미리보기에도 아래 상한을 적용한다. metric 한 개의 필드 크기 및 JVM 전체 heap 실측은 별도 검증 대상이다.
+메트릭 writer가 보유하는 관측 수는 실행당 queue-capacity + batch-size이며 결과 preview는 preview-limit 이하이다. 활성 실행 수와 executor 대기열도 제한된다. 이것이 앱 전체의 메모리 상한 보장은 아니다. HTTP 업로드와 validation 미리보기에도 아래 상한을 적용한다. metric 한 개의 필드 크기 제한과 전체 프로세스 메모리 보장은 별개다. 전체 ingestion은 [benchmark](pipeline-benchmark.md)에서 지정 입력의 128 MiB 제한 힙 완료를 측정했으며 RSS나 임의 입력의 메모리 상한을 보장하지 않는다.
 
 `MetricWriterPerformanceTest`는 200개의 metric, write당 고정 3ms 지연, queue 32/batch 20 조건에서 per-point 쓰기와 batch 쓰기를 비교한다. 버퍼 상한과 모든 metric 저장을 검증하고 raw 결과를 `build/reports/metric-writer-benchmark.json`에 생성한다. 실제 DB/Excel 처리량의 보편적 개선 수치로 해석하지 않는다. 이 보고서는 build 산출물이므로 clean 시 삭제된다. 애플리케이션 실험 증거는 `.lab/`에 저장된다.
 

@@ -1,60 +1,74 @@
-# engineering-lab
+# Engineering Lab
 
-`engineering-lab` is evolving into a reproducible experimentation platform for backend engineering: reproduce problems, test hypotheses, observe runs, and preserve evidence behind decisions.
+백엔드·JVM·데이터 처리의 가설을 **정의 → 실행 → 관찰 → 비교 → 증거 보존**으로 검증하는 로컬 실험 플랫폼입니다. Java 25 / Spring Boot 4 기반의 단일 Gradle 프로젝트이며, Excel 수집·큐 경합·IO 비교의 세 실험군을 제공합니다.
 
-See the [platform design](docs/experiment-platform-design.md) and [implementation plan](docs/implementation-plan.md) for the staged roadmap and current completion status.
+단순히 실행 시간만 출력하지 않고 실행마다 Run ID, 입력·설정, Git 상태, JVM/OS 환경, 메트릭, 결과를 보존합니다. 실험 결과를 다시 조회하고 같은 조건인지 비교한 뒤 Finding 문서로 해석을 남길 수 있습니다.
 
-The current implemented experiment is an Excel ingestion pipeline with:
-- bounded queues for backpressure
-- fixed worker pools
-- streaming XLSX parsing
-- validation and mapping
-- chunked JDBC inserts
-- live dashboards and benchmark-style metrics
+![실행 증거 목록](docs/images/03-runs.jpg)
 
-The repository is being restructured so experiments live under shared platform code:
-- `com.pnomeer.lab.app.*` for the app and dashboards
-- `com.pnomeer.lab.core.*` for shared execution contracts
-- `com.pnomeer.lab.metrics.*` for reusable runtime metrics
-- `com.pnomeer.lab.experiments.pipeline.*` for the Excel pipeline experiment
+> 처음 사용하는 경우 **[화면 캡처 사용 가이드](docs/user-guide.md)**를 따라가세요. 전체 문서는 [문서 안내](docs/README.md)에서 찾을 수 있습니다.
 
-There is also a second non-pipeline experiment now:
-- `com.pnomeer.lab.experiments.concurrency.*` for queue contention benchmarking
-- `com.pnomeer.lab.experiments.io.*` for blocking, virtual-thread, and selector IO labs
+## 목차
 
-## Prerequisites
-- JDK `25` (project toolchain is set to Java 25 in `build.gradle`).
-- macOS/Linux shell (examples below use `bash`/`zsh`).
-- `curl` for API testing.
+- [제공하는 실험과 기능](#제공하는-실험과-기능)
+- [빠른 시작](#빠른-시작)
+- [사용 화면](#사용-화면)
+- [Excel 입력과 처리 방식](#excel-입력과-처리-방식)
+- [실행 증거와 데이터 수명](#실행-증거와-데이터-수명)
+- [설정](#설정)
+- [관측 기능](#관측-기능)
+- [성능 검증](#성능-검증)
+- [구조와 개발](#구조와-개발)
+- [지원 범위와 제한](#지원-범위와-제한)
+- [문서](#문서)
 
-## Working with Codex
-- [AGENTS.md](AGENTS.md): repository rules, required tests, and one Conventional Commit per completed unit of work.
-- [Codex repository guide](docs/codex.md): code map, verification commands, and current implementation gaps.
+## 제공하는 실험과 기능
 
-## Current layout
-- `src/main/java/com/pnomeer/lab/app/ingest` : REST API, job state, live dashboards
-- `src/main/java/com/pnomeer/lab/core` : shared experiment contracts and execution state
-- `src/main/java/com/pnomeer/lab/metrics` : reusable execution metric snapshot types
-- `src/main/java/com/pnomeer/lab/experiments/pipeline` : Excel ingestion experiment
-- `src/main/java/com/pnomeer/lab/experiments/concurrency` : queue contention experiment
-- `src/main/java/com/pnomeer/lab/experiments/io` : blocking IO / virtual thread / selector IO lab
-- `src/main/java/com/pnomeer/pipeline/ExcelPipelineApplication.java` : Spring Boot entrypoint
-- `src/main/resources/application.yml` : app and pipeline defaults
-- `src/main/resources/schema.sql` : runtime DB schema
+| 실험 ID | 질문 | 주요 관측 |
+| --- | --- | --- |
+| `pipeline.excel-ingestion` | 제한된 큐와 병렬 worker가 Excel 처리에 어떤 영향을 주는가? | 읽은/저장한/오류 행, 큐 깊이·대기, 처리량, batch·retry |
+| `concurrency.queue-contention` | 생산자와 소비자의 속도 차이가 배압을 어떻게 만드는가? | 생산·소비 수, 최대 큐 깊이, enqueue 대기, blocking 횟수 |
+| `io.endpoint-comparison` | virtual-thread와 reactive 대기 방식의 결과는 어떻게 다른가? | 모드별 완료 수·지연·처리량 |
 
-## JVM observations
+공통 기능:
 
-Optional process-wide JVM start/end snapshots can be enabled with `./gradlew bootRun --args='--lab.observation.jvm-enabled=true'` (default: off). Add `--lab.observation.jvm-interval-ms=1000` for capped periodic sampling (default cap: 1000 samples per Run). `/metrics/schema` describes known metric units and scope. See the [observation guide](docs/observability.md) for capture costs, limitations and verification.
+- 버전 관리되는 JSON/YAML 시나리오와 오프라인 검증, HTTP CLI
+- 영속 Run 상태·환경·Git provenance·시계열 메트릭·summary
+- 실행 목록·상세·조건 비교·NDJSON export
+- 선택적 JVM 표본, 명시적 trace, JFR, Run lifecycle 로그
+- JFR·로그 artifact의 크기와 SHA-256 검증 다운로드
+- Excel 검증 실패 행의 영속 dead-letter와 페이지 조회
+- 재현 가능한 처리량·제한 힙 benchmark 및 원본 증거를 포함한 Finding
 
-## Run evidence and findings
+## 빠른 시작
 
-Open `/runs/ui` to browse experiments, inspect persisted runs and compare two runs with their environment, input, parameters and metric units. Terminal runs can be exported as NDJSON. Artifact references retain user-provided file metadata; file collection/hosting is not implemented.
+### 1. 준비
 
-See the [evidence guide](docs/run-evidence.md) and [Finding template](docs/findings/TEMPLATE.md) to preserve observations separately from interpretation.
+- JDK **25**: `java -version`으로 확인합니다.
+- 저장소의 Gradle Wrapper 사용: 별도 Gradle 설치는 필요 없습니다. Wrapper는 9.3.1입니다.
+- 최초 빌드는 Gradle/Maven 의존성 다운로드를 위한 네트워크가 필요합니다.
+- 아래 명령은 저장소 루트의 macOS/Linux `bash` 또는 `zsh` 기준입니다. API 예제는 `curl`을 사용합니다.
+- 기본 실험과 테스트에는 Docker, 외부 DB, Node.js 빌드가 필요 없습니다.
 
-## Versioned scenarios
+macOS에서 JDK를 선택해야 한다면:
 
-The [scenario guide](docs/scenarios.md) documents the experiment registry, strict JSON/YAML schemas, common `POST /runs`, and HTTP CLI. Start the server with `./gradlew bootRun`, then use another terminal:
+```bash
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+java -version
+```
+
+### 2. 테스트와 실행
+
+```bash
+./gradlew test
+./gradlew bootRun --args='--server.address=127.0.0.1'
+```
+
+브라우저에서 [홈](http://localhost:8080/ui)을 엽니다. 로컬 실험용이며 인증·권한 관리가 없으므로 예제는 루프백 주소에 바인딩합니다. 종료는 서버 터미널에서 `Ctrl+C`입니다.
+
+### 3. 첫 실험 실행
+
+서버를 켜 둔 상태에서 다른 터미널을 엽니다.
 
 ```bash
 ./gradlew -q lab --args='list'
@@ -62,512 +76,197 @@ The [scenario guide](docs/scenarios.md) documents the experiment registry, stric
 ./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --wait'
 ```
 
-`GET /experiments` exposes all three schemas. Declarative runs preserve the canonical definition, hypothesis, and definition SHA-256 alongside the effective parameters. Only `SINGLE_PASS` measurement is currently supported; unsupported warmup/duration options fail validation.
+첫 출력에 `runId`, 마지막 출력에 최종 상태와 summary가 나옵니다. 이 예제는 생산자 2개가 각 100개를 만들므로 성공 시 `items.produced=200`, `items.consumed=200`입니다. 지연이나 처리량은 실행 환경에 따라 달라집니다.
 
-## Run metadata
+[Run evidence](http://localhost:8080/runs/ui)에서 해당 실행을 열어 확인합니다. 서버 주소를 바꿨다면 CLI에 `--server http://localhost:18080`을 추가합니다.
 
-Jobs in `/experiments/jobs`, `/experiments/jobs/{jobId}`, `/ingest/jobs`, and `/ingest/jobs/{jobId}` now include `runMetadata`:
+### 4. Excel·IO 예제 실행
 
-- `runId`: the existing `jobId`, shared with the runner result.
-- `parameters`: an immutable copy of the scenario parameters taken before execution.
-- `environment`: Java version/vendor/VM, OS name/version/architecture, available processors, and maximum JVM heap bytes.
-- `git`: commit SHA, tracked/untracked dirty state, and a collection error when unavailable. Runtime Git probes have a two-second command timeout and 64 KiB output limit; unknown is never reported as clean.
-- Excel parameters also include `input.sha256`, `input.fileName`, and the pipeline queue/worker/batch/timeout configuration. The hash identifies the uploaded bytes; it does not archive the workbook.
-
-The snapshot is persisted before dispatch, so queued, successful, failed, and rejected jobs retain it. Existing response fields are unchanged. Legacy job endpoints map QUEUED to RUNNING and INTERRUPTED to FAILED; `/runs` exposes the full lifecycle.
-
-Run state, metadata, summaries, and metrics survive application restarts in a separate H2 file DB under `.lab/`. CPU count means processors available to the JVM; maximum heap is not physical system RAM. Environment variables and full JVM arguments are not collected.
-
-## Run persistence
-
-See the [run storage guide](docs/run-storage.md) for defaults, recovery behavior, paginated `/runs` APIs, backup, and verification.
-
-## Configuration
-Default config in `application.yml`:
-
-```yaml
-spring:
-  servlet:
-    multipart:
-      file-size-threshold: 0
-      max-file-size: 50MB
-      max-request-size: 50MB
-
-pipeline:
-  shutdown-timeout-ms: 30000
-  error-preview-limit: 100
-  queue:
-    raw-capacity: 2000
-    mapped-capacity: 2000
-  threads:
-    validator: 4
-    inserter: 4
-  insert:
-    chunk-size: 500
-    flush-interval-ms: 1000
-    max-attempts: 3
-    retry-backoff-ms: 100
-  backpressure:
-    offer-timeout-ms: 200
+```bash
+./gradlew -q lab --args='run experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml --wait'
+./gradlew -q lab --args='run experiments/io/endpoint-comparison/scenarios/baseline.json --wait'
 ```
 
-Meaning:
-- `shutdown-timeout-ms`: PIPELINE drain deadline and, separately, executor cleanup deadline; default 30000 ms, range 1–60000.
-- `error-preview-limit`: retained validation row preview, default 100, range 0–1000; totals and durable dead letters include every rejected row.
-- `queue.raw-capacity` / `queue.mapped-capacity`: bounded queue sizes for backpressure.
-- `threads.validator` / `threads.inserter`: worker pool sizes.
-- `insert.chunk-size`: JDBC batch size per chunk/transaction.
-- `insert.flush-interval-ms`: partial batch residence interval, default 1000 ms, range 1–60000 ms.
-- `insert.max-attempts`: total batch attempts including the initial write, default 3, range 1–10 (1 disables retry).
-- `insert.retry-backoff-ms`: initial retry delay, default 100 ms, range 1–60000 ms; doubles per retry with a 60000 ms cap.
-- `backpressure.offer-timeout-ms`: enqueue timeout for timed offers.
-- `spring.servlet.multipart.max-file-size`: max single upload size.
-- `spring.servlet.multipart.max-request-size`: max multipart request size.
+Excel 예제에는 유효 데이터 5행의 XLSX fixture와 checksum이 포함됩니다. 성공 시 `rows.produced=5`, `rows.inserted=5`, `rows.validationErrors=0`입니다. 시나리오의 `input.file`은 **시나리오 파일 디렉터리 기준**입니다.
 
-In PIPELINE mode, each insert worker flushes on size, elapsed time since accepting its first row, or end of input, whichever comes first. New rows do not reset the deadline. The interval excludes upstream queue waiting and is not a database completion timeout; scheduling and database latency can add time. SINGLE_THREAD checks the deadline at each row callback (including invalid rows) and flushes at end of input, so blocked input delays its time-based flush.
+## 사용 화면
 
-Each batch uses its own transaction. Only transient data-access failures inside the batch body are retried after a successful rollback, so partial writes cannot accumulate across these attempts. Permanent errors and uncertain commit/rollback failures are propagated without replay. This does not deduplicate separate runs or recover an uncertain commit. Successful run summaries include `retry.count`; in-progress metrics use the same counter. Exhausted insert workers abort the channels to release blocked producers/consumers; this is fail-fast termination, not durable queue drain or resumable ingestion.
+기본 주소는 `http://localhost:8080`입니다.
 
-Validation failures from app-managed Excel runs are persisted with their row index, reason and cell strings in the evidence DB. After a Run terminates, page through `/runs/{runId}/dead-letters?after=-1&limit=100`. Storage failures or records above 64 KiB fail the Run; stored rows remain available after restart. See [storage and dead-letter behavior](docs/run-storage.md). Only a bounded preview of rejected rows is retained in memory; totals and reason counts remain exact.
+| 경로 | 역할 | 갱신·보관 방식 |
+| --- | --- | --- |
+| `/ui` 또는 `/` | 실험군별 진입점과 요약 | 최근 작업 목록의 집계 |
+| `/experiments/ui` | 큐·IO 실행 폼, preset, 작업 상세·간편 비교 | 실행은 DB에 보존, preset 이력은 브라우저 |
+| `/runs/ui` | registry, 영속 Run 목록·상세·비교·export | 상세는 **Refresh run**으로 갱신 |
+| `/ingest/ui` | Excel 실행 목록 | 1초 자동 갱신; 업로드 폼은 없음 |
+| `/ingest/ui/{jobId}` | Excel 진행 지표·차트 | 개별 실행 상세 |
+| `/ingest/ui/db` | 현재 `ingest_item` 행 조회 | 2초 자동 갱신, 재시작하면 기본 DB는 초기화 |
+| `/lab/io/ui` | 브라우저가 직접 호출하는 간편 IO 비교 | 이력은 브라우저 저장소, 영속 Run은 생성하지 않음 |
 
-Uploads are staged to temporary files with an 8 KiB buffer and SHA-256 calculation. Application staging accepts at most 16 files of up to 50 MiB; oversize requests return 413 and staging saturation returns 503. Scenario uploads may set a smaller `lab.scenario.max-input-bytes`. Normal completion, execution failure and submission rejection release staged files. The parser uses a separate temporary file for file-based POI access and validates ZIP expansion first: at most 1024 entries, 256 MiB total expanded content and 8 MiB non-worksheet metadata (including shared strings/styles). Rows are limited to 16384 cells and 65536 characters. Exceeding a parser limit fails the Run. See [input lifecycle and limits](docs/run-storage.md).
+사용 버튼·읽는 순서·화면별 캡처는 [사용 가이드](docs/user-guide.md)에 있습니다. HTTP 요청은 [API 참조](docs/api-reference.md)를 참고하세요.
 
-On input failure or coordinator interruption, PIPELINE drains already accepted rows and flushes partial batches within its drain deadline. It then waits for workers and any in-flight progress callback to finish. Storage/worker failure aborts further processing. Failed/interrupted Runs retain acknowledged counts and `rows.unconfirmed`; `shutdown.unfinishedExecutors` identifies workers whose termination could not be confirmed. SINGLE_THREAD flushes a safe partial batch after input failure, but does not replay a failed callback/batch. This is cooperative shutdown, not forced cancellation of arbitrary blocking input/DB calls. See [shutdown contract](docs/run-storage.md).
+## Excel 입력과 처리 방식
 
-## Run locally
-1. Run tests first:
+`.xlsx`의 첫 번째 시트만 읽고 첫 행(0 기반 row 0)은 헤더로 건너뜁니다. 헤더 이름을 기준으로 열을 찾지 않으며 **열 위치**를 사용합니다.
+
+| 열 | 예시 | 조건 |
+| --- | --- | --- |
+| A | `a1` | 필수 문자열 `col1` |
+| B | `b1` | 필수 문자열 `col2` |
+| C | `1` | 정수로 해석 가능한 `col3Int` |
+
+샘플 생성과 업로드:
+
+```bash
+./scripts/create-test-xlsx.sh build/test-data/sample.xlsx 500
+curl --fail --silent --show-error \
+  -F 'file=@build/test-data/sample.xlsx' \
+  'http://localhost:8080/ingest/excel?mode=PIPELINE'
+```
+
+응답의 `jobId`로 `/ingest/jobs/{jobId}` 또는 `/runs/{jobId}`를 조회합니다. `mode=SINGLE_THREAD`는 단일 스레드 비교용입니다. 생성기는 작은 데모용으로 workbook을 메모리에 만들며, 대량 성능 검증은 별도 benchmark의 streaming fixture를 사용합니다.
+
+```mermaid
+flowchart LR
+    A[XLSX 임시 파일] --> B[첫 시트 스트리밍 파싱]
+    B --> C[크기 제한 raw queue]
+    C --> D[검증·변환 worker]
+    D --> E[크기 제한 mapped queue]
+    E --> F[insert worker별 batch]
+    F --> G[JDBC 트랜잭션]
+    D --> H[검증 실패 dead-letter]
+```
+
+- batch는 크기·첫 행 이후 경과 시간·입력 종료 조건으로 flush합니다. SINGLE_THREAD의 시간 조건은 행 callback에서 확인합니다.
+- batch 본문의 일시적 DB 오류를 **성공적으로 롤백한 경우**에만 제한된 횟수와 backoff로 재시도합니다. 불확실한 커밋·롤백 오류는 자동 재실행하지 않습니다.
+- 검증 실패 행은 저장하지 않고 Run별 dead-letter로 보관합니다. Run 성공과 오류 행 0건은 서로 다른 조건입니다.
+- 입력 오류·coordinator 중단 때 이미 받은 행을 제한 시간 안에 drain합니다. 저장/worker 실패는 abort하며 확인된 집계와 미확인 행 수를 남깁니다.
+- 같은 파일을 다시 제출하면 새 Run과 새 DB 행을 만듭니다. Run 간 중복 제거는 제공하지 않습니다.
+
+## 실행 증거와 데이터 수명
+
+| 데이터 | 기본 위치 | 서버 재시작 후 |
+| --- | --- | --- |
+| Run 상태·환경·설정·metrics·summary·dead-letter | `.lab/runs.mv.db` | 유지 |
+| 선택적 JFR·Run 로그 | `.lab/jfr/`, `.lab/logs/` | 유지; 자동 보관 기간 없음 |
+| Excel이 저장한 `ingest_item` | 별도 H2 메모리 DB | 초기화 |
+| 업로드 XLSX | 실행 중 임시 파일 | 정상 정리; 원본 자동 보관 없음 |
+| CLI 원본 시나리오·작은 fixture | `experiments/` | Git으로 관리 |
+| 테스트·benchmark 보고서 | `build/reports/` | `clean`으로 삭제될 수 있음 |
+
+Run은 `QUEUED → RUNNING → SUCCEEDED/FAILED/INTERRUPTED`로 기록됩니다. 재시작 때 남은 QUEUED/RUNNING을 INTERRUPTED로 바꾸며 자동 재실행하지 않습니다. 기존 `/ingest/jobs`·`/experiments/jobs`는 호환상 QUEUED를 RUNNING, INTERRUPTED를 FAILED로 표시합니다.
+
+Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata에 보존합니다. checksum은 원본 입력 보관을 대신하지 않습니다. 종료 Run의 NDJSON export는 Run·metrics·artifact **참조**를 포함하며 원본 artifact 파일과 dead-letter 전체 행은 별도로 보관해야 합니다.
+
+## 설정
+
+기준 파일은 [application.yml](src/main/resources/application.yml)입니다. 다음은 자주 조정하는 기본값입니다. 시나리오 파일의 Excel 파라미터는 실행별 runner에 적용되며 서버의 singleton 설정을 바꾸지 않습니다.
+
+| 키 | 기본값 | 의미 |
+| --- | ---: | --- |
+| `pipeline.queue.raw-capacity` / `mapped-capacity` | 각각 2000 | 단계 사이 최대 대기 행 |
+| `pipeline.threads.validator` / `inserter` | 각각 4 | 검증·저장 worker |
+| `pipeline.insert.chunk-size` | 500 | worker별 batch 행 수 |
+| `pipeline.insert.flush-interval-ms` | 1000 | partial batch 시간 조건 |
+| `pipeline.insert.max-attempts` | 3 | 최초 시도 포함 최대 batch 시도 |
+| `pipeline.insert.retry-backoff-ms` | 100 | 지수 backoff 시작값; 최대 60000 ms |
+| `pipeline.backpressure.offer-timeout-ms` | 200 | timed offer 대기 |
+| `pipeline.error-preview-limit` | 100 | 메모리에 보유할 오류 행 미리보기 |
+| `pipeline.shutdown-timeout-ms` | 30000 | drain 및 별도 executor 종료 대기 |
+| `lab.storage.root` | `.lab` | 실행 증거 디렉터리 |
+| `lab.storage.max-active-runs` | 8 | 동시 실행 상한 |
+| `lab.storage.preview-limit` | 200 | 최근 metric preview |
+| `lab.storage.page-limit` | 500 | Run/metric API 페이지 상한 |
+| `spring.servlet.multipart.max-file-size` / `max-request-size` | 각각 50MB | 파일·multipart 요청 한도 |
+
+애플리케이션 staging은 최대 16개/파일당 50 MiB이고 parser는 ZIP entry 1024개, 해제 합계 256 MiB, worksheet 외 metadata 8 MiB, 행당 16384셀·65536문자까지 허용합니다. 실제 수용 크기는 multipart·시나리오·parser 제한을 모두 충족해야 합니다.
+
+실행 시 덮어쓰기 예:
+
+```bash
+./gradlew bootRun --args='--server.address=127.0.0.1 --server.port=18080 --lab.storage.root=build/my-lab --pipeline.insert.chunk-size=100'
+```
+
+`build/my-lab`은 데모용입니다. 장기 증거를 `build/` 안에 두지 마세요. 설정 범위와 실패 의미는 [시나리오](docs/scenarios.md), [저장](docs/run-storage.md), [운영](docs/operations.md) 문서를 참고하세요.
+
+## 관측 기능
+
+기본적으로 추가 관측은 꺼져 있습니다. 필요한 기능만 선택합니다.
+
+```bash
+./gradlew bootRun --args='--server.address=127.0.0.1 --lab.observation.jvm-enabled=true --lab.observation.jvm-interval-ms=1000 --lab.trace.enabled=true --lab.jfr.enabled=true --lab.logs.enabled=true'
+```
+
+| 기능 | 기본 상한 | 해석 |
+| --- | --- | --- |
+| JVM | 주기 표본 최대 1000개 + 시작/종료 | 프로세스 전체 heap·GC·플랫폼 thread |
+| Trace | 1000 spans | 전체 실험과 IO 요청; Excel/큐 내부 단계는 미계측 |
+| JFR BASIC_V1 | 60초, 최종 파일 16 MiB | CPU load·GC·GC heap summary |
+| Run 로그 LIFECYCLE_V1 | 100개 이벤트, 64 KiB | 고정 lifecycle 이벤트; 원문 서버/GC 로그가 아님 |
+
+관측 비용은 실행 시간에 포함될 수 있습니다. JFR BASIC_V1에는 pinning 분석 이벤트·할당 스택이 없습니다. `pinning=true`라는 옵션 이름만으로 현재 JDK에서 carrier pinning이 발생했다고 판단하지 않습니다. 상세 계약은 [관측 가이드](docs/observability.md)에 있습니다.
+
+## 성능 검증
+
+```bash
+./gradlew pipelineBenchmark
+```
+
+별도 128 MiB JVM에서 단일/병렬 모드를 비교하고 보고서와 Run export를 생성합니다. [측정 방법](docs/pipeline-benchmark.md)과 [2026-10-04 Finding](docs/findings/2026-10-04-pipeline-throughput-heap.md)을 함께 읽으세요.
+
+해당 측정에서 batch당 40 ms 지연은 병렬 처리량 약 3.73배, 지연 없는 H2는 개선 없음이었습니다. 두 모드 모두 10만 행 중 유효 9만 행·오류 1만 건을 보존했습니다. 특정 합성 입력·환경에서의 결과이며 일반적인 성능 우위나 전체 프로세스 RSS 상한을 보장하지 않습니다.
+
+## 구조와 개발
+
+```text
+src/main/java/com/pnomeer/lab/
+  core/             실험·시나리오·실행·증거 계약
+  runtime/          영속 실행, lifecycle, 관측 수집
+  storage/          H2 RunStore, bounded metric writer
+  registry/         실험 설명과 typed factory
+  scenario/         JSON/YAML 검증
+  cli/              HTTP CLI
+  metrics/          메트릭 모델과 의미·단위 catalog
+  experiments/      pipeline, concurrency, io
+  app/              HTTP API와 화면
+src/main/resources/
+  static/run-browser/  Run 목록·상세·비교 UI
+  lab/                 evidence 스키마 v1/v2
+experiments/           Git 관리 시나리오와 fixture
+docs/                  사용·설계·운영·실험 결과
+```
+
+Spring 진입점과 작은 XLSX 생성기는 `com.pnomeer.pipeline`에 남아 있습니다. Gradle root 이름 `excel-pipeline`도 기존 이름이며 실제 저장소는 단일 프로젝트입니다. 설계 문서의 향후 모듈 구성을 현재 구현과 혼동하지 않습니다.
 
 ```bash
 ./gradlew test
+./gradlew test --tests 'com.pnomeer.lab.experiments.pipeline.*'
+./gradlew bootJar
 ```
 
-2. Start the app:
-
-```bash
-./gradlew bootRun
-```
-
-3. Service base URL:
-- `http://localhost:8080`
-
-Notes:
-- The ingestion data DB is H2 (in-memory). Run evidence uses a separate H2 file DB under `.lab/`.
-- Schema is auto-initialized from `src/main/resources/schema.sql`.
-- The Spring Boot entrypoint class is still named `ExcelPipelineApplication` while the project is being migrated.
-
-Home dashboard:
-
-```bash
-open "http://localhost:8080/ui"
-```
-
-This page links the current lab surfaces:
-- pipeline ingestion
-- generic experiment jobs
-- IO comparison lab
-
-## Current HTTP API
-
-The app now exposes two experiment surfaces:
-- `/ingest/*` for the Excel ingestion experiment
-- `/experiments/*` for generic experiment jobs
-
-### 1) Start ingestion
-`POST /ingest/excel`
-
-- Content type: `multipart/form-data`
-- Form field name: `file`
-- Expected file type: `.xlsx`
-- Optional query param: `mode=PIPELINE|SINGLE_THREAD` (default `PIPELINE`)
-- Response: `202 Accepted`
-
-Example:
-
-```bash
-curl -i -X POST "http://localhost:8080/ingest/excel" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@/absolute/path/to/sample.xlsx"
-```
-
-Single-thread baseline example:
-
-```bash
-curl -i -X POST "http://localhost:8080/ingest/excel?mode=SINGLE_THREAD" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@/absolute/path/to/sample.xlsx"
-```
-
-Response body:
-
-```json
-{
-  "jobId": "f9d8d1d1-9f0c-47ec-8f5f-86b41c3f8f27",
-  "mode": "PIPELINE"
-}
-```
-
-### 2) Check job status
-`GET /ingest/jobs/{jobId}`
-
-Example:
-
-```bash
-curl -s "http://localhost:8080/ingest/jobs/f9d8d1d1-9f0c-47ec-8f5f-86b41c3f8f27"
-```
-
-Response shape:
-
-```json
-{
-  "jobId": "f9d8d1d1-9f0c-47ec-8f5f-86b41c3f8f27",
-  "status": "SUCCEEDED",
-  "experimentType": "pipeline.excel-ingestion",
-  "scenarioId": "PIPELINE",
-  "producedCount": 1200,
-  "insertedCount": 1180,
-  "validationErrorCount": 20,
-  "errorSummary": {
-    "col1 is required": 12,
-    "col2 is required": 8
-  },
-  "failureMessage": null
-}
-```
-
-Statuses:
-- `RUNNING`: job still processing.
-- `SUCCEEDED`: processing complete (may include row-level validation errors).
-- `FAILED`: pipeline failed; check `failureMessage`.
-
-### 3) View progress timeline (visualization data)
-`GET /ingest/jobs/{jobId}/timeline`
-
-Returns sampled snapshots captured during pipeline execution:
-- queue sizes (`rawQueueSize`, `mappedQueueSize`)
-- counters (`producedCount`, `mappedCount`, `insertedCount`)
-- per-second rates (`producedRatePerSec`, `mappedRatePerSec`, `insertedRatePerSec`)
-- elapsed time (`elapsedMillis`)
-
-Example:
-
-```bash
-curl -s "http://localhost:8080/ingest/jobs/<jobId>/timeline"
-```
-
-### 4) View shared metric timeline
-`GET /ingest/jobs/{jobId}/metrics`
-
-Returns generic metric points that can be reused by future experiments.
-
-Example:
-
-```bash
-curl -s "http://localhost:8080/ingest/jobs/<jobId>/metrics"
-```
-
-### 5) Open live visualization page
-`GET /ingest/ui/{jobId}`
-
-This page polls status + timeline endpoints and renders:
-- queue sizes over time
-- throughput (produced/mapped/inserted rows/sec)
-- current counters and status
-
-Open in browser:
-
-```bash
-open "http://localhost:8080/ingest/ui/<jobId>"
-```
-
-### 6) Open all-jobs live dashboard
-`GET /ingest/ui`
-
-Shows all jobs in real time (RUNNING/SUCCEEDED/FAILED), live queue/rate stats, and links to per-job detail charts.
-
-```bash
-open "http://localhost:8080/ingest/ui"
-```
-
-### 7) Open DB live view
-`GET /ingest/ui/db`
-
-Shows live data from table `ingest_item` with:
-- total row count
-- configurable row limit
-- newest rows first (auto-refresh)
-
-```bash
-open "http://localhost:8080/ingest/ui/db"
-```
-
-## Generic experiment API
-
-### 1) Start queue contention
-`POST /experiments/concurrency/queue-contention`
-
-Request body:
-
-```json
-{
-  "scenarioId": "queue-contention-demo",
-  "queueCapacity": 2,
-  "producerThreads": 2,
-  "consumerThreads": 1,
-  "itemsPerProducer": 100,
-  "consumerDelayMs": 2
-}
-```
-
-Example:
-
-```bash
-curl -s -X POST "http://localhost:8080/experiments/concurrency/queue-contention" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scenarioId":"queue-contention-demo",
-    "queueCapacity":2,
-    "producerThreads":2,
-    "consumerThreads":1,
-    "itemsPerProducer":100,
-    "consumerDelayMs":2
-  }'
-```
-
-### 2) List experiment jobs
-`GET /experiments/jobs`
-
-```bash
-curl -s "http://localhost:8080/experiments/jobs"
-```
-
-### 3) Get experiment job
-`GET /experiments/jobs/{jobId}`
-
-```bash
-curl -s "http://localhost:8080/experiments/jobs/<jobId>"
-```
-
-### 4) Get experiment metrics
-`GET /experiments/jobs/{jobId}/metrics`
-
-```bash
-curl -s "http://localhost:8080/experiments/jobs/<jobId>/metrics"
-```
-
-### 5) Open experiment dashboard
-`GET /experiments/ui`
-
-This page lets you:
-- start a queue contention job
-- start an IO endpoint comparison job
-- see all generic experiment jobs live
-- open per-job metric detail pages
-
-```bash
-open "http://localhost:8080/experiments/ui"
-```
-
-### 6) Start IO endpoint comparison
-`POST /experiments/io/endpoint-comparison`
-
-Request body:
-
-```json
-{
-  "scenarioId": "io-comparison-demo",
-  "requests": 12,
-  "delayMs": 20,
-  "pinning": false,
-  "pinDelayMs": 20
-}
-```
-
-Example:
-
-```bash
-curl -s -X POST "http://localhost:8080/experiments/io/endpoint-comparison" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scenarioId":"io-comparison-demo",
-    "requests":12,
-    "delayMs":20,
-    "pinning":false,
-    "pinDelayMs":20
-  }'
-```
-
-## IO lab
-
-The repository also includes standalone IO comparison code based on:
-- blocking socket server
-- virtual-thread socket server
-- selector-based NIO server
-- simple concurrent load client
-- Spring MVC style virtual-thread endpoint
-- Spring reactive endpoint
-
-Classes:
-- `com.pnomeer.lab.experiments.io.BlockingEchoServer`
-- `com.pnomeer.lab.experiments.io.VirtualThreadEchoServer`
-- `com.pnomeer.lab.experiments.io.NioSelectorEchoServer`
-- `com.pnomeer.lab.experiments.io.LoadTestClient`
-
-Run with Gradle:
-
-```bash
-./gradlew runBlockingEchoServer
-./gradlew runVirtualThreadEchoServer
-./gradlew runNioSelectorEchoServer
-./gradlew runIoLoadTest --args="127.0.0.1 7031 300 30"
-```
-
-Run with extra options:
-
-```bash
-./gradlew runBlockingEchoServer --args="7031 100"
-./gradlew runVirtualThreadEchoServer --args="7032 100"
-./gradlew runNioSelectorEchoServer --args="7033 false"
-```
-
-Default ports:
-- blocking: `7031`
-- virtual thread: `7032`
-- selector NIO: `7033`
-
-Extra args:
-- blocking server: `port delayMs`
-- virtual-thread server: `port delayMs`
-- selector NIO server: `port preserveMessageBoundaries`
-
-Example comparisons:
-
-```bash
-./gradlew runBlockingEchoServer
-./gradlew runIoLoadTest --args="127.0.0.1 7031 300 30"
-```
-
-```bash
-./gradlew runVirtualThreadEchoServer
-./gradlew runIoLoadTest --args="127.0.0.1 7032 300 30"
-```
-
-```bash
-./gradlew runNioSelectorEchoServer
-./gradlew runIoLoadTest --args="127.0.0.1 7033 300 30"
-```
-
-Message-boundary break experiment:
-
-```bash
-./gradlew runNioSelectorEchoServer --args="7033 false"
-```
-
-With `false`, the selector server intentionally stops accumulating partial lines correctly. This makes it easier to observe:
-- one logical line arriving in multiple chunks
-- multiple lines arriving together
-- why frameworks need explicit framing and buffering logic
-
-Spring-based comparison endpoints:
-
-- `GET /lab/io/virtual-thread/echo?msg=hello&delayMs=100`
-- `GET /lab/io/virtual-thread/echo?msg=hello&delayMs=100&pinning=true&pinDelayMs=100`
-- `GET /lab/io/reactive/echo?msg=hello&delayMs=100`
-
-Examples:
-
-```bash
-curl "http://localhost:8080/lab/io/virtual-thread/echo?msg=hello&delayMs=100"
-curl "http://localhost:8080/lab/io/virtual-thread/echo?msg=hello&delayMs=100&pinning=true&pinDelayMs=100"
-curl "http://localhost:8080/lab/io/reactive/echo?msg=hello&delayMs=100"
-```
-
-The virtual-thread endpoint keeps blocking-style code and dispatches work onto a dedicated virtual-thread executor.
-The reactive endpoint uses `Mono.delay(...)` to demonstrate non-blocking wait semantics inside the Spring app.
-If you set `pinning=true`, the virtual-thread endpoint enters a `synchronized` block and sleeps inside it, which makes it easier to observe carrier-thread pinning behavior.
-
-Browser dashboard:
-
-```bash
-open "http://localhost:8080/lab/io/ui"
-```
-
-This page runs a lightweight sequential benchmark from the browser and compares:
-- average latency
-- total elapsed time
-- requests per second
-- per-request latency samples
-- optional virtual-thread pinning mode
-
-## Expected XLSX format
-- First sheet only is parsed.
-- Row `0` is treated as header and skipped.
-- Data rows should contain:
-  - column 0: `col1` (required string)
-  - column 1: `col2` (required string)
-  - column 2: `col3Int` (integer)
-
-Rows with invalid required fields are not inserted and are counted in `validationErrorCount`.
-
-## Quick end-to-end verification
-1. Start app (`./gradlew bootRun`).
-2. Upload test file with `POST /ingest/excel`.
-3. Poll `GET /ingest/jobs/{jobId}` every second until status != `RUNNING`.
-4. Confirm:
-- `status` is `SUCCEEDED`
-- `insertedCount` matches expected valid rows
-- `validationErrorCount` matches expected invalid rows
-
-Polling example:
-
-```bash
-JOB_ID="<job-id>"
-while true; do
-  RESPONSE="$(curl -s "http://localhost:8080/ingest/jobs/$JOB_ID")"
-  echo "$RESPONSE"
-  echo "$RESPONSE" | rg -q '"status":"RUNNING"' || break
-  sleep 1
-done
-```
-
-## Generate a test XLSX file
-Use the helper script:
-
-```bash
-./scripts/create-test-xlsx.sh [output_path] [row_count]
-```
-
-Examples:
-
-```bash
-./scripts/create-test-xlsx.sh
-./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500
-```
-
-## Current limitations
-- Run evidence persists locally; ingestion rows and uploaded workbook bytes are not archived. A checksum identifies inputs but cannot recreate them.
-- Legacy job lists show at most the newest 100 runs; metric previews default to the latest 200 points. Use the paginated `/runs` API for full evidence.
-- Run storage is single-application local storage. Schema v1 is supported; unknown versions fail startup. Artifact registration/export APIs remain future work.
-- Implemented experiment families are Excel ingestion, queue contention, and IO endpoint comparison; other families in the architecture plan remain future work.
-- No authentication or authorization on endpoints.
-- No persistence of validation-error details beyond aggregated summary in status payload.
-- Some legacy names remain during the migration, especially the Spring Boot application class and the `pipeline.*` property prefix.
-
-### 선택적 명시적 Trace
-
-`--lab.trace.enabled=true --lab.trace.max-spans=1000`으로 전체 실행 및 IO 요청별 span을 기록한다(기본 OFF, 최대 10000개). `/runs/{id}/traces`와 NDJSON export에서 조회한다. Excel/큐 내부 단계 계측은 후속 과제다. 페이지 cursor 처리와 계측 비용·저장 상한은 [관측 가이드](docs/observability.md)를 참고한다.
-
-### 선택적 JFR 수집
-
-`--lab.jfr.enabled=true`로 CPU load·GC·GC heap summary를 녹화한다(기본 OFF, 60초, 최종 파일 최대 16 MiB). `.lab/jfr/` 파일과 checksum을 Run artifact로 자동 등록한다. 프로세스 전체 관측이며 저장 상한·외부 녹화 간섭·보관 및 비용 측정은 [관측 가이드](docs/observability.md)를 참고한다. 원문 서버 로그 수집은 아직 미지원이다.
-
-### 선택적 Run 로그
-
-`--lab.logs.enabled=true`로 실행 시작·결과·관측/저장 실패를 NDJSON artifact에 기록한다(기본 OFF, 최대 100개 이벤트/64 KiB). 고정 이벤트와 사유 코드만 기록하며 예외 메시지·입력 데이터는 포함하지 않는다. 파일 위치와 완료 경계, 누락 집계·보관 정책은 [관측 가이드](docs/observability.md)를 참고한다.
-
-### 관측 파일 다운로드
-
-`/runs/ui` 상세의 Artifacts에서 Download JFR/Download log를 선택한다. 종료 Run의 JFR·로그는 `GET /runs/{runId}/artifacts/{artifactId}/download`로 받는다. 등록된 크기와 SHA-256을 먼저 검증하며, 기본 상한은 파일당 256 MiB·동시 2개다. 관리 경로 제한과 설정/오류 응답은 [증거 가이드](docs/run-evidence.md)를 참고한다.
-
-## Pipeline throughput and heap benchmark
-
-Run `./gradlew pipelineBenchmark` to compare the Excel modes in isolated 128 MiB JVMs, including durable dead letters. See the [measurement guide](docs/pipeline-benchmark.md) and [measured Finding with Run evidence](docs/findings/2026-10-04-pipeline-throughput-heap.md) for conditions, raw results, and limitations. The full test suite includes a controlled storage-latency comparison; it does not assert a speedup for every database.
+전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 현재 134개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
+
+기여·Codex 작업 규칙은 [AGENTS.md](AGENTS.md), 코드 위치와 검증 방법은 [docs/codex.md](docs/codex.md)를 따릅니다. 작업 단위마다 전체 `./gradlew test`, diff 검토 후 `<type>(<scope>): <영문 요약>` 형식으로 커밋합니다. 사용자 변경을 보존하고 요청 없이 push하지 않습니다.
+
+## 지원 범위와 제한
+
+- 로컬 단일 애플리케이션 소유의 H2 evidence 저장소입니다. 동일 저장 경로를 여러 앱이 동시에 열 수 없습니다.
+- 인증·권한·멀티테넌트·공개 서비스 배포 구성이 없습니다.
+- 선언적 시나리오는 `SINGLE_PASS`만 지원합니다. 반복·warmup 비교는 별도 benchmark의 기능입니다.
+- legacy 작업 목록은 최신 100개, metric은 제한된 preview입니다. 전체 증거는 `/runs` 페이지 API·export를 사용합니다.
+- 불확실한 커밋의 재처리, 강제 프로세스 종료 후 큐 복구, Run 간 중복 제거를 보장하지 않습니다.
+- 외부 DB/Redis/Kafka 실험, 원문 로그 수집, 자동 보관·삭제, Java Agent는 선택 확장 과제입니다.
+
+## 문서
+
+| 문서 | 내용 |
+| --- | --- |
+| [문서 안내](docs/README.md) | 목적별 읽는 순서 |
+| [사용 가이드](docs/user-guide.md) | 실제 화면 캡처와 단계별 사용법 |
+| [API 참조](docs/api-reference.md) | 경로, 요청 예제, 응답·상태·페이지 규칙 |
+| [운영·문제 해결](docs/operations.md) | 실행, 백업·복원, 종료, 흔한 오류 |
+| [시나리오](docs/scenarios.md) | 정의 schema, CLI, 입력 hash |
+| [저장](docs/run-storage.md) / [증거](docs/run-evidence.md) | 영속성·dead-letter·export·artifact |
+| [관측](docs/observability.md) | JVM·Trace·JFR·로그 계약 |
+| [설계](docs/experiment-platform-design.md) / [계획](docs/implementation-plan.md) | 구현 방향·완료 범위·후속 확장 |
+| [Findings](docs/findings/README.md) | 측정 결과와 해석, 작성 템플릿 |
