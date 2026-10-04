@@ -38,6 +38,11 @@ public final class MetricCatalog {
         add(map, "executors", "run", "shutdown.unfinishedExecutors");
         add(map, "threads", "process", "jvm.threads.platformLive");
         add(map, "collections", "process", "jvm.gc.collectionCount");
+        for (var definition : com.pnomeer.lab.registry.ExperimentCatalog.load().metrics()) {
+            if (map.putIfAbsent(definition.name(), definition) != null) {
+                throw new IllegalArgumentException("Module overrides an existing metric: " + definition.name());
+            }
+        }
         return Collections.unmodifiableMap(map);
     }
     private static Definition definition(String name, String unit, String scope) {

@@ -29,9 +29,13 @@
 | `com/pnomeer/pipeline/tools/` | 테스트 XLSX 생성 도구 |
 
 - 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
-- `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 `ExperimentDescriptors`와 [시나리오 가이드](scenarios.md)를 함께 수정한다.
+- `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 각 실험의 `*ExperimentModule`과 [시나리오 가이드](scenarios.md)를 함께 수정한다.
 - ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`과 additive `schema-v2.sql`이며 v1→v2 이행을 지원한다. 추가 변경도 명시적인 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
+
+## 실험 확장
+
+[실험 추가 가이드](adding-experiments.md)를 따른다. 모듈별 `ExperimentModule` SPI가 schema/metric을 제공하고 `*RegistrationConfiguration`이 실행 factory bean을 등록한다. 공통 registry와 CLI에 실험별 분기를 추가하지 않는다. `GET /modules`로 내장 모듈 소유 관계를 조회한다.
 
 ## 다음 구조 변경
 

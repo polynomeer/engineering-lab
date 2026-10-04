@@ -23,6 +23,8 @@ Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니
 Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
 [단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, 현재 연동은 구현 전입니다.
 
+새 실험을 추가할 때는 [모듈 확장 가이드](docs/adding-experiments.md)를 따릅니다. 기존 세 실험도 모듈별 정의·등록 구조를 사용합니다.
+
 ## 목차
 
 - [제공하는 실험과 기능](#제공하는-실험과-기능)

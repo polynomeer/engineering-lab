@@ -1,7 +1,7 @@
 package com.pnomeer.lab.cli;
 
 import com.pnomeer.lab.scenario.*;
-import com.pnomeer.lab.registry.ExperimentDescriptors;
+import com.pnomeer.lab.registry.ExperimentCatalog;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.*;
@@ -33,7 +33,7 @@ public final class LabCli {
             if (!options.command.equals("list")) {
                 Path path = options.file.toRealPath();
                 try (var stream = Files.newInputStream(path)) { definition = documents.read(stream, ScenarioDocuments.format(path.toString())); }
-                ExperimentDescriptors.get(definition.experiment()).validate(definition);
+                ExperimentCatalog.load().get(definition.experiment()).validate(definition);
                 if (definition.input() != null) input = verifyInput(path.getParent(), definition.input());
                 if (options.command.equals("validate")) {
                     out.println(JSON.writeValueAsString(Map.of("valid", true, "experiment", definition.experiment(),

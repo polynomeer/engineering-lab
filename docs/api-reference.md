@@ -8,6 +8,7 @@
 
 | Method | 경로 | 용도 |
 | --- | --- | --- |
+| GET | `/modules` | 등록된 모듈의 id/title/collection과 소유 실험 descriptor 목록 |
 | GET | `/experiments` | 실험 ID·입력 종류·파라미터 schema |
 | GET | `/experiments/{experimentId}` | 특정 실험 schema |
 | GET | `/metrics/schema` | 단위·범위·집계 의미 catalog |

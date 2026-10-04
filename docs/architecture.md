@@ -13,6 +13,16 @@ and runtime dependencies from affecting the platform. They are repository module
 not Git submodules, and are not registered in the platform Run registry.
 See [Career Lab](../career-lab/README.md) for execution and recovery provenance.
 
+## Implemented experiment extension boundary
+
+Built-in experiment packages own their `ExperimentModule` metadata providers and
+Spring registration configurations. A shared ServiceLoader catalog serves server
+and offline CLI validation; startup verifies runtime bindings against that catalog.
+`GET /modules` exposes ownership without changing existing experiment IDs or APIs.
+New module metrics extend the catalog without replacing existing definitions.
+See [the extension guide](adding-experiments.md). This is package-level modularity;
+the frontend and external worker integration remain planned work.
+
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
 

@@ -18,6 +18,7 @@
 | JVM·Trace·JFR·로그의 범위와 비용 | [관측](observability.md) |
 | 처리량·제한 힙 실험 재현 | [Pipeline benchmark](pipeline-benchmark.md) |
 | 실제 측정값과 원본 증거 | [Pipeline Finding](findings/2026-10-04-pipeline-throughput-heap.md) |
+| 새 실험·모듈 추가 | [확장 가이드](adding-experiments.md) |
 | 독립 프론트엔드·Career Lab 연동 (설계안) | [통합 설계](dashboard-integration-design.md), [이행 계획](dashboard-integration-plan.md) |
 | 기능 경계·실행 모델 설계 | [플랫폼 설계](experiment-platform-design.md) |
 | 완료 항목과 선택 확장 | [작업계획](implementation-plan.md) |

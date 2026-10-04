@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ScenarioApiIntegrationTest {
     @Autowired ScenarioRunController controller;
     @Autowired ExperimentCatalogController catalog;
+    @Autowired ModuleCatalogController modules;
     @Autowired RunStore store;
     @Autowired IngestionService ingestion;
     private MockMvc mvc;
@@ -34,7 +35,14 @@ class ScenarioApiIntegrationTest {
             "measurement":{"mode":"SINGLE_PASS"}}
             """;
     @BeforeEach void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(controller, catalog).setControllerAdvice(new ScenarioExceptionHandler()).build();
+        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules).setControllerAdvice(new ScenarioExceptionHandler()).build();
+    }
+    @Test void exposesModuleOwnershipWithoutChangingExperimentIds() throws Exception {
+        mvc.perform(get("/modules")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].module.id").value("concurrency"))
+                .andExpect(jsonPath("$[0].module.collection").value("engineering"))
+                .andExpect(jsonPath("$[0].experiments[0].id").value("concurrency.queue-contention"));
     }
     @Test void listsSchemasAndPersistsRepeatableDefinitions() throws Exception {
         mvc.perform(get("/experiments")).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(3));
