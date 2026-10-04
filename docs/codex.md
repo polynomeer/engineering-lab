@@ -28,7 +28,7 @@ Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접�
 
 - 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 별도 Node 빌드가 없으므로 UI 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
 - `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 `ExperimentDescriptors`와 [시나리오 가이드](scenarios.md)를 함께 수정한다.
-- ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`이며 별도 버전 전환이 필요하다.
+- ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`과 additive `schema-v2.sql`이며 v1→v2 이행을 지원한다. 추가 변경도 명시적인 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
 
 ## 실행 흐름
@@ -85,7 +85,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 아래는 이 가이드를 작성하며 확인한 차이다. 관련 기능을 구현하면 이 목록도 갱신한다. 별도 요청 없이 이 목록 전체를 구현하는 것으로 작업 범위를 확대하지 않는다.
 
 - insert chunk는 크기·시간·종료 조건으로 flush된다. 시간 기본값은 1000 ms이며 SINGLE_THREAD는 행 callback에서만 기한을 확인한다. insert는 batch 본문의 일시적 오류를 성공적으로 롤백한 경우 제한된 지수 backoff로 재시도한다(기본 총 3회, 100 ms 시작, 60000 ms 상한). 커밋·롤백 오류는 재시도하지 않는다. 별도 Run/불확실한 커밋의 재실행 멱등성은 보장하지 않는다.
-- 검증 오류는 행 문맥을 가진 메모리 컬렉션에 모이며 API에는 집계가 노출된다. 영속 dead-letter 출력은 아직 없다.
+- 앱 Run의 검증 오류는 evidence DB의 dead-letter로 즉시 영속화되며 종료 Run의 `/runs/{runId}/dead-letters`에서 행 문맥을 페이지 조회한다. 행당 64 KiB 초과·저장 실패는 Run 실패다. 직접/local 실행은 기존 메모리 수집만 수행하며, 앱도 기존 오류 컬렉션은 아직 유지한다.
 - 단계 사이 큐는 bounded지만 업로드 파일은 `byte[]`로 읽고, 검증 오류도 메모리에 누적된다. 앱의 실행 이력은 영속화했고 metric writer와 preview는 bounded이다. 전체 경로의 bounded memory가 보장된 상태는 아니다.
 - 정상 종료 신호와 partial chunk flush는 존재한다. worker 실패 시 채널을 중단해 대기자를 해제하며 실패를 전파한다. 실패·중단 경로까지 queue drain과 데이터 보존이 보장되는지는 별도 검증이 필요하다.
 - pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. 전체 Excel ingestion의 heap/throughput 비교 테스트는 여전히 별도 과제다.

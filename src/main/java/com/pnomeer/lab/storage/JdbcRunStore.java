@@ -68,14 +68,42 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
                     "select count(*) > 0 from information_schema.tables where table_name='LAB_SCHEMA'", Boolean.class));
             if (exists) {
                 Integer version = jdbc.queryForObject("select version from lab_schema where id=1", Integer.class);
-                if (version == null || version != 1) throw new IllegalStateException("Unsupported lab schema version: " + version);
+                if (version == null || (version != 1 && version != 2)) throw new IllegalStateException("Unsupported lab schema version: " + version);
             }
-            new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v1.sql")).execute(dataSource);
+            new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v1.sql"), new ClassPathResource("lab/schema-v2.sql")).execute(dataSource);
         } catch (RuntimeException ex) {
             dataSource.close();
             releaseOwnership();
             throw ex;
         }
+    }
+
+    @Override
+    public void appendDeadLetter(String id, DeadLetter row) {
+        String encoded = encode(row);
+        if (encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > DeadLetter.MAX_BYTES) {
+            throw new IllegalArgumentException("Dead-letter row exceeds 64 KiB");
+        }
+        transactions.executeWithoutResult(tx -> {
+            var states = jdbc.queryForList("select status from lab_run where run_id=? for update", String.class, id);
+            if (states.size() != 1 || !"RUNNING".equals(states.getFirst())) {
+                throw new IllegalStateException("Dead letters require a running Run");
+            }
+            var existing = jdbc.queryForList("select record_json from lab_dead_letter where run_id=? and row_index=?", String.class, id, row.rowIndex());
+            if (!existing.isEmpty()) {
+                if (!existing.getFirst().equals(encoded)) throw new IllegalStateException("Conflicting dead-letter row");
+                return;
+            }
+            jdbc.update("insert into lab_dead_letter(run_id,row_index,record_json) values(?,?,?)", id, row.rowIndex(), encoded);
+        });
+    }
+
+    @Override
+    public List<DeadLetter> deadLetters(String id, int afterRow, int limit) {
+        checkLimit(limit);
+        if (afterRow < -1 || limit > DeadLetter.MAX_PAGE) throw new IllegalArgumentException("Invalid dead-letter page");
+        return jdbc.query("select record_json from lab_dead_letter where run_id=? and row_index>? order by row_index limit ?",
+                (row, n) -> json.readValue(row.getString(1), DeadLetter.class), id, afterRow, limit);
     }
 
     @Override

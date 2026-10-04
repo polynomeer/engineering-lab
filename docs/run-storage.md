@@ -62,3 +62,17 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 ## 테스트
 
 `./gradlew test`는 저장소 재개방과 스키마/소유권 검사, 실제 앱 재시작, 제출 거부, 저장 실패, 크기·시간·종료 flush, backpressure, 재시도 sequence와 중복 방지, timeout, preview/page 제한, 제어된 성능 비교를 포함한다. 테스트 앱은 임시 저장 경로를 사용하며 실제 `.lab/`을 변경하지 않는다.
+
+## Validation dead-letter 저장과 조회
+
+현재 evidence 스키마는 v2다. 기존 v1은 전용 소유권 잠금 아래 `lab_dead_letter` 테이블을 추가한 뒤 버전을 갱신한다. 기존 Run/metric/artifact는 유지한다. DDL과 버전 변경 사이에 중단되어도 다시 시작할 수 있게 이행은 반복 가능하다. 알 수 없는 버전은 변경 전에 거부한다. v2 DB를 이전 앱 버전으로 열 수 없으므로 다운그레이드 전에는 정지 상태의 저장 디렉터리 백업을 사용한다.
+
+앱에서 실행하는 Excel의 검증 실패 행은 동기적으로 즉시 저장된다. 신규 Run metadata의 `evidence.dead-letter.mode=DATABASE_V1`과 `evidence.dead-letter.maxRecordBytes=65536`으로 저장 계약을 구분한다. 이전 Run이나 직접 사용하는 LocalExperimentRunner에는 과거 실패 행을 소급 생성하지 않는다.
+
+`GET /runs/{runId}/dead-letters?after=-1&limit=100`은 `{runId, rows, nextAfter}`를 반환한다. 각 행은 `rowIndex`, `stage=validation`, `reason`, `cells`를 포함한다. rowIndex는 첫 시트의 0 기반 인덱스이므로 Excel 표시 행 번호는 +1이다. 헤더인 0번 행은 수집 대상이 아니다. 셀은 파서가 읽은 문자열이며 수식·스타일·원본 XLSX 자체를 복제하지 않는다.
+
+다음 요청은 `after=<nextAfter>`로 조회한다. 행 번호 오름차순, 배타적 cursor이며 null이면 끝이다. limit은 1부터 `min(lab.storage.page-limit, 100)`, 기본값도 이 상한이다. 병렬 검증의 순서 차이로 누락되지 않도록 QUEUED/RUNNING Run은 409, 잘못된 크기/경계는 400, 없는 Run은 404다. 실패·중단 Run에서도 이미 저장된 행은 조회할 수 있다. 기존 버전의 빈 목록은 검증 오류가 없었다는 증거가 아니다.
+
+행 하나의 UTF-8 JSON은 최대 64 KiB, 셀 수는 최대 16384이며 직렬화 전 문자 수에도 상한을 둔다. 초과하거나 저장이 실패하면 내용을 자르거나 버리지 않고 Run을 실패 처리한다. 저장 확인 전의 행과 실패 중 큐에 남은 행까지 보존하는 기능은 아니다. insert 오류의 원본 행 출력·재처리, 보관 기간/용량 관리도 후속 범위다.
+
+실패 행의 실제 셀 내용이 저장되므로 `.lab/`과 API 접근은 원본 입력과 같은 수준으로 관리한다. 자동 마스킹은 하지 않는다. 로그에는 job_id·stage·reason·row_index만 남긴다. 기존 validation 오류 컬렉션과 업로드 byte[]는 아직 메모리에 누적되며 전체 bounded memory 보장은 다음 작업이다.

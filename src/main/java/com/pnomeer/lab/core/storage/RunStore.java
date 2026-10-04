@@ -18,6 +18,12 @@ public interface RunStore {
     List<StoredMetric> recentMetrics(String runId, int limit);
     /** Newest first, exclusive cursor for bounded backwards scans. */
     List<StoredMetric> metricsBefore(String runId, long beforeSequence, int limit);
+    default void appendDeadLetter(String runId, com.pnomeer.lab.core.DeadLetter row) {
+        throw new UnsupportedOperationException("Dead-letter persistence unavailable");
+    }
+    default List<com.pnomeer.lab.core.DeadLetter> deadLetters(String runId, int afterRow, int limit) {
+        throw new UnsupportedOperationException("Dead-letter persistence unavailable");
+    }
     int recoverInterrupted();
     List<ArtifactReference> artifacts(String runId);
     void registerArtifact(ArtifactReference reference);

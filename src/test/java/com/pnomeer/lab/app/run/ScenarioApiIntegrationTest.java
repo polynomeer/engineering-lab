@@ -65,6 +65,7 @@ class ScenarioApiIntegrationTest {
         try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(); var out = new ByteArrayOutputStream()) {
             var sheet = workbook.createSheet(); sheet.createRow(0).createCell(0).setCellValue("header");
             var row = sheet.createRow(1); row.createCell(0).setCellValue("a"); row.createCell(1).setCellValue("b"); row.createCell(2).setCellValue("1");
+            var invalid = sheet.createRow(2); invalid.createCell(0).setCellValue("a"); invalid.createCell(1).setCellValue(""); invalid.createCell(2).setCellValue("2");
             workbook.write(out); bytes = out.toByteArray();
         }
         String definition = """
@@ -87,6 +88,8 @@ class ScenarioApiIntegrationTest {
         assertEquals("2", run.runMetadata().parameters().get("pipeline.insert.max-attempts"));
         assertEquals("7", run.runMetadata().parameters().get("pipeline.insert.retry-backoff-ms"));
         assertEquals(1, ingestion.getJob(id).getInsertedCount());
+        assertEquals(1, store.deadLetters(id, -1, 100).size());
+        assertEquals("col2 is required", store.deadLetters(id, -1, 100).getFirst().reason());
         assertEquals(com.pnomeer.lab.experiments.pipeline.PipelineRunner.RunMode.SINGLE_THREAD, ingestion.getJob(id).getRunMode());
         int before = store.list(null, Long.MAX_VALUE, 500).size();
         mvc.perform(multipart("/runs").file(document).file(new MockMultipartFile("file", new byte[]{1})))

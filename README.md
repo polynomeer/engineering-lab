@@ -123,6 +123,8 @@ In PIPELINE mode, each insert worker flushes on size, elapsed time since accepti
 
 Each batch uses its own transaction. Only transient data-access failures inside the batch body are retried after a successful rollback, so partial writes cannot accumulate across these attempts. Permanent errors and uncertain commit/rollback failures are propagated without replay. This does not deduplicate separate runs or recover an uncertain commit. Successful run summaries include `retry.count`; in-progress metrics use the same counter. Exhausted insert workers abort the channels to release blocked producers/consumers; this is fail-fast termination, not durable queue drain or resumable ingestion.
 
+Validation failures from app-managed Excel runs are persisted with their row index, reason and cell strings in the evidence DB. After a Run terminates, page through `/runs/{runId}/dead-letters?after=-1&limit=100`. Storage failures or records above 64 KiB fail the Run; stored rows remain available after restart. See [storage and dead-letter behavior](docs/run-storage.md). The existing in-memory error collection remains until the memory-bound work is completed.
+
 ## Run locally
 1. Run tests first:
 

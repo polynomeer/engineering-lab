@@ -37,10 +37,22 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
     @Override
     public ExperimentSummary execute(PipelineExperimentScenario scenario, Consumer<MetricPoint> timelineListener)
             throws Exception {
+        return executeWithDeadLetters(scenario, timelineListener, error -> { });
+    }
+
+    @Override
+    public ExperimentSummary execute(PipelineExperimentScenario scenario, Consumer<MetricPoint> timelineListener,
+            com.pnomeer.lab.core.TraceRecorder trace, String parentSpanId, com.pnomeer.lab.core.ExecutionEvidence evidence) throws Exception {
+        return executeWithDeadLetters(scenario, timelineListener, error -> evidence.deadLetters().accept(
+                new com.pnomeer.lab.core.DeadLetter(error.getRowIndex(), "validation", error.getReason(), error.getRawSnapshot().getCells())));
+    }
+
+    private ExperimentSummary executeWithDeadLetters(PipelineExperimentScenario scenario, Consumer<MetricPoint> timelineListener,
+            Consumer<ValidationError> deadLetters) throws Exception {
         PipelineRunner.PipelineRunResult result = pipelineRunner.run(
                 new ByteArrayInputStream(scenario.payload()),
                 scenario.runMode(),
-                progressSnapshot -> publishProgress(scenario, timelineListener, progressSnapshot));
+                progressSnapshot -> publishProgress(scenario, timelineListener, progressSnapshot), deadLetters);
         scenario.capture().setRunResult(result);
         return toSummary(result);
     }

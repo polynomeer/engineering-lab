@@ -108,13 +108,20 @@ public class PipelineRunner {
             RunMode runMode,
             Consumer<ExecutionMetricsSnapshot> progressListener)
             throws InterruptedException, IOException {
-        if (runMode == RunMode.SINGLE_THREAD) {
-            return runSingleThread(excelInputStream, progressListener);
-        }
-        return runPipelined(excelInputStream, progressListener);
+        return run(excelInputStream, runMode, progressListener, error -> { });
     }
 
-    private PipelineRunResult runPipelined(InputStream excelInputStream, Consumer<ExecutionMetricsSnapshot> progressListener)
+    public PipelineRunResult run(InputStream excelInputStream, RunMode runMode,
+            Consumer<ExecutionMetricsSnapshot> progressListener, Consumer<ValidationError> deadLetters)
+            throws InterruptedException, IOException {
+        java.util.Objects.requireNonNull(deadLetters);
+        if (runMode == RunMode.SINGLE_THREAD) {
+            return runSingleThread(excelInputStream, progressListener, deadLetters);
+        }
+        return runPipelined(excelInputStream, progressListener, deadLetters);
+    }
+
+    private PipelineRunResult runPipelined(InputStream excelInputStream, Consumer<ExecutionMetricsSnapshot> progressListener, Consumer<ValidationError> deadLetters)
             throws InterruptedException, IOException {
         long startNanos = System.nanoTime();
         BoundedChannel<Envelope<RawRow>> rawChannel =
@@ -157,6 +164,7 @@ public class PipelineRunner {
                     rawChannel,
                     mappedChannel,
                     validationErrors,
+                    deadLetters,
                     mappedCount,
                     failedRowCount,
                     stageLatencyMetrics);
@@ -198,7 +206,7 @@ public class PipelineRunner {
 
     private PipelineRunResult runSingleThread(
             InputStream excelInputStream,
-            Consumer<ExecutionMetricsSnapshot> progressListener)
+            Consumer<ExecutionMetricsSnapshot> progressListener, Consumer<ValidationError> deadLetters)
             throws IOException, InterruptedException {
         long startNanos = System.nanoTime();
         int chunkSize = properties.getInsert().getChunkSize();
@@ -242,7 +250,7 @@ public class PipelineRunner {
             long validationStart = System.nanoTime();
             if (isBlank(col1)) {
                 stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
-                validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col1 is required", rawRow));
+                recordValidationError(validationErrors, deadLetters, new ValidationError(rawRow.getRowIndex(), "col1 is required", rawRow));
                 failedRowCount.incrementAndGet();
                 stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
@@ -265,7 +273,7 @@ public class PipelineRunner {
             }
             if (isBlank(col2)) {
                 stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
-                validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col2 is required", rawRow));
+                recordValidationError(validationErrors, deadLetters, new ValidationError(rawRow.getRowIndex(), "col2 is required", rawRow));
                 failedRowCount.incrementAndGet();
                 stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
@@ -292,7 +300,7 @@ public class PipelineRunner {
                 col3Int = Integer.parseInt(col3);
             } catch (NumberFormatException ex) {
                 stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
-                validationErrors.add(new ValidationError(rawRow.getRowIndex(), "col3 must be integer", rawRow));
+                recordValidationError(validationErrors, deadLetters, new ValidationError(rawRow.getRowIndex(), "col3 must be integer", rawRow));
                 failedRowCount.incrementAndGet();
                 stageLatencyMetrics.addParseNanos(System.nanoTime() - parseStart);
                 emitSingleThreadProgress(
@@ -378,6 +386,12 @@ public class PipelineRunner {
                 elapsedMillis);
     }
 
+    private static void recordValidationError(java.util.Collection<ValidationError> errors,
+            Consumer<ValidationError> sink, ValidationError error) {
+        sink.accept(error);
+        errors.add(error);
+    }
+
     private void produceFromExcel(
             InputStream excelInputStream,
             BoundedChannel<Envelope<RawRow>> rawChannel,
@@ -403,6 +417,7 @@ public class PipelineRunner {
             BoundedChannel<Envelope<RawRow>> rawChannel,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
             ConcurrentLinkedQueue<ValidationError> validationErrors,
+            Consumer<ValidationError> deadLetters,
             AtomicInteger mappedCount,
             AtomicInteger failedRowCount,
             StageLatencyMetrics stageLatencyMetrics) {
@@ -423,13 +438,13 @@ public class PipelineRunner {
                         long validationStart = System.nanoTime();
                         if (isBlank(col1)) {
                             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
-                            validationErrors.add(new ValidationError(row.getRowIndex(), "col1 is required", row));
+                            recordValidationError(validationErrors, deadLetters, new ValidationError(row.getRowIndex(), "col1 is required", row));
                             failedRowCount.incrementAndGet();
                             continue;
                         }
                         if (isBlank(col2)) {
                             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
-                            validationErrors.add(new ValidationError(row.getRowIndex(), "col2 is required", row));
+                            recordValidationError(validationErrors, deadLetters, new ValidationError(row.getRowIndex(), "col2 is required", row));
                             failedRowCount.incrementAndGet();
                             continue;
                         }
@@ -439,7 +454,7 @@ public class PipelineRunner {
                             col3Int = Integer.parseInt(col3);
                         } catch (NumberFormatException ex) {
                             stageLatencyMetrics.addValidationNanos(System.nanoTime() - validationStart);
-                            validationErrors.add(new ValidationError(row.getRowIndex(), "col3 must be integer", row));
+                            recordValidationError(validationErrors, deadLetters, new ValidationError(row.getRowIndex(), "col3 must be integer", row));
                             failedRowCount.incrementAndGet();
                             continue;
                         }

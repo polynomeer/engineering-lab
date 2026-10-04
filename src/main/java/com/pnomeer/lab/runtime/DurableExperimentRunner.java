@@ -78,6 +78,8 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
         }
         var parameters = new HashMap<>(experiment.parameters(scenario));
+        parameters.put("evidence.dead-letter.mode", "DATABASE_V1");
+        parameters.put("evidence.dead-letter.maxRecordBytes", String.valueOf(DeadLetter.MAX_BYTES));
         parameters.put("observation.schema.version", com.pnomeer.lab.metrics.MetricCatalog.VERSION);
         parameters.put("observation.jvm.mode", jvmProbe == null ? "OFF" : jvmIntervalMs == 0 ? "BOUNDARY" : "PERIODIC");
         parameters.put("observation.jvm.intervalMs", String.valueOf(jvmProbe == null ? 0 : jvmIntervalMs));
@@ -141,7 +143,13 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                         if (preview.size() == previewLimit) preview.removeFirst();
                         preview.addLast(point);
                     }
-                }, trace, rootSpan));
+                }, trace, rootSpan, new ExecutionEvidence(run.runId(), row -> {
+                    try { store.appendDeadLetter(run.runId(), row); }
+                    catch (RuntimeException ex) {
+                        log.error("job_id={} stage=dead-letter reason=persistence_failed row_index={}", run.runId(), row.rowIndex());
+                        throw new IllegalStateException("Dead-letter persistence failed", ex);
+                    }
+                })));
                 if (runLog != null) runLog.record(RunLogRecorder.Stage.EXECUTION, RunLogRecorder.Event.SUCCEEDED, RunLogRecorder.Reason.NONE);
             } catch (Exception | OutOfMemoryError ex) {
                 status = ex instanceof InterruptedException ? RunStatus.INTERRUPTED : RunStatus.FAILED;

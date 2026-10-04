@@ -44,6 +44,23 @@ public class RunController {
         var page = metrics(runId, after, limit);
         return new MetricPage(page.metrics().stream().filter(m -> "trace.span".equals(m.point().labels().get("source"))).toList(), page.nextAfter());
     }
+    @GetMapping("/{runId}/dead-letters")
+    public DeadLetterPage deadLetters(@PathVariable String runId, @RequestParam(defaultValue="-1") int after,
+            @RequestParam(required=false) Integer limit) {
+        var run = get(runId);
+        if (run.status() == RunStatus.QUEUED || run.status() == RunStatus.RUNNING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Dead-letter paging requires a terminal Run");
+        }
+        int size = limit == null ? Math.min(100, properties.pageLimit()) : limit;
+        validateLimit(size);
+        if (after < -1 || size > com.pnomeer.lab.core.DeadLetter.MAX_PAGE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid dead-letter page");
+        }
+        var rows = store.deadLetters(runId, after, size);
+        return new DeadLetterPage(runId, rows, rows.size() == size ? rows.getLast().rowIndex() : null);
+    }
+    public record DeadLetterPage(String runId, List<com.pnomeer.lab.core.DeadLetter> rows, Integer nextAfter) { }
+
     private void validateLimit(int limit) {
         if (limit < 1 || limit > properties.pageLimit()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid page limit");
     }
