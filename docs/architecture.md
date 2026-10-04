@@ -1,6 +1,6 @@
 # Architecture
 
-The next platform iteration is specified in [Experiment Platform v2](experiment-platform-design.md), with tracked work in [the implementation plan](implementation-plan.md). The layout below is the earlier architectural direction, not a list of existing Gradle modules.
+The implemented platform baseline is described in [Experiment Platform v2](experiment-platform-design.md), with completed work in [the implementation plan](implementation-plan.md). The proposed next iteration is [Shared Dashboard and Career Integration](dashboard-integration-design.md), tracked in [its migration plan](dashboard-integration-plan.md); it is not implemented yet. The layout below is the earlier architectural direction, not a list of existing Gradle modules.
 
 ## Current repository build boundaries
 

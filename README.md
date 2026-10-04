@@ -20,6 +20,8 @@
 Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니다.
 [모듈별 사용법과 빌드 경계](career-lab/README.md)를 참고하세요.
 아래 빠른 시작과 화면 설명은 루트 실험 플랫폼을 대상으로 합니다.
+Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
+[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, 현재 연동은 구현 전입니다.
 
 ## 목차
 

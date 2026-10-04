@@ -56,7 +56,8 @@ Windows에서는 JDK 21을 설정하고 `career-lab\gradlew.bat -p career-lab te
 
 이 모듈들은 루트 앱의 Run UI/registry에 등록된 실험이 아니며, 각각 테스트로 실행합니다.
 모듈 간 소스·의존성을 임의로 합치거나 Boot 버전을 일괄 변경하지 않습니다.
-공통 Run UI로 연결하는 작업은 별도 어댑터 설계가 필요합니다.
+공통 Run UI 연결은 [독립 대시보드·실행 어댑터 설계](../docs/dashboard-integration-design.md)와
+[이행 계획](../docs/dashboard-integration-plan.md)에 정의했으며, 아직 구현 전입니다.
 
 ## 복구 출처
 

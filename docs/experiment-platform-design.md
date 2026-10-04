@@ -4,7 +4,7 @@
 
 Engineering Lab은 문제 재현 → 가설 → 통제된 실행 → 관측 → 비교 → 해석의 증거를 보존하는 개인 실험 플랫폼으로 발전한다. 사용자가 제공한 `engineering-lab-plan.md`를 방향 제안으로 검토하고 실제 코드에 맞게 조정했다. 문서 속 실험 수치·결론은 측정 결과로 취급하지 않는다.
 
-현재 저장소는 Java 25 / Spring Boot 4 단일 Gradle 프로젝트이며 `career-lab`, `engineering-experiments` 하위 프로젝트는 없다. 공통 Experiment/Scenario/Result/MetricPoint 계약, 세 실험군, 작업 API와 비교 UI는 이미 존재한다. 당장은 패키지 구조와 기존 URL을 유지하고, 실행 데이터의 재현성과 영속성을 먼저 높인다.
+이 v2 설계의 최초 기준은 Java 25 / Spring Boot 4 단일 Gradle 프로젝트였다. 현재는 루트 플랫폼과 복구된 `career-lab/` 독립 빌드의 다섯 모듈이 공존한다. 이 문서의 v2 구현 경계를 유지하면서, 다음 구조 변경은 [공통 대시보드 연동 설계](dashboard-integration-design.md)와 [이행 계획](dashboard-integration-plan.md)을 따른다. 공통 Experiment/Scenario/Result/MetricPoint 계약, 세 실험군, 작업 API와 비교 UI는 이미 존재한다. 당장은 패키지 구조와 기존 URL을 유지하고, 실행 데이터의 재현성과 영속성을 먼저 높인다.
 
 ## 도메인과 경계
 

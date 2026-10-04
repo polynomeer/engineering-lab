@@ -33,6 +33,10 @@
 - ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`과 additive `schema-v2.sql`이며 v1→v2 이행을 지원한다. 추가 변경도 명시적인 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
 
+## 다음 구조 변경
+
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 현재는 문서만 작성된 상태다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+
 ## 실행 흐름
 
 - Excel: `IngestionController` → `IngestionService` → `DurableExperimentRunner` → `PipelineExperiment` → `PipelineRunner`.
