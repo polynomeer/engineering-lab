@@ -16,6 +16,8 @@ import {
   type Comparison,
 } from './api';
 import './style.css';
+import { ExecutionPage } from './ExecutionForm';
+import { comparisonCsv, download } from './execution';
 import { Table, Raw, Badge, Actions, format } from './components';
 const route = parseRoute(location.pathname, location.search);
 const runLink = (id: string) => '/app/runs/' + encodeURIComponent(id);
@@ -154,6 +156,9 @@ function App() {
           ENGINEERING LAB<span>실험의 결과를, 검증 가능한 증거로.</span>
         </a>
         <nav aria-label="주 탐색">
+          <a href="/app/experiments" aria-current={route.kind === 'execute' ? 'page' : undefined}>
+            실험 실행
+          </a>
           <a href="/app/runs" aria-current={route.kind === 'list' ? 'page' : undefined}>
             실행 기록
           </a>
@@ -179,7 +184,7 @@ function App() {
                 <a
                   key={item.id}
                   aria-current={route.query.get('experiment') === item.id ? 'page' : undefined}
-                  href={'/app/runs?experiment=' + encodeURIComponent(item.id)}
+                  href={'/app/experiments?experiment=' + encodeURIComponent(item.id)}
                 >
                   {item.title}
                 </a>
@@ -193,28 +198,37 @@ function App() {
             <div>
               <p className="eyebrow">RUN EVIDENCE</p>
               <h1>
-                {route.kind === 'detail'
-                  ? '실행 상세'
-                  : route.kind === 'compare'
-                    ? '실행 비교'
-                    : route.kind === 'missing'
-                      ? '페이지를 찾을 수 없습니다'
-                      : '실행 기록'}
+                {route.kind === 'execute'
+                  ? '실험 실행'
+                  : route.kind === 'detail'
+                    ? '실행 상세'
+                    : route.kind === 'compare'
+                      ? '실행 비교'
+                      : route.kind === 'missing'
+                        ? '페이지를 찾을 수 없습니다'
+                        : '실행 기록'}
               </h1>
             </div>
             <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
               새로고침
             </button>
           </div>
-          {legacy && <p className="note">기존 API 호환 모드 · 저장된 실행 증거를 조회합니다.</p>}
+          {legacy && <p className="note">기존 API 호환 모드 · 공통 실행·조회 API를 사용합니다.</p>}
           <p role="status" className="status">
-            {loading ? '증거를 불러오는 중…' : '저장소에서 조회한 실행 증거'}
+            {loading
+              ? '불러오는 중…'
+              : route.kind === 'execute'
+                ? '서버에 등록된 실험과 입력 범위'
+                : '저장소에서 조회한 실행 증거'}
           </p>
           {(error || bootstrapError) && (
             <div role="alert" className="error">
               {error || bootstrapError}{' '}
               <button onClick={() => setRefresh((n) => n + 1)}>다시 시도</button>
             </div>
+          )}
+          {route.kind === 'execute' && (
+            <ExecutionPage catalog={catalog} experiment={route.query.get('experiment')} />
           )}
           {route.kind === 'missing' && <a href="/app/runs">실행 기록으로 돌아가기</a>}
           {route.kind === 'list' && (
@@ -235,7 +249,7 @@ function App() {
               />
               {!loading && !error && !page.runs.length && (
                 <p>
-                  이 페이지에 저장된 실행이 없습니다. 기존 실행 화면이나 CLI에서 실험을 실행하세요.
+                  이 페이지에 저장된 실행이 없습니다. 실험 실행 화면이나 CLI에서 실험을 실행하세요.
                 </p>
               )}
               <div className="actions">
@@ -378,6 +392,28 @@ function App() {
                     ))}
                   </ul>
                   <div className="actions">
+                    <button
+                      onClick={() =>
+                        download(
+                          'run-comparison.csv',
+                          comparisonCsv(comparison),
+                          'text/csv;charset=utf-8',
+                        )
+                      }
+                    >
+                      비교 요약 CSV
+                    </button>
+                    <button
+                      onClick={() =>
+                        download(
+                          'run-comparison.json',
+                          JSON.stringify(comparison, null, 2),
+                          'application/json',
+                        )
+                      }
+                    >
+                      비교 JSON
+                    </button>
                     <a href={runLink(comparison.baseline.runId)}>기준 실행 상세</a>
                     <a href={runLink(comparison.candidate.runId)}>비교 실행 상세</a>
                   </div>

@@ -23,7 +23,19 @@ export type Descriptor = {
   id: string;
   title: string;
   category: string;
-  parameters: Record<string, unknown>;
+  input: string;
+  measurementModes: string[];
+  parameters: Record<
+    string,
+    {
+      type: string;
+      minimum: number | null;
+      maximum: number | null;
+      values: string[];
+      unit: string | null;
+      defaultValue: number | null;
+    }
+  >;
 };
 export type Module = {
   module: { id: string; title: string; collection: string };
@@ -109,6 +121,7 @@ export function parseRoute(path: string, search: string) {
   const query = new URLSearchParams(search);
   if (path === '/app' || path === '/app/' || path === '/app/runs')
     return { kind: 'list' as const, query };
+  if (path === '/app/experiments') return { kind: 'execute' as const, query };
   if (path === '/app/compare') return { kind: 'compare' as const, query };
   const match = /^\/app\/runs\/([^/]+)$/.exec(path);
   if (match) {

@@ -41,7 +41,7 @@ Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 
 
 CLI `validate`/`run`의 로컬 검증도 같은 provider를 사용한다. CLI 배포물에 없는 실험은 unknown으로 거부하므로 서버와 같은 module metadata를 포함한 배포물을 사용한다. 런타임에 임의 서버의 schema를 받아 신뢰하는 기능은 아직 없다.
 
-새 실험은 `POST /runs`와 CLI로 실행할 수 있다. 기존 `/experiments/ui`의 큐/IO 전용 폼은 호환 화면이며 자동 폼 생성 UI가 아니다. 새 실험의 폼·결과 패널 자동 선택은 [독립 대시보드 설계](dashboard-integration-design.md)의 후속 구현이다.
+새 실험은 `POST /runs`와 CLI로 실행할 수 있다. 기존 `/experiments/ui`의 큐/IO 전용 폼은 호환 화면이며 자동 폼 생성 UI가 아니다. 독립 대시보드 `/app/experiments`는 input=NONE, measurementModes에 SINGLE_PASS, 정수/boolean/선택형 string 파라미터를 가진 새 실험의 폼을 자동 생성한다. 파일 업로드와 도메인 결과 패널은 [독립 대시보드 설계](dashboard-integration-design.md)의 후속 구현이다.
 
 현재 input 종류는 NONE / XLSX_UPLOAD, 측정 방식은 SINGLE_PASS다. 새 파일 형식·측정 방식·executor를 추가할 때는 업로드 상한·검증·수명·CLI·화면 계약도 함께 확장한다. 등록 provider 하나로 모든 새로운 실행 환경을 자동 지원하는 것은 아니다.
 
