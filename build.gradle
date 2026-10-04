@@ -33,6 +33,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'lab.benchmark.classpath', sourceSets.test.runtimeClasspath.asPath
 }
 
 tasks.register('generateTestXlsx', JavaExec) {
@@ -75,4 +76,13 @@ tasks.register('lab', JavaExec) {
     description = 'Validate or submit a JSON/YAML scenario to a running lab server. Use --args="run FILE --wait".'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.pnomeer.lab.cli.LabCli'
+}
+
+
+tasks.register('pipelineBenchmark', JavaExec) {
+    group = 'verification'
+    description = 'Compare Excel modes in isolated 128 MiB JVMs and retain Run evidence.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.pnomeer.lab.experiments.pipeline.benchmark.PipelineBenchmark'
 }
