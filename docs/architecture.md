@@ -2,6 +2,17 @@
 
 The next platform iteration is specified in [Experiment Platform v2](experiment-platform-design.md), with tracked work in [the implementation plan](implementation-plan.md). The layout below is the earlier architectural direction, not a list of existing Gradle modules.
 
+## Current repository build boundaries
+
+The root platform remains a Java 25 / Spring Boot 4 / Gradle 9.3.1 application.
+`career-lab/` is an independent Gradle 8.14.2 multi-project build containing
+`equity-system`, `batch-excel`, `mcp-platform`, `mds-distribution`, and `creator-studio`.
+These restored modules retain Java 21, Spring Boot 3.3.4, their original sources,
+and Testcontainers integration tests. Separate wrappers prevent their build plugins
+and runtime dependencies from affecting the platform. They are repository modules,
+not Git submodules, and are not registered in the platform Run registry.
+See [Career Lab](../career-lab/README.md) for execution and recovery provenance.
+
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
 

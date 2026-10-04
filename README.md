@@ -1,12 +1,25 @@
 # Engineering Lab
 
-백엔드·JVM·데이터 처리의 가설을 **정의 → 실행 → 관찰 → 비교 → 증거 보존**으로 검증하는 로컬 실험 플랫폼입니다. Java 25 / Spring Boot 4 기반의 단일 Gradle 프로젝트이며, Excel 수집·큐 경합·IO 비교의 세 실험군을 제공합니다.
+백엔드·JVM·데이터 처리의 가설을 **정의 → 실행 → 관찰 → 비교 → 증거 보존**으로 검증하는 로컬 실험 플랫폼입니다. 루트 플랫폼은 Java 25 / Spring Boot 4 기반이며, Excel 수집·큐 경합·IO 비교의 세 실험군을 제공합니다.
 
 단순히 실행 시간만 출력하지 않고 실행마다 Run ID, 입력·설정, Git 상태, JVM/OS 환경, 메트릭, 결과를 보존합니다. 실험 결과를 다시 조회하고 같은 조건인지 비교한 뒤 Finding 문서로 해석을 남길 수 있습니다.
 
 ![실행 증거 목록](docs/images/03-runs.jpg)
 
 > 처음 사용하는 경우 **[화면 캡처 사용 가이드](docs/user-guide.md)**를 따라가세요. 전체 문서는 [문서 안내](docs/README.md)에서 찾을 수 있습니다.
+
+## 저장소 구성
+
+이 저장소에는 최신 실험 플랫폼과 이력서 기반 재현 모듈이 함께 있습니다.
+
+| 경로 | 구성 | 실행 환경 / 테스트 |
+| --- | --- | --- |
+| 루트 `src/` | Excel·큐·IO 실험 플랫폼, Run UI와 증거 저장 | Java 25 / Boot 4 / `./gradlew test` |
+| [`career-lab/`](career-lab/README.md) | equity-system, batch-excel, mcp-platform, mds-distribution, creator-studio | Java 21 / Boot 3.3.4 / Docker / `./scripts/career-lab.sh test` |
+
+Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니다.
+[모듈별 사용법과 빌드 경계](career-lab/README.md)를 참고하세요.
+아래 빠른 시작과 화면 설명은 루트 실험 플랫폼을 대상으로 합니다.
 
 ## 목차
 

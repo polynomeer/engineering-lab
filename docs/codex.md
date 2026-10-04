@@ -4,7 +4,9 @@
 
 ## 현재 구조
 
-Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용한다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. 현재는 단일 Gradle 프로젝트다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.
+루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.
+
+`career-lab/`에는 Java 21 / Spring Boot 3.3.4 / Gradle 8.14.2 기반의 독립 다중 프로젝트가 있으며, `com.portfolio.*` 패키지와 원본 빌드 경계를 유지한다. [Career Lab 안내](../career-lab/README.md)를 읽고 Docker를 실행한 뒤 `./scripts/career-lab.sh test`로 다섯 모듈을 검증한다. 루트 테스트는 이 모듈들을 포함하지 않는다.
 
 아래 Java 경로는 `src/main/java/` 기준이며, 테스트는 `src/test/java/`의 대응 패키지에 있다.
 

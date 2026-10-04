@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: batch-excel-lab
+  datasource:
+    hikari:
+      # [NEW-DESIGN] equity-system-lab에서 겪은 것과 동일한 문제(Testcontainers 기반
+      # 통합 테스트를 연달아 돌릴 때 Docker Desktop 네트워크 계층이 유휴 커넥션을
+      # 끊어버려 "connection closed" 오류가 나는 것)를 예방하기 위해 미리 반영한다.
+      keepalive-time: 30000
+      max-lifetime: 120000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          # [NEW-DESIGN] JDBC 배치 insert/update를 실제로 묶어 보내게 한다.
+          # (MySQL 드라이버 쪽 rewriteBatchedStatements=true와 짝을 맞춘다 —
+          # 지분율 랩에서 이 설정이 빠져 대량 INSERT가 43분 걸렸던 실수를 반복하지 않는다.)
+          batch_size: 1000
+        order_inserts: true
+        order_updates: true
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      # 애플리케이션 기동 시 자동으로 배치 Job이 실행되지 않도록 막는다 —
+      # 이 랩에서는 테스트 코드가 JobLauncher로 명시적으로만 Job을 실행한다.
+      enabled: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration

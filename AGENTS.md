@@ -1,7 +1,8 @@
 # AGENTS
 
 ## 1. Project Overview
-- Repository: `engineering-lab`, a Java 25 / Spring Boot 4 experiment platform in a single Gradle project.
+- Repository: `engineering-lab`, a monorepo with a Java 25 / Spring Boot 4 root experiment platform and five restored modules in the independent `career-lab/` Gradle build.
+- Career modules retain Java 21 / Spring Boot 3.3.4 and `com.portfolio.*` packages. Read [career-lab/README.md](career-lab/README.md); run `./scripts/career-lab.sh test` with Docker when modifying these modules or their build, in addition to the required root test.
 - Current experiments: Excel ingestion, queue contention, and IO endpoint comparison.
 - Pipeline goal: build a parallel Excel ingestion pipeline with bounded queues for backpressure and chunked batch inserts for efficient database writes.
 - Core architecture:

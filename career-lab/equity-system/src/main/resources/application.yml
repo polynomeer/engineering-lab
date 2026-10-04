@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: equity-system-lab
+  datasource:
+    hikari:
+      # [NEW-DESIGN] 테스트 클래스 사이 공백 동안 Docker Desktop의 네트워크
+      # 계층이 유휴 커넥션을 끊어버려 "connection closed" 오류가 나는 걸
+      # 방지한다 — Testcontainers 기반 통합 테스트 여러 개를 연달아 돌릴 때
+      # 실제로 겪은 문제라 README에도 남겨뒀다.
+      keepalive-time: 30000
+      max-lifetime: 120000
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
