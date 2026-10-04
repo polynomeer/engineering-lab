@@ -611,7 +611,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                       }
                     });
                     const csv = rows.map(row =>
-                      row.map(value => `"${String(value ?? "").replaceAll("\"", "\"\"")}"`).join(",")
+                      row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")
                     ).join("\\n");
                     exportBlob(
                       `experiment-comparison-${payload.jobA.jobId}-${payload.jobB.jobId}.csv`,
