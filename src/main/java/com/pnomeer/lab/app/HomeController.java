@@ -28,7 +28,7 @@ public class HomeController {
                       --orange: #ffb86c;
                       --pink: #ff79c6;
                     }
-                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: radial-gradient(circle at top left, #31354a 0, var(--bg) 45%%); color: var(--text); }
+                    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; margin: 0; background: radial-gradient(circle at top left, #31354a 0, var(--bg) 45%); color: var(--text); }
                     .wrap { max-width: 1220px; margin: 24px auto 40px; padding: 0 16px; }
                     .hero { background: linear-gradient(135deg, rgba(139,233,253,0.12), rgba(255,121,198,0.08)); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
                     .title { font-size: 32px; font-weight: 800; margin: 0; }
