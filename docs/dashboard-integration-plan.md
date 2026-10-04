@@ -1,6 +1,6 @@
 # 공통 대시보드 이행 계획
 
-상태: **설계 완료, 구현 미착수** · 기준: [통합 설계](dashboard-integration-design.md)
+상태: **등록 확장 기반 완료, frontend/worker 구현 미착수** · 기준: [통합 설계](dashboard-integration-design.md)
 
 복구된 Career Lab과 현재 실험 플랫폼을 유지한 채 단계적으로 연결한다. 아래 작업은 각각 검증 후 독립 커밋한다. 이번 설계 문서 작성은 실제 frontend/worker 구현 완료를 뜻하지 않는다.
 
@@ -20,6 +20,16 @@
 - [x] 다섯 모듈의 13개 시나리오와 단계별 완료 조건을 작성한다.
 
 커밋: `docs(architecture): design shared dashboard and career integration`.
+
+## E0. 지속적인 모듈 확장 기반 — 완료 (2026-10-05)
+
+- [x] 기존 세 실험의 descriptor와 runtime registration을 각 모듈 패키지로 옮긴다.
+- [x] ServiceLoader catalog를 CLI와 서버에서 공유하고 ID/metric 충돌·binding 누락을 검증한다.
+- [x] `GET /modules`로 모듈 소유 관계를 제공하고 기존 API·ID·schema를 유지한다.
+- [x] Career의 고정 include 목록을 선언 기반 발견으로 바꾸고 추가 모듈/잘못된 선언 fixture를 검증한다.
+- [x] [실험·Career 추가 가이드](adding-experiments.md)를 작성한다.
+
+검증: 루트 141개 테스트 통과, 임시 Gradle 프로젝트 기반 발견/거부 테스트 4개 통과. Career 전체 테스트도 성공했으며 기존 42개 테스트 결과를 재사용했다(UP-TO-DATE). 이 단계는 D3의 executor 분리나 D4의 worker 연동을 완료한 것이 아니다.
 
 ## D1. 현재 계약 고정과 프론트엔드 골격
 
@@ -57,7 +67,7 @@
 
 ## D4. Worker protocol과 하나의 수직 연동
 
-첫 대상은 `career.mcp-platform.sequence`다. 세 variant와 실제 동시성 결과가 명확하고, 처리량 추정보다 관측 정합성을 먼저 검증할 수 있다.
+공통 executor/manifest에 모듈 이름별 분기를 만들지 않는다. 신규 모듈 fixture도 generic 경로로 검증한다. 첫 대상은 `career.mcp-platform.sequence`다. 세 variant와 실제 동시성 결과가 명확하고, 처리량 추정보다 관측 정합성을 먼저 검증할 수 있다.
 
 - [ ] worker JSON Schema와 정상/오류 fixture, Java 21 `worker-support`를 추가한다.
 - [ ] manifest 기반 배포물 빌드·사전 점검·실행, bounded stdout/stderr, deadline·종료·container 정리를 구현한다.

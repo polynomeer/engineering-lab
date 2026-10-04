@@ -53,3 +53,34 @@ CLI `validate`/`run`의 로컬 검증도 같은 provider를 사용한다. CLI �
 - 새 기능에는 공통 표/원시 데이터 fallback을 제공한다. 모듈 이름별 if/switch를 dashboard와 controller에 늘리지 않는다.
 - 공통 DTO의 삭제/필수 필드 변경은 기존 저장 데이터·CLI·UI 호환 검증 없이 수행하지 않는다.
 - schema provider는 신뢰된 빌드 코드다. 프로세스 실행·파일 접근·DB 연결 같은 부작용을 두지 않는다.
+
+## 현재 구현: Career 빌드 모듈 추가
+
+`career-lab/settings.gradle.kts`는 바로 아래 디렉터리 중 `lab-module.properties`가 있는 모듈을 이름순으로 포함한다. 기존 다섯 모듈도 같은 규칙을 사용한다. 새 모듈 이름을 중앙 include 목록에 추가하지 않는다.
+
+예를 들어 `career-lab/payment-settlement/`에 Java 21 / Boot 3.3.4 호환 `build.gradle.kts`, `src/`, README와 다음 선언을 둔다.
+
+```properties
+schemaVersion=1
+id=payment-settlement
+title=Payment settlement
+collection=career
+```
+
+UTF-8 선언의 필수 필드는 위 네 개뿐이다. ID는 디렉터리명과 같고 소문자로 시작하는 영문/숫자/hyphen 최대 64자다. title은 공백만 허용하지 않으며 최대 200자, collection은 소문자 영문으로 시작하는 영문/숫자/hyphen 최대 50자다. 기존 ID를 유지한다. schemaVersion 불일치·필드 누락/추가·빌드 파일 누락은 실패한다. 선언 파일 없는 참고 자료나 임시 폴더는 자동 제외한다.
+
+```bash
+./scripts/career-lab.sh projects
+./scripts/career-lab.sh :payment-settlement:test
+./scripts/career-lab.sh test
+python3 scripts/verify-career-modules.py
+./gradlew test
+```
+
+위 `payment-settlement`는 설명용이며 저장소에 생성되어 있지 않다. 검증 스크립트는 임시 프로젝트를 만들어 실제 Gradle에서 새 모듈 발견·미선언 폴더 제외·ID/version/build 오류를 확인한 뒤 삭제한다. JDK 선택은 `scripts/career-lab.sh`와 동일하다.
+
+빌드 자동 포함과 공통 대시보드 실행 등록은 다른 단계다. 현재 Career 코드가 자동으로 Run registry에 올라가지는 않는다. 후속 worker 구현에서는 이 module ID/collection을 유지하고, protocol manifest에 experiment descriptor·배포물 hash·executor capability를 추가한다. 실험별 driver와 테스트를 제공하면 같은 실행·조회 화면에 연결되게 한다. 지원 라이브러리 모듈은 실험 module과 구분하는 별도 빌드 구성이 필요하다.
+
+## 확장 완료 판단
+
+새 내장 실험은 module metadata + registration + scenario + 테스트로 추가한다. 새 Career 프로젝트는 디렉터리 + 선언 + 자체 빌드/테스트로 추가한다. 공통 UI/worker 도입 후에는 모듈 이름별 화면·실행 분기 없이 capability와 등록된 panel/executor를 사용해야 한다. 단계별 구현 상태는 [대시보드 이행 계획](dashboard-integration-plan.md)에 기록한다.

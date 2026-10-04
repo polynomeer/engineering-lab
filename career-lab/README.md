@@ -12,6 +12,10 @@
 | `mds-distribution` | 정산 동시성, 이벤트 멱등성 | [사용법](mds-distribution/README.md) |
 | `creator-studio` | 세션 회전, 매핑 무결성 | [사용법](creator-studio/README.md) |
 
+## 모듈 추가
+
+각 모듈의 `lab-module.properties`를 읽어 빌드에 자동 포함합니다. 새 모듈은 디렉터리·선언·빌드 파일을 추가하며 중앙 목록은 수정하지 않습니다. [확장 가이드](../docs/adding-experiments.md#현재-구현-career-빌드-모듈-추가)를 참고하세요.
+
 ## 준비와 실행
 
 JDK 21과 실행 중인 Docker가 필요합니다. Gradle Wrapper는 8.14.2,

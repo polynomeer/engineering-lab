@@ -1,8 +1,8 @@
 # 공통 대시보드 분리와 Career Lab 연동 설계
 
-상태: **설계안, 구현 전** · 기준 커밋: `2707da8` · 작성: 2026-10-04
+상태: **프론트엔드/worker 설계안, 등록 확장 기반 구현** · 최초 기준: `2707da8` · 갱신: 2026-10-05
 
-실행 계획은 [이행 계획](dashboard-integration-plan.md), 현재 동작은 [API 참조](api-reference.md)와 [Career Lab](../career-lab/README.md)를 따른다. 아래 신규 API·설정·디렉터리는 아직 존재하지 않는다.
+실행 계획은 [이행 계획](dashboard-integration-plan.md), 현재 동작은 [API 참조](api-reference.md)와 [Career Lab](../career-lab/README.md)를 따른다. 아래 frontend/worker 신규 API·설정·디렉터리는 아직 존재하지 않는다. 내장 실험의 module provider·공통 catalog와 `/modules`, Career 빌드 선언은 [확장 가이드](adding-experiments.md)에 구현 상태를 구분한다.
 
 ## 1. 결정과 범위
 
@@ -257,6 +257,20 @@ heap은 sampled JVM heap이며 RSS나 컨테이너 전체 메모리가 아니다
 - UI는 기존 모든 경로의 deep link, 프리셋 이행, 업로드, 비교, CSV/NDJSON/JFR/log 다운로드, 키보드·375px 화면을 실제 브라우저로 검증한다.
 - worker 테스트는 malformed/초과/누락/중복·역순 이벤트, 비정상 종료, 저장소 실패, 배압, timeout, 부모 종료, 컨테이너 정리, stdout/stderr 포화를 포함한다.
 - 최종 완료는 **다섯 모듈의 13개 시나리오와 기존 세 실험군을 하나의 대시보드에서 실행·조회하고 재시작 후 증거를 다시 조회**할 수 있는 상태다. 프론트엔드만 분리한 상태는 중간 완료다.
+
+## 11. 실험과 Career의 지속적인 확장
+
+다섯 모듈·13개 시나리오는 최초 연동 대상이며 개수 제한이나 고정 메뉴가 아니다. engineering과 career는 `collection` 분류이고, 실행 방식은 `executionKind` capability다. 일반 실험도 격리가 필요하면 worker를 사용할 수 있게 한다.
+
+현재 구현한 기반은 `ExperimentModule` SPI → 공통 `ExperimentCatalog` → 모듈별 Spring `ExperimentRegistration`이다. 기존 세 실험도 이 경계를 사용한다. schema와 신규 metric은 모듈이 소유하고 중앙 CLI/controller/registry는 모듈 이름을 알 필요가 없다. `GET /modules`는 현재 실행 가능한 내장 모듈의 소유 관계를 제공한다. Career 빌드도 `lab-module.properties` 선언을 발견하므로 여섯 번째 프로젝트부터 중앙 Gradle 목록을 수정하지 않는다.
+
+worker 연동 시 모듈 종류마다 executor를 만들지 않는다. `IN_PROCESS`, `LOCAL_JVM`처럼 실행 방식별 executor를 등록하고, manifest의 module/experiment가 그중 하나를 참조한다. provider도 classpath metadata와 승인된 worker manifest라는 출처별 adapter로 확장한다. 단, 현재 ServiceLoader는 신뢰된 Java 25 metadata 코드용이다. Java 21 worker jar를 플랫폼 classpath에 넣지 않고 wire descriptor를 공통 catalog 모델로 검증·변환한다.
+
+제안된 `/dashboard/v1/modules`는 이 catalog의 module metadata에 readiness/capability를 더한 조회 모델이다. 현재 `/modules`와 별도의 모듈 목록을 하드코딩하지 않는다. 모든 provider 사이에서 module/experiment ID와 metric 의미의 충돌을 차단한다. 모듈 제거 후에도 기존 Run은 저장된 metadata와 공통 패널로 계속 조회해야 한다. metadata의 변경 버전과 입력 schema hash는 향후 external execution 기록에도 포함한다.
+
+Dashboard는 collection → module → experiment를 catalog에서 구성한다. 공통 form/metric/check 패널을 기본으로 사용하고, 특수 입력이나 결과에만 등록된 capability component를 선택한다. 모듈 추가를 이유로 전역 router/sidebar에 분기를 넣지 않는다. 지원하지 않는 panel version은 공통 raw 표로 fallback한다. hot reload/plugin 업로드는 초기 범위에 없으며 신규 모듈은 신뢰된 빌드·검증·재시작으로 반영한다.
+
+확장성 gate는 기존 모듈 수를 검사하는 데 그치지 않는다. 임의의 네 번째 engineering provider와 여섯 번째 Career 모듈을 fixture로 추가해 공통 코드를 수정하지 않고 발견·검증되는지 확인한다. worker/UI 구현 단계에서는 fixture의 실행→Run→generic panel까지 같은 gate를 확장한다.
 
 ## 참고 근거
 

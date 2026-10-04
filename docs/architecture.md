@@ -21,7 +21,9 @@ and offline CLI validation; startup verifies runtime bindings against that catal
 `GET /modules` exposes ownership without changing existing experiment IDs or APIs.
 New module metrics extend the catalog without replacing existing definitions.
 See [the extension guide](adding-experiments.md). This is package-level modularity;
-the frontend and external worker integration remain planned work.
+the frontend and external worker integration remain planned work. Career build
+projects are discovered from explicit `lab-module.properties` declarations, so new
+projects do not require edits to a fixed Gradle include list.
 
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
