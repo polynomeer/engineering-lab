@@ -1,0 +1,121 @@
+{
+  "run": {
+    "sequence": 7,
+    "runId": "11111111-1111-4111-8111-111111111111",
+    "experimentType": "concurrency.queue-contention",
+    "scenarioId": "small-buffer",
+    "status": "SUCCEEDED",
+    "createdAtEpochMs": 1791100000000,
+    "startedAtEpochMs": 1791100000010,
+    "completedAtEpochMs": 1791100000210,
+    "runMetadata": {
+      "runId": "11111111-1111-4111-8111-111111111111",
+      "parameters": {
+        "measurement.mode": "SINGLE_PASS",
+        "scenario.hypothesis": "A slow consumer causes waiting",
+        "queueCapacity": "2"
+      },
+      "environment": {
+        "javaVersion": "25",
+        "javaVendor": "Test vendor",
+        "vmName": "Test VM",
+        "osName": "Test OS",
+        "osVersion": "1",
+        "osArch": "aarch64",
+        "availableProcessors": 4,
+        "maxHeapBytes": 134217728
+      },
+      "git": {
+        "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dirty": false,
+        "error": null
+      }
+    },
+    "summary": {
+      "counters": {
+        "items.consumed": 10
+      },
+      "gauges": {
+        "queue.avgEnqueueWaitMs": 1.5
+      },
+      "details": {}
+    },
+    "failureMessage": null
+  },
+  "page": {
+    "runs": [
+      {
+        "sequence": 7,
+        "runId": "11111111-1111-4111-8111-111111111111",
+        "experimentType": "concurrency.queue-contention",
+        "scenarioId": "small-buffer",
+        "status": "SUCCEEDED",
+        "createdAtEpochMs": 1791100000000,
+        "startedAtEpochMs": 1791100000010,
+        "completedAtEpochMs": 1791100000210,
+        "runMetadata": {
+          "runId": "11111111-1111-4111-8111-111111111111",
+          "parameters": {
+            "measurement.mode": "SINGLE_PASS",
+            "scenario.hypothesis": "A slow consumer causes waiting",
+            "queueCapacity": "2"
+          },
+          "environment": {
+            "javaVersion": "25",
+            "javaVendor": "Test vendor",
+            "vmName": "Test VM",
+            "osName": "Test OS",
+            "osVersion": "1",
+            "osArch": "aarch64",
+            "availableProcessors": 4,
+            "maxHeapBytes": 134217728
+          },
+          "git": {
+            "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "dirty": false,
+            "error": null
+          }
+        },
+        "summary": {
+          "counters": {
+            "items.consumed": 10
+          },
+          "gauges": {
+            "queue.avgEnqueueWaitMs": 1.5
+          },
+          "details": {}
+        },
+        "failureMessage": null
+      }
+    ],
+    "nextBefore": 7
+  },
+  "metrics": {
+    "metrics": [
+      {
+        "sequence": 0,
+        "point": {
+          "timestampEpochMs": 1791100000110,
+          "gauges": {
+            "queue.depth": 2.0
+          },
+          "counters": {
+            "items.consumed": 5
+          },
+          "labels": {}
+        }
+      }
+    ],
+    "nextAfter": 0
+  },
+  "artifacts": [
+    {
+      "artifactId": "reference",
+      "runId": "11111111-1111-4111-8111-111111111111",
+      "relativePath": "profiles/reference.jfr",
+      "mediaType": "application/octet-stream",
+      "byteSize": 123,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}
