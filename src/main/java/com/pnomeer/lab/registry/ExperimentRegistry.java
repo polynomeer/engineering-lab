@@ -1,5 +1,7 @@
 package com.pnomeer.lab.registry;
 
+import com.pnomeer.lab.core.input.InputPayload;
+
 import com.pnomeer.lab.scenario.*;
 import java.util.*;
 
@@ -17,7 +19,7 @@ public final class ExperimentRegistry {
     public List<ExperimentDescriptor> list() { return entries.values().stream().map(ExperimentRegistration::descriptor).toList(); }
     public ExperimentDescriptor get(String id) { return entry(id).descriptor(); }
     public void validate(ScenarioDefinition definition) { get(definition.experiment()).validate(definition); }
-    public ExperimentInvocation<?> bind(ScenarioDefinition definition, byte[] input, ScenarioDocuments documents) {
+    public ExperimentInvocation<?> bind(ScenarioDefinition definition, InputPayload input, ScenarioDocuments documents) {
         return entry(definition.experiment()).bind(definition, input).withDefinition(definition, documents);
     }
     private ExperimentRegistration<?> entry(String id) {

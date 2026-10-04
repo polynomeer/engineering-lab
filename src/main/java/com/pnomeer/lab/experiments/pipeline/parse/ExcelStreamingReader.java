@@ -9,8 +9,6 @@ import org.apache.poi.xssf.eventusermodel.XSSFReader;
 import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
 import org.apache.poi.xssf.model.StylesTable;
 import org.xml.sax.InputSource;
-import org.xml.sax.XMLReader;
-import org.xml.sax.helpers.XMLReaderFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +28,16 @@ public class ExcelStreamingReader {
         Objects.requireNonNull(inputStream, "inputStream must not be null");
         Objects.requireNonNull(rowConsumer, "rowConsumer must not be null");
 
-        try (OPCPackage opcPackage = OPCPackage.open(inputStream)) {
+        var file = java.nio.file.Files.createTempFile("engineering-lab-parser-", ".xlsx");
+        try {
+            XlsxLimits.copy(inputStream, file);
+            XlsxLimits.validate(file);
+            return readFile(file, rowConsumer);
+        } finally { java.nio.file.Files.deleteIfExists(file); }
+    }
+
+    private int readFile(java.nio.file.Path file, Consumer<RawRow> rowConsumer) throws IOException {
+        try (OPCPackage opcPackage = OPCPackage.open(file.toFile(), org.apache.poi.openxml4j.opc.PackageAccess.READ)) {
             ReadOnlySharedStringsTable sharedStrings = new ReadOnlySharedStringsTable(opcPackage);
             XSSFReader reader = new XSSFReader(opcPackage);
             StylesTable styles = reader.getStylesTable();
@@ -41,7 +48,22 @@ public class ExcelStreamingReader {
 
             AtomicInteger producedCount = new AtomicInteger(0);
             try (InputStream firstSheet = sheets.next()) {
-                XMLReader parser = XMLReaderFactory.createXMLReader();
+                var parser = new org.xml.sax.helpers.XMLFilterImpl(org.apache.poi.util.XMLHelper.newXMLReader()) {
+                    private int cellCharacters;
+                    private boolean inCell;
+                    @Override public void startElement(String uri, String local, String qName, org.xml.sax.Attributes attributes) throws org.xml.sax.SAXException {
+                        if ("c".equals(local)) { inCell = true; cellCharacters = 0; }
+                        super.startElement(uri, local, qName, attributes);
+                    }
+                    @Override public void characters(char[] chars, int start, int length) throws org.xml.sax.SAXException {
+                        if (inCell && (cellCharacters += length) > XlsxLimits.MAX_ROW_CHARS) throw new org.xml.sax.SAXException("Cell text exceeds limit");
+                        super.characters(chars, start, length);
+                    }
+                    @Override public void endElement(String uri, String local, String qName) throws org.xml.sax.SAXException {
+                        super.endElement(uri, local, qName);
+                        if ("c".equals(local)) inCell = false;
+                    }
+                };
                 XSSFSheetXMLHandler.SheetContentsHandler handler =
                         new FirstSheetHandler(rowConsumer, producedCount);
                 parser.setContentHandler(
@@ -66,6 +88,7 @@ public class ExcelStreamingReader {
         private List<String> currentRow = List.of();
         private int currentCol = -1;
         private int currentRowNum = -1;
+        private int rowCharacters;
 
         private FirstSheetHandler(Consumer<RawRow> rowConsumer, AtomicInteger producedCount) {
             this.rowConsumer = rowConsumer;
@@ -76,6 +99,7 @@ public class ExcelStreamingReader {
         public void startRow(int rowNum) {
             currentRowNum = rowNum;
             currentCol = -1;
+            rowCharacters = 0;
             currentRow = new ArrayList<>();
         }
 
@@ -91,6 +115,9 @@ public class ExcelStreamingReader {
         @Override
         public void cell(String cellReference, String formattedValue, org.apache.poi.xssf.usermodel.XSSFComment comment) {
             int col = getColumnIndex(cellReference);
+            if (col < 0 || col >= 16384 || col <= currentCol) throw new IllegalArgumentException("Invalid or excessive column index");
+            rowCharacters += formattedValue == null ? 0 : formattedValue.length();
+            if (rowCharacters > XlsxLimits.MAX_ROW_CHARS) throw new IllegalArgumentException("Row text exceeds limit");
             while (currentCol + 1 < col) {
                 currentRow.add("");
                 currentCol++;

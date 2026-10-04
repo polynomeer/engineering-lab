@@ -5,6 +5,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "pipeline")
 public class PipelineProperties {
 
+    private int errorPreviewLimit = 100;
+    public int getErrorPreviewLimit() { return errorPreviewLimit; }
+    public void setErrorPreviewLimit(int value) {
+        if (value < 0 || value > 1000) throw new IllegalArgumentException("errorPreviewLimit must be 0..1000");
+        errorPreviewLimit = value;
+    }
+
     private final Queue queue = new Queue();
     private final Threads threads = new Threads();
     private final Insert insert = new Insert();

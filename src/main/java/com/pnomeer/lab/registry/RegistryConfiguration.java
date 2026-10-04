@@ -35,6 +35,7 @@ public class RegistryConfiguration {
     private static int integer(ScenarioDefinition d, String key) { return ((Number)d.parameters().get(key)).intValue(); }
     private static PipelineProperties pipelineProperties(ScenarioDefinition d) {
         var p = new PipelineProperties();
+        p.setErrorPreviewLimit(((Number)d.parameters().getOrDefault("errorPreviewLimit",100)).intValue());
         p.getQueue().setRawCapacity(integer(d,"rawCapacity"));
         p.getQueue().setMappedCapacity(integer(d,"mappedCapacity"));
         p.getThreads().setValidator(integer(d,"validatorThreads"));

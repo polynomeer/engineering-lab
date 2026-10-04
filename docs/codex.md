@@ -85,8 +85,8 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 아래는 이 가이드를 작성하며 확인한 차이다. 관련 기능을 구현하면 이 목록도 갱신한다. 별도 요청 없이 이 목록 전체를 구현하는 것으로 작업 범위를 확대하지 않는다.
 
 - insert chunk는 크기·시간·종료 조건으로 flush된다. 시간 기본값은 1000 ms이며 SINGLE_THREAD는 행 callback에서만 기한을 확인한다. insert는 batch 본문의 일시적 오류를 성공적으로 롤백한 경우 제한된 지수 backoff로 재시도한다(기본 총 3회, 100 ms 시작, 60000 ms 상한). 커밋·롤백 오류는 재시도하지 않는다. 별도 Run/불확실한 커밋의 재실행 멱등성은 보장하지 않는다.
-- 앱 Run의 검증 오류는 evidence DB의 dead-letter로 즉시 영속화되며 종료 Run의 `/runs/{runId}/dead-letters`에서 행 문맥을 페이지 조회한다. 행당 64 KiB 초과·저장 실패는 Run 실패다. 직접/local 실행은 기존 메모리 수집만 수행하며, 앱도 기존 오류 컬렉션은 아직 유지한다.
-- 단계 사이 큐는 bounded지만 업로드 파일은 `byte[]`로 읽고, 검증 오류도 메모리에 누적된다. 앱의 실행 이력은 영속화했고 metric writer와 preview는 bounded이다. 전체 경로의 bounded memory가 보장된 상태는 아니다.
+- 앱 Run의 검증 오류는 evidence DB의 dead-letter로 즉시 영속화되며 종료 Run의 `/runs/{runId}/dead-letters`에서 행 문맥을 페이지 조회한다. 행당 64 KiB 초과·저장 실패는 Run 실패다. 직접/local 실행은 영속 저장 없이 제한된 미리보기와 전체 집계를 제공한다. 앱도 `pipeline.error-preview-limit`(기본 100, 0–1000)만 원본 오류 행을 보유한다.
+- HTTP 업로드는 8 KiB 버퍼의 임시 파일로 처리하며 최대 16개/파일당 50 MiB로 제한한다. XLSX는 파일 기반 POI와 압축 해제/metadata/행 크기 상한을 사용한다. 오류 미리보기·큐·metric writer는 bounded이고 전체 JVM heap/처리량 실측은 마지막 검증 단계에 남는다.
 - 정상 종료 신호와 partial chunk flush는 존재한다. worker 실패 시 채널을 중단해 대기자를 해제하며 실패를 전파한다. 실패·중단 경로까지 queue drain과 데이터 보존이 보장되는지는 별도 검증이 필요하다.
 - pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. 전체 Excel ingestion의 heap/throughput 비교 테스트는 여전히 별도 과제다.
 

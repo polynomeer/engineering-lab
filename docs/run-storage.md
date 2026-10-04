@@ -55,7 +55,7 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 
 완료 summary의 `storage.*` counter에는 written metrics, batches, retries, failures, 현재/최대 queue depth, publication 대기 nanoseconds, 총 batch write nanoseconds, preview limit이 포함된다. 로그에는 job_id, stage, reason을 기록한다. 이 카운터 namespace는 플랫폼용으로 예약한다.
 
-메트릭 writer가 보유하는 관측 수는 실행당 queue-capacity + batch-size이며 결과 preview는 preview-limit 이하이다. 활성 실행 수와 executor 대기열도 제한된다. 이것이 앱 전체의 메모리 상한 보장은 아니다. 기존 XLSX byte[] 업로드, 파이프라인 validation 오류 수집, metric 한 개의 필드 크기 등은 별도 제약이 필요하다.
+메트릭 writer가 보유하는 관측 수는 실행당 queue-capacity + batch-size이며 결과 preview는 preview-limit 이하이다. 활성 실행 수와 executor 대기열도 제한된다. 이것이 앱 전체의 메모리 상한 보장은 아니다. HTTP 업로드와 validation 미리보기에도 아래 상한을 적용한다. metric 한 개의 필드 크기 및 JVM 전체 heap 실측은 별도 검증 대상이다.
 
 `MetricWriterPerformanceTest`는 200개의 metric, write당 고정 3ms 지연, queue 32/batch 20 조건에서 per-point 쓰기와 batch 쓰기를 비교한다. 버퍼 상한과 모든 metric 저장을 검증하고 raw 결과를 `build/reports/metric-writer-benchmark.json`에 생성한다. 실제 DB/Excel 처리량의 보편적 개선 수치로 해석하지 않는다. 이 보고서는 build 산출물이므로 clean 시 삭제된다. 애플리케이션 실험 증거는 `.lab/`에 저장된다.
 
@@ -75,4 +75,14 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 
 행 하나의 UTF-8 JSON은 최대 64 KiB, 셀 수는 최대 16384이며 직렬화 전 문자 수에도 상한을 둔다. 초과하거나 저장이 실패하면 내용을 자르거나 버리지 않고 Run을 실패 처리한다. 저장 확인 전의 행과 실패 중 큐에 남은 행까지 보존하는 기능은 아니다. insert 오류의 원본 행 출력·재처리, 보관 기간/용량 관리도 후속 범위다.
 
-실패 행의 실제 셀 내용이 저장되므로 `.lab/`과 API 접근은 원본 입력과 같은 수준으로 관리한다. 자동 마스킹은 하지 않는다. 로그에는 job_id·stage·reason·row_index만 남긴다. 기존 validation 오류 컬렉션과 업로드 byte[]는 아직 메모리에 누적되며 전체 bounded memory 보장은 다음 작업이다.
+실패 행의 실제 셀 내용이 저장되므로 `.lab/`과 API 접근은 원본 입력과 같은 수준으로 관리한다. 자동 마스킹은 하지 않는다. 로그에는 job_id·stage·reason·row_index만 남긴다. validation 원본 미리보기는 `pipeline.error-preview-limit`만 보유하며 전체 건수와 사유별 집계는 별도로 유지한다. HTTP 업로드는 아래 임시 파일 경로를 사용한다.
+
+## 업로드 수명과 메모리 상한
+
+두 HTTP 업로드 경로는 요청 파일 전체를 byte[]로 읽지 않는다. servlet multipart threshold는 0으로 두어 디스크를 사용하고, 애플리케이션은 8 KiB 버퍼로 별도 임시 파일과 SHA-256을 만든다. 애플리케이션 staging 슬롯은 프로세스당 16개이며 읽는 중·대기 중·실행 중 파일을 포함한다. 각 파일은 최대 50 MiB(선언적 시나리오는 더 작은 max-input-bytes 적용)다. 초과는 413, 슬롯 포화는 503이며 새 Run 생성 전에 거부한다.
+
+정상 완료·실행 실패·정의/hash 검증 실패·prepare 실패·executor 거부 시 파일 소유자가 삭제한다. 파서는 기존 InputStream 계약을 유지하기 위해 최대 50 MiB 임시 파일을 하나 더 사용하며 finally에서 삭제한다. 업로드/파서 파일은 시스템 임시 디렉터리에 `engineering-lab-upload-`/`engineering-lab-parser-` 접두사로 생성된다. 강제 프로세스 종료나 실행되지 않은 대기 작업의 shutdown 취소에서는 잔여 파일이 생길 수 있다. 앱 정지 후 잔여 파일을 정리할 수 있으며 다른 프로세스의 진행 중 파일을 자동 삭제하지 않는다. 임시 파일 삭제 실패는 예외로 전달하고 슬롯을 재사용하지 않는다.
+
+XLSX 허용 상한은 ZIP entry 1024개, 압축 해제 총량 256 MiB, worksheet XML을 제외한 metadata 총량 8 MiB(공유 문자열·스타일 포함)다. POI 메모리 할당 전에 스트리밍 검사하며, 실제 worksheet는 SAX로 처리한다. 행당 셀 16384개/문자 65536개, 셀 XML 텍스트 누적 65536개를 넘기면 Run이 실패한다. 큰 공유 문자열 테이블을 사용하는 파일은 압축 크기가 작아도 거부될 수 있다. 상한을 조용히 자르거나 무시하지 않는다.
+
+원본 오류 행 미리보기는 기본 100행, `pipeline.error-preview-limit` 또는 시나리오 `errorPreviewLimit`로 0–1000을 설정한다. `getValidationErrors()`는 이 미리보기이고 `getValidationErrorCount()`/사유별 집계가 전체 오류 수다. API summary의 기존 오류 건수와 사유 집계, 영속 dead-letter에는 모든 확인된 실패 행을 반영한다. 로컬 byte[] 생성자는 호환용이며 HTTP 경로에서는 사용하지 않는다. 이 변경은 파일·행 개수에 비례한 무제한 보유를 제거하며 JVM 전체 heap/성능 수치는 최종 성능 단계에서 측정한다.

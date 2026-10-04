@@ -1,5 +1,7 @@
 package com.pnomeer.lab.app.run;
 
+import com.pnomeer.lab.core.input.InputPayload;
+
 import com.pnomeer.lab.registry.ExperimentRegistry;
 import com.pnomeer.lab.scenario.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,9 +42,11 @@ public class ScenarioRunController {
         }
         registry.validate(definition);
         if (definition.input() == null && file != null) throw new ScenarioException("This experiment does not accept a file");
-        byte[] payload = null;
+        InputPayload payload = null;
         if (file != null) {
-            try (var stream = file.getInputStream()) { payload = ScenarioDocuments.readBounded(stream, properties.maxInputBytes()); }
+            try { payload = InputPayload.stage(file.getInputStream(), properties.maxInputBytes()); }
+            catch (InputPayload.LimitExceeded ex) { throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), ex); }
+            catch (InputPayload.CapacityExceeded ex) { throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), ex); }
         }
         return response(service.submit(definition, payload), definition);
     }

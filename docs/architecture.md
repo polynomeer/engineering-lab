@@ -101,8 +101,16 @@ Retry exhaustion aborts both channels. Blocking queue operations check the first
 
 ## Durable validation dead letters
 
-The durable runner supplies a run-scoped `ExecutionEvidence` sink through the experiment contract; registry wrappers forward it. Pipeline validators synchronously persist a rejected row before adding it to the existing in-memory result collection. Direct/local runner calls retain their previous in-memory behavior. This sink adds no asynchronous queue or accumulating buffer.
+The durable runner supplies a run-scoped `ExecutionEvidence` sink through the experiment contract; registry wrappers forward it. Pipeline validators synchronously persist a rejected row before updating exact reason counts and a bounded in-memory preview. Direct/local runner calls retain bounded in-memory previews and exact totals but do not persist dead letters. This sink adds no asynchronous queue or accumulating buffer.
 
 The evidence DB migrates schema v1 to v2 additively under its existing exclusive ownership lock. `lab_dead_letter` stores `(run_id, row_index)` and an immutable JSON record. A transaction locks the Run, accepts writes only while RUNNING, and treats identical repeated rows as idempotent; conflicting records fail. Persisted rows survive later execution failure. There is no atomic transaction spanning valid-row ingestion and dead-letter storage, nor recovery guarantee for rows not yet acknowledged when the process stops.
 
 Rows contain the parser's first-sheet, zero-based index, validation stage, fixed reason and formatted cell strings (including empty gaps), not workbook formulas/styles. JSON is limited to 64 KiB per row with pre-serialization bounds. Oversized rows and storage errors fail the Run without truncating evidence. API pages are limited to 100 rows and terminal Runs, preventing concurrent validators' out-of-order writes from falling behind a pagination cursor. Original cell values are intentionally retained in the local evidence DB/API, never added to structured failure logs.
+
+## Bounded input and validation memory
+
+HTTP uploads transfer ownership of a file-backed `InputPayload` to the submission service. A process-wide nonblocking 16-slot admission limit includes uploads being staged, queued and running. Size/hash calculation uses an 8 KiB buffer; prepare/bind/rejection failures close the payload, and the execution task closes it in finally. Local byte-array constructors remain for tests and callers that already own bytes; HTTP never uses them.
+
+The parser copies its InputStream to a second bounded temporary file to preserve the existing reader contract, then opens POI in read-only file mode. ZIP expansion is scanned with an 8 KiB buffer before shared strings/styles are loaded: total 256 MiB, non-worksheet metadata 8 MiB, 1024 entries, compressed input 50 MiB. SAX limits cell text accumulation and completed raw rows have cell/character caps. This trades additional disk IO and an expansion scan for explicit package/row memory bounds. These bounds do not claim a fixed total JVM heap or throughput improvement.
+
+ValidationErrors synchronizes a bounded preview and the three fixed validation reason counters. Every rejected row still reaches the durable sink before it is counted; truncating the preview cannot change Run totals. Shutdown durability, crash leftovers, total heap measurement and throughput comparison remain separate units.

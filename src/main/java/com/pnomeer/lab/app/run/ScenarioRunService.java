@@ -1,5 +1,7 @@
 package com.pnomeer.lab.app.run;
 
+import com.pnomeer.lab.core.input.InputPayload;
+
 import com.pnomeer.lab.core.ExperimentScenario;
 import com.pnomeer.lab.registry.*;
 import com.pnomeer.lab.scenario.*;
@@ -23,14 +25,22 @@ public class ScenarioRunService {
         this.registry = registry; this.documents = documents; this.runner = runner;
         this.experimentExecutor = experimentExecutor; this.ingestExecutor = ingestExecutor;
     }
-    public String submit(ScenarioDefinition definition, byte[] input) {
-        var invocation = registry.bind(definition, input, documents);
-        TaskExecutor executor = definition.input() == null ? experimentExecutor : ingestExecutor;
-        return submit(invocation, executor);
+    public String submit(ScenarioDefinition definition, InputPayload input) {
+        try {
+            var invocation = registry.bind(definition, input, documents);
+            TaskExecutor executor = definition.input() == null ? experimentExecutor : ingestExecutor;
+            return submit(invocation, executor, input);
+        } catch (RuntimeException | Error ex) {
+            if (input != null) try { input.close(); } catch (RuntimeException close) { ex.addSuppressed(close); }
+            throw ex;
+        }
     }
-    private <C extends ExperimentScenario> String submit(ExperimentInvocation<C> invocation, TaskExecutor executor) {
+    private <C extends ExperimentScenario> String submit(ExperimentInvocation<C> invocation, TaskExecutor executor, InputPayload input) {
         var run = runner.prepare(invocation.experiment(), invocation.scenario(), UUID.randomUUID().toString());
-        try { executor.execute(() -> runner.runPrepared(invocation.experiment(), invocation.scenario(), run)); }
+        try { executor.execute(() -> {
+            try { runner.runPrepared(invocation.experiment(), invocation.scenario(), run); }
+            finally { if (input != null) input.close(); }
+        }); }
         catch (TaskRejectedException ex) {
             runner.reject(run, "Executor rejected the scenario run");
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Experiment queue is full or shutting down", ex);

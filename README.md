@@ -89,10 +89,12 @@ Default config in `application.yml`:
 spring:
   servlet:
     multipart:
+      file-size-threshold: 0
       max-file-size: 50MB
       max-request-size: 50MB
 
 pipeline:
+  error-preview-limit: 100
   queue:
     raw-capacity: 2000
     mapped-capacity: 2000
@@ -109,6 +111,7 @@ pipeline:
 ```
 
 Meaning:
+- `error-preview-limit`: retained validation row preview, default 100, range 0–1000; totals and durable dead letters include every rejected row.
 - `queue.raw-capacity` / `queue.mapped-capacity`: bounded queue sizes for backpressure.
 - `threads.validator` / `threads.inserter`: worker pool sizes.
 - `insert.chunk-size`: JDBC batch size per chunk/transaction.
@@ -123,7 +126,9 @@ In PIPELINE mode, each insert worker flushes on size, elapsed time since accepti
 
 Each batch uses its own transaction. Only transient data-access failures inside the batch body are retried after a successful rollback, so partial writes cannot accumulate across these attempts. Permanent errors and uncertain commit/rollback failures are propagated without replay. This does not deduplicate separate runs or recover an uncertain commit. Successful run summaries include `retry.count`; in-progress metrics use the same counter. Exhausted insert workers abort the channels to release blocked producers/consumers; this is fail-fast termination, not durable queue drain or resumable ingestion.
 
-Validation failures from app-managed Excel runs are persisted with their row index, reason and cell strings in the evidence DB. After a Run terminates, page through `/runs/{runId}/dead-letters?after=-1&limit=100`. Storage failures or records above 64 KiB fail the Run; stored rows remain available after restart. See [storage and dead-letter behavior](docs/run-storage.md). The existing in-memory error collection remains until the memory-bound work is completed.
+Validation failures from app-managed Excel runs are persisted with their row index, reason and cell strings in the evidence DB. After a Run terminates, page through `/runs/{runId}/dead-letters?after=-1&limit=100`. Storage failures or records above 64 KiB fail the Run; stored rows remain available after restart. See [storage and dead-letter behavior](docs/run-storage.md). Only a bounded preview of rejected rows is retained in memory; totals and reason counts remain exact.
+
+Uploads are staged to temporary files with an 8 KiB buffer and SHA-256 calculation. Application staging accepts at most 16 files of up to 50 MiB; oversize requests return 413 and staging saturation returns 503. Scenario uploads may set a smaller `lab.scenario.max-input-bytes`. Normal completion, execution failure and submission rejection release staged files. The parser uses a separate temporary file for file-based POI access and validates ZIP expansion first: at most 1024 entries, 256 MiB total expanded content and 8 MiB non-worksheet metadata (including shared strings/styles). Rows are limited to 16384 cells and 65536 characters. Exceeding a parser limit fails the Run. See [input lifecycle and limits](docs/run-storage.md).
 
 ## Run locally
 1. Run tests first:

@@ -15,11 +15,17 @@ public final class ExperimentDescriptors {
             Map.of("requests", integer(1,10000,"requests"), "delayMs", integer(0,60000,"ms"),
                     "pinning", bool(), "pinDelayMs", integer(0,60000,"ms")), List.of("SINGLE_PASS"));
     public static final ExperimentDescriptor PIPELINE = new ExperimentDescriptor("pipeline.excel-ingestion", "Excel ingestion", "DATA", "XLSX_UPLOAD",
-            Map.of("mode", choice("PIPELINE","SINGLE_THREAD"), "rawCapacity", integer(1,100000,"items"),
-                    "mappedCapacity", integer(1,100000,"items"), "validatorThreads", integer(1,64,"threads"),
-                    "inserterThreads", integer(1,64,"threads"), "chunkSize", integer(1,10000,"rows"),
-                    "offerTimeoutMs", integer(1,60000,"ms"), "flushIntervalMs", optionalInteger(1,60000,"ms",1000),
-                    "maxAttempts", optionalInteger(1,10,"attempts",3), "retryBackoffMs", optionalInteger(1,60000,"ms",100)), List.of("SINGLE_PASS"));
+            Map.ofEntries(Map.entry("mode", choice("PIPELINE","SINGLE_THREAD")),
+                    Map.entry("rawCapacity", integer(1,100000,"items")),
+                    Map.entry("mappedCapacity", integer(1,100000,"items")),
+                    Map.entry("validatorThreads", integer(1,64,"threads")),
+                    Map.entry("inserterThreads", integer(1,64,"threads")),
+                    Map.entry("chunkSize", integer(1,10000,"rows")),
+                    Map.entry("offerTimeoutMs", integer(1,60000,"ms")),
+                    Map.entry("flushIntervalMs", optionalInteger(1,60000,"ms",1000)),
+                    Map.entry("maxAttempts", optionalInteger(1,10,"attempts",3)),
+                    Map.entry("retryBackoffMs", optionalInteger(1,60000,"ms",100)),
+                    Map.entry("errorPreviewLimit", optionalInteger(0,1000,"rows",100))), List.of("SINGLE_PASS"));
     public static List<ExperimentDescriptor> all() { return List.of(QUEUE, IO, PIPELINE); }
     public static ExperimentDescriptor get(String id) {
         return all().stream().filter(descriptor -> descriptor.id().equals(id)).findFirst()

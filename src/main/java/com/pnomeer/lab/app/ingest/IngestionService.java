@@ -1,5 +1,7 @@
 package com.pnomeer.lab.app.ingest;
 
+import com.pnomeer.lab.core.input.InputPayload;
+
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.runtime.DurableExperimentRunner;
 import com.pnomeer.lab.storage.StorageProperties;
@@ -29,18 +31,27 @@ public class IngestionService {
     }
 
     public String startJob(MultipartFile file, PipelineRunner.RunMode mode) {
-        byte[] payload;
-        try { payload = file.getBytes(); }
+        InputPayload payload;
+        try { payload = InputPayload.stage(file.getInputStream(), InputPayload.MAX_BYTES); }
+        catch (InputPayload.LimitExceeded ex) { throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), ex); }
+        catch (InputPayload.CapacityExceeded ex) { throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), ex); }
         catch (IOException ex) { throw new UncheckedIOException("Failed to read upload", ex); }
-        String fileName = file.getOriginalFilename() == null ? "unknown.xlsx" : file.getOriginalFilename();
-        var scenario = new PipelineExperimentScenario(payload, mode, progress -> { }, new PipelineExperimentCapture(), fileName);
-        var run = runner.prepare(experiment, scenario, UUID.randomUUID().toString());
-        try { executor.execute(() -> runner.runPrepared(experiment, scenario, run)); }
-        catch (org.springframework.core.task.TaskRejectedException ex) {
-            runner.reject(run, "Executor rejected the submitted run");
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ingestion queue is full or shutting down", ex);
+        try {
+            String fileName = file.getOriginalFilename() == null ? "unknown.xlsx" : file.getOriginalFilename();
+            var scenario = new PipelineExperimentScenario(payload, mode, progress -> { }, new PipelineExperimentCapture(), fileName, mode.name());
+            var run = runner.prepare(experiment, scenario, UUID.randomUUID().toString());
+            try { executor.execute(() -> {
+                try { runner.runPrepared(experiment, scenario, run); } finally { payload.close(); }
+            }); }
+            catch (org.springframework.core.task.TaskRejectedException ex) {
+                runner.reject(run, "Executor rejected the submitted run");
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Ingestion queue is full or shutting down", ex);
+            }
+            return run.runId();
+        } catch (RuntimeException | Error ex) {
+            try { payload.close(); } catch (RuntimeException close) { ex.addSuppressed(close); }
+            throw ex;
         }
-        return run.runId();
     }
 
     public IngestionJobState getJob(String id) {

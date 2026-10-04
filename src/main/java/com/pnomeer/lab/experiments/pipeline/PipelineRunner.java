@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,7 +47,7 @@ public class PipelineRunner {
     private final long insertDelayMs;
 
     public java.util.Map<String, String> configurationSnapshot() {
-        return java.util.Map.of(
+        var snapshot = new java.util.HashMap<>(java.util.Map.of(
                 "pipeline.queue.raw-capacity", String.valueOf(properties.getQueue().getRawCapacity()),
                 "pipeline.queue.mapped-capacity", String.valueOf(properties.getQueue().getMappedCapacity()),
                 "pipeline.threads.validator", String.valueOf(properties.getThreads().getValidator()),
@@ -58,7 +57,9 @@ public class PipelineRunner {
                 "pipeline.insert.retry-backoff-ms", String.valueOf(properties.getInsert().getRetryBackoffMs()),
                 "pipeline.insert.chunk-size", String.valueOf(properties.getInsert().getChunkSize()),
                 "pipeline.backpressure.offer-timeout-ms", String.valueOf(properties.getBackpressure().getOfferTimeoutMs()),
-                "pipeline.insert.delay-ms", String.valueOf(insertDelayMs));
+                "pipeline.insert.delay-ms", String.valueOf(insertDelayMs)));
+        snapshot.put("pipeline.error-preview-limit", String.valueOf(properties.getErrorPreviewLimit()));
+        return java.util.Map.copyOf(snapshot);
     }
 
     public enum RunMode {
@@ -132,7 +133,7 @@ public class PipelineRunner {
         int validatorWorkers = properties.getThreads().getValidator();
         int inserterWorkers = properties.getThreads().getInserter();
 
-        var validationErrors = new ConcurrentLinkedQueue<ValidationError>();
+        var validationErrors = new ValidationErrors(properties.getErrorPreviewLimit());
         var producedCount = new AtomicInteger(0);
         var mappedCount = new AtomicInteger(0);
         var insertedCount = new AtomicInteger(0);
@@ -191,7 +192,8 @@ public class PipelineRunner {
                     producedCount.get(),
                     insertedCount.get(),
                     retryCount.get(),
-                    new ArrayList<>(validationErrors),
+                    validationErrors.preview(),
+                    validationErrors.reasons(),
                     rawChannel.getCumulativeEnqueueWaitNanos(),
                     mappedChannel.getCumulativeEnqueueWaitNanos(),
                     rawChannel.getEnqueuedCount(),
@@ -214,7 +216,7 @@ public class PipelineRunner {
             throw new IllegalArgumentException("insert.chunkSize must be > 0");
         }
 
-        List<ValidationError> validationErrors = new ArrayList<>();
+        ValidationErrors validationErrors = new ValidationErrors(properties.getErrorPreviewLimit());
         AtomicInteger producedCount = new AtomicInteger(0);
         AtomicInteger mappedCount = new AtomicInteger(0);
         AtomicInteger insertedCount = new AtomicInteger(0);
@@ -378,7 +380,8 @@ public class PipelineRunner {
                 producedCount.get(),
                 insertedCount.get(),
                 retryCount.get(),
-                List.copyOf(validationErrors),
+                validationErrors.preview(),
+                validationErrors.reasons(),
                 0L,
                 0L,
                 0L,
@@ -386,7 +389,7 @@ public class PipelineRunner {
                 elapsedMillis);
     }
 
-    private static void recordValidationError(java.util.Collection<ValidationError> errors,
+    private static void recordValidationError(ValidationErrors errors,
             Consumer<ValidationError> sink, ValidationError error) {
         sink.accept(error);
         errors.add(error);
@@ -416,7 +419,7 @@ public class PipelineRunner {
             int workerCount,
             BoundedChannel<Envelope<RawRow>> rawChannel,
             BoundedChannel<Envelope<MappedRow>> mappedChannel,
-            ConcurrentLinkedQueue<ValidationError> validationErrors,
+            ValidationErrors validationErrors,
             Consumer<ValidationError> deadLetters,
             AtomicInteger mappedCount,
             AtomicInteger failedRowCount,
@@ -861,6 +864,7 @@ public class PipelineRunner {
         private final int insertedCount;
         private final int retryCount;
         private final List<ValidationError> validationErrors;
+        private final java.util.Map<String, Long> validationReasons;
         private final long rawChannelEnqueueWaitNanos;
         private final long mappedChannelEnqueueWaitNanos;
         private final long rawChannelEnqueuedCount;
@@ -872,6 +876,7 @@ public class PipelineRunner {
                 int insertedCount,
                 int retryCount,
                 List<ValidationError> validationErrors,
+                java.util.Map<String, Long> validationReasons,
                 long rawChannelEnqueueWaitNanos,
                 long mappedChannelEnqueueWaitNanos,
                 long rawChannelEnqueuedCount,
@@ -881,6 +886,7 @@ public class PipelineRunner {
             this.insertedCount = insertedCount;
             this.retryCount = retryCount;
             this.validationErrors = List.copyOf(validationErrors);
+            this.validationReasons = java.util.Map.copyOf(validationReasons);
             this.rawChannelEnqueueWaitNanos = rawChannelEnqueueWaitNanos;
             this.mappedChannelEnqueueWaitNanos = mappedChannelEnqueueWaitNanos;
             this.rawChannelEnqueuedCount = rawChannelEnqueuedCount;
@@ -897,6 +903,9 @@ public class PipelineRunner {
         public int getInsertedCount() {
             return insertedCount;
         }
+
+        public java.util.Map<String, Long> getValidationReasons() { return validationReasons; }
+        public long getValidationErrorCount() { return validationReasons.values().stream().mapToLong(Long::longValue).sum(); }
 
         public List<ValidationError> getValidationErrors() {
             return validationErrors;

@@ -11,6 +11,10 @@ public final class RawRow {
         if (rowIndex < 0) {
             throw new IllegalArgumentException("rowIndex must be >= 0");
         }
+        Objects.requireNonNull(cells, "cells must not be null");
+        if (cells.size() > 16384 || cells.stream().mapToLong(String::length).sum() > 65536) {
+            throw new IllegalArgumentException("Row exceeds cell/character limits");
+        }
         this.rowIndex = rowIndex;
         this.cells = List.copyOf(Objects.requireNonNull(cells, "cells must not be null"));
     }

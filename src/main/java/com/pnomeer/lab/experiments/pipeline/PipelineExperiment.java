@@ -8,10 +8,8 @@ import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
 import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayInputStream;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
@@ -49,12 +47,14 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
 
     private ExperimentSummary executeWithDeadLetters(PipelineExperimentScenario scenario, Consumer<MetricPoint> timelineListener,
             Consumer<ValidationError> deadLetters) throws Exception {
-        PipelineRunner.PipelineRunResult result = pipelineRunner.run(
-                new ByteArrayInputStream(scenario.payload()),
-                scenario.runMode(),
-                progressSnapshot -> publishProgress(scenario, timelineListener, progressSnapshot), deadLetters);
-        scenario.capture().setRunResult(result);
-        return toSummary(result);
+        try (var input = scenario.payload().openStream()) {
+            PipelineRunner.PipelineRunResult result = pipelineRunner.run(
+                    input,
+                    scenario.runMode(),
+                    progressSnapshot -> publishProgress(scenario, timelineListener, progressSnapshot), deadLetters);
+            scenario.capture().setRunResult(result);
+            return toSummary(result);
+        }
     }
 
     private static void publishProgress(
@@ -66,14 +66,12 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
     }
 
     private static ExperimentSummary toSummary(PipelineRunner.PipelineRunResult result) {
-        Map<String, Long> errorSummary = result.getValidationErrors().stream()
-                .map(ValidationError::getReason)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        Map<String, Long> errorSummary = result.getValidationReasons();
         Map<String, Long> counters = Map.of(
                 "retry.count", (long) result.getRetryCount(),
                 "rows.produced", (long) result.getProducedCount(),
                 "rows.inserted", (long) result.getInsertedCount(),
-                "rows.validationErrors", (long) result.getValidationErrors().size());
+                "rows.validationErrors", result.getValidationErrorCount());
         Map<String, Double> gauges = Map.of(
                 "timing.elapsedMs", (double) result.getElapsedMillis());
         Map<String, String> details = errorSummary.entrySet().stream()
