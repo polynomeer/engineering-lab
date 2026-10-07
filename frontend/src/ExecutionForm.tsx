@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { moduleViews } from './moduleViews';
 import type { Descriptor } from './api';
 import {
   definition,
@@ -19,6 +20,7 @@ export function ExecutionPage({
   experiment: string | null;
 }) {
   const descriptor = catalog.find((d) => d.id === experiment);
+  const Input = descriptor && moduleViews[descriptor.id]?.input;
   return (
     <>
       <p>실험을 선택하고 조건과 가설을 기록하세요. 실행 결과는 공통 저장소에 보관됩니다.</p>
@@ -42,7 +44,9 @@ export function ExecutionPage({
         <p role="alert">등록되지 않은 실험입니다.</p>
       )}
       {descriptor &&
-        (supportsForm(descriptor) ? (
+        (Input ? (
+          <Input />
+        ) : supportsForm(descriptor) ? (
           <ExecutionForm key={descriptor.id} descriptor={descriptor} catalog={catalog} />
         ) : (
           <p>이 실험의 입력 화면은 이행 중입니다. 상단의 기존 실험 실행 화면을 이용하세요.</p>

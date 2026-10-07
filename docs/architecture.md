@@ -22,8 +22,8 @@ and offline CLI validation; startup verifies runtime bindings against that catal
 New module metrics extend the catalog without replacing existing definitions.
 See [the extension guide](adding-experiments.md). This is package-level modularity;
 the standalone frontend supports Run evidence browsing (D1) and schema-driven queue/IO
-execution forms with presets and comparison exports (D2 first unit). Excel/tool migration,
-browser state import and external worker integration remain planned work. Career build
+execution forms with presets and comparison exports (D2 first unit). Excel upload and progress adapters plus DB/IO tools are implemented.
+Browser state import and external worker integration remain planned work. Career build
 projects are discovered from explicit `lab-module.properties` declarations, so new
 projects do not require edits to a fixed Gradle include list.
 

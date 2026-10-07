@@ -16,6 +16,8 @@ import {
   type Comparison,
 } from './api';
 import './style.css';
+import { moduleViews } from './moduleViews';
+import { DatabaseTool, IoEchoTool } from './LegacyTools';
 import { ExecutionPage } from './ExecutionForm';
 import { comparisonCsv, download } from './execution';
 import { Table, Raw, Badge, Actions, format } from './components';
@@ -138,6 +140,7 @@ function App() {
     document.addEventListener('visibilitychange', visible);
     return () => document.removeEventListener('visibilitychange', visible);
   }, []);
+  const DetailPanel = run && moduleViews[run.experimentType]?.detail;
   const groups = modules.length
     ? modules
     : [
@@ -191,6 +194,8 @@ function App() {
               ))}
             </section>
           ))}
+          <a href="/app/tools/ingestion-db">현재 DB 조회</a>
+          <a href="/app/tools/io-echo">IO 단건 데모</a>
           <p className="note">Career Lab 실행 연동은 준비 중입니다.</p>
         </aside>
         <main id="content">
@@ -198,15 +203,19 @@ function App() {
             <div>
               <p className="eyebrow">RUN EVIDENCE</p>
               <h1>
-                {route.kind === 'execute'
-                  ? '실험 실행'
-                  : route.kind === 'detail'
-                    ? '실행 상세'
-                    : route.kind === 'compare'
-                      ? '실행 비교'
-                      : route.kind === 'missing'
-                        ? '페이지를 찾을 수 없습니다'
-                        : '실행 기록'}
+                {route.kind === 'database'
+                  ? '현재 DB 조회'
+                  : route.kind === 'echo'
+                    ? 'IO 단건 데모'
+                    : route.kind === 'execute'
+                      ? '실험 실행'
+                      : route.kind === 'detail'
+                        ? '실행 상세'
+                        : route.kind === 'compare'
+                          ? '실행 비교'
+                          : route.kind === 'missing'
+                            ? '페이지를 찾을 수 없습니다'
+                            : '실행 기록'}
               </h1>
             </div>
             <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
@@ -217,9 +226,11 @@ function App() {
           <p role="status" className="status">
             {loading
               ? '불러오는 중…'
-              : route.kind === 'execute'
-                ? '서버에 등록된 실험과 입력 범위'
-                : '저장소에서 조회한 실행 증거'}
+              : route.kind === 'database' || route.kind === 'echo'
+                ? '현재 서버의 도구 · Run 증거와 별도'
+                : route.kind === 'execute'
+                  ? '서버에 등록된 실험과 입력 범위'
+                  : '저장소에서 조회한 실행 증거'}
           </p>
           {(error || bootstrapError) && (
             <div role="alert" className="error">
@@ -227,6 +238,8 @@ function App() {
               <button onClick={() => setRefresh((n) => n + 1)}>다시 시도</button>
             </div>
           )}
+          {route.kind === 'database' && <DatabaseTool />}
+          {route.kind === 'echo' && <IoEchoTool />}
           {route.kind === 'execute' && (
             <ExecutionPage catalog={catalog} experiment={route.query.get('experiment')} />
           )}
@@ -290,6 +303,7 @@ function App() {
               <p>
                 {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
               </p>
+              {DetailPanel && <DetailPanel id={run.runId} status={run.status} />}
               <h2>결과 요약</h2>
               <Table
                 label="원본 metric 이름과 값"
