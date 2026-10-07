@@ -194,7 +194,9 @@ function App() {
             비교
           </a>
           <a
-            href={new URL('/ui', import.meta.env.VITE_LEGACY_BASE ?? 'http://127.0.0.1:8080').href}
+            href={
+              new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href
+            }
           >
             기존 실험 실행 ↗
           </a>

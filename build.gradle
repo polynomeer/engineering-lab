@@ -86,3 +86,20 @@ tasks.register('pipelineBenchmark', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.pnomeer.lab.experiments.pipeline.benchmark.PipelineBenchmark'
 }
+
+// Reuse the exact standalone artifact; default Java builds never invoke Node.
+tasks.register('bootDashboardJar', org.springframework.boot.gradle.tasks.bundling.BootJar) {
+    group = 'build'
+    description = 'Package an already-built frontend/dist with the API (run npm run build first).'
+    archiveClassifier = 'dashboard'
+    targetJavaVersion = tasks.named('bootJar').flatMap { it.targetJavaVersion }
+    mainClass = 'com.pnomeer.pipeline.ExcelPipelineApplication'
+    classpath = sourceSets.main.runtimeClasspath
+    dependsOn classes
+    from('frontend/dist') { into 'BOOT-INF/classes/static/app' }
+    doFirst {
+        if (!file('frontend/dist/index.html').isFile()) {
+            throw new GradleException('Missing frontend/dist/index.html; run npm ci and npm run build in frontend first')
+        }
+    }
+}

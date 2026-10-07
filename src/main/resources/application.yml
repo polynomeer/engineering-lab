@@ -25,6 +25,9 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  dashboard:
+    redirect-enabled: false
+    frontend-origin: ""
   artifacts:
     download:
       max-bytes: 268435456

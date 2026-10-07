@@ -2,7 +2,13 @@ import { defineConfig } from 'vitest/config';
 import type { Connect } from 'vite';
 const guard: Connect.NextHandleFunction = (req, res, next) => {
   const path = (req.url ?? '/').split('?')[0];
-  if (path === '/') {
+  if (path === '/ui') {
+    res.writeHead(302, {
+      Location: new URL('/ui?legacy=true', process.env.LAB_API_TARGET ?? 'http://127.0.0.1:8080')
+        .href,
+    });
+    res.end();
+  } else if (path === '/') {
     res.writeHead(302, { Location: '/app/runs' });
     res.end();
   } else if (

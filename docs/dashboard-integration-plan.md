@@ -1,6 +1,6 @@
 # 공통 대시보드 이행 계획
 
-상태: **등록 확장 기반·D1 완료, D2 실행 화면·도구·상태 이행 완료** · 기준: [통합 설계](dashboard-integration-design.md)
+상태: **등록 확장 기반·D1·D2 완료** · 기준: [통합 설계](dashboard-integration-design.md)
 
 복구된 Career Lab과 현재 실험 플랫폼을 유지한 채 단계적으로 연결한다. 아래 작업은 각각 검증 후 독립 커밋한다. 각 단계의 완료 표시를 구현 기준으로 삼는다. 전체 worker 연동은 아직 완료되지 않았다.
 
@@ -49,8 +49,8 @@
 - [x] 큐/IO 폼·프리셋·비교·CSV를 공통 컴포넌트로 이관한다. 새 CSV는 비교 요약이며 기존 시계열 CSV는 구화면에서 유지한다.
 - [x] Excel 업로드·작업 상세·현재 DB 도구와 IO 단건 데모를 이관한다. 데모의 비영속 의미를 유지한다.
 - [x] legacy localStorage/sessionStorage import와 다른 origin 간 설정 export/import를 구현한다.
-- [ ] 기존 route→신규 route 변환, query 보존, 선택적 302와 legacy rollback 설정을 구현한다.
-- [ ] standalone 정적 배포와 embedded 선택 패키징에서 같은 산출물을 검증한다. API prefix, Location rewrite, 다운로드 헤더·streaming을 확인한다.
+- [x] 기존 route→신규 route 변환, query 보존, 선택적 302와 legacy rollback 설정을 구현한다.
+- [x] standalone 정적 배포와 embedded 선택 패키징에서 같은 산출물을 검증한다. API prefix, Location rewrite, 다운로드 헤더·streaming을 확인한다.
 
 완료 기준: 설계의 URL 대응표 전체에 브라우저 회귀 증거가 있고, 기존 북마크·폼·프리셋·이력이 보존된다. 기존 동작과 다른 부분은 명시적으로 기록한다. 접근성·375px·스토리지 비활성 상태를 확인한다.
 
@@ -59,6 +59,8 @@
 Excel/도구 검증 (2026-10-07): PIPELINE/SINGLE_THREAD 실제 XLSX 업로드와 Run 상세·행 집계, 현재 DB 제한 조회, 비영속 IO 두 방식·CSV를 확인했다. 단위 테스트 10개, 브라우저 테스트 7개, typecheck/build 및 루트 전체 테스트(UP-TO-DATE) 성공. 모듈별 입력/상세 adapter를 공통 router와 분리했다. IO 새 화면 이력은 현재 탭 20개이며 영속 브라우저 이력과 기존 key import는 다음 상태 이행 단계에 남긴다.
 
 상태 이행 검증 (2026-10-07): 동일 origin 직접 읽기와 다른 origin의 구화면 JSON 내보내기/가져오기, 미리보기·선택·충돌 정책, 원본 보존, 단일 atomic 저장, IO 이력 복원을 추가했다. 신규 단건/기존 평균 비교는 별도 표시한다. 루트 테스트 142개, frontend 단위 테스트 15개, 브라우저 전체 9개와 typecheck/build가 통과했다. 캡처와 사용법은 [가이드](standalone-dashboard.md)에 있다.
+
+URL/배포 검증 (2026-10-07): 기본 off의 302/query 보존과 legacy 우회, `/api` 내부 adapter, Node 독립 정적/streaming proxy, 선택적 bootDashboardJar를 구현했다. 동일 dist를 양쪽에 배포해 기존 브라우저 9개와 배포 경계 1개를 각각 확인했다. 실제 Excel multipart·202 Location·NDJSON/Content-Disposition·deep link·설정 이전이 유지되며 JS byte 일치도 확인했다. 독립 서버 계약 테스트 1개, frontend 단위 15개, 루트 전체 144개가 통과했다. 내장 jar의 모든 dist 파일 byte 일치 및 기본 jar의 SPA 미포함도 확인했다. 기본 bootJar에는 SPA를 포함하지 않는다. [시작·되돌리기 절차](dashboard-deployment.md).
 
 독립 커밋 단위: 큐/IO 화면 → Excel 화면 → 상태 이행 → route/배포 호환. 화면 검증을 통과하기 전 Java HTML을 제거하지 않는다.
 
@@ -128,4 +130,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D2: 기존 URL 호환과 standalone/embedded 배포**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.
+다음 실행 작업은 **D3: executor 경계 추출**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.

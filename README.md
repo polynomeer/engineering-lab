@@ -23,7 +23,7 @@ Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니
 Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
 [단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, 현재 연동은 구현 전입니다.
 
-별도 실행하는 [독립 대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기존 실행 화면도 계속 제공합니다.
+별도 실행하는 [독립 대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기존 실행 화면도 계속 제공합니다. [독립·내장 배포와 기존 URL 전환](docs/dashboard-deployment.md)을 지원하며 기본은 기존 화면 유지입니다.
 
 새 실험을 추가할 때는 [모듈 확장 가이드](docs/adding-experiments.md)를 따릅니다. 기존 세 실험도 모듈별 정의·등록 구조를 사용합니다.
 
