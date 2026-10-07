@@ -12,13 +12,7 @@ import java.util.function.Supplier;
 
 public final class DurableExperimentRunner implements ExperimentRunner, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(DurableExperimentRunner.class);
-    private final JfrRecorder jfr;
-    private final RunLogRecorder runLogs;
-    private final boolean traceEnabled;
-    private final int traceMaxSpans;
-    private final Supplier<MetricPoint> jvmProbe;
-    private final long jvmIntervalMs;
-    private final int maxPeriodicSamples;
+    private final ExperimentExecutor executor;
     private final RunStore store;
     private final Supplier<GitProvenance> provenance;
     private final MetricWriterOptions options;
@@ -61,13 +55,14 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
             long jvmIntervalMs, int maxPeriodicSamples, boolean traceEnabled, int traceMaxSpans,
             JfrRecorder jfr, RunLogRecorder runLogs) {
-        this.runLogs = runLogs;
-        this.jfr = jfr;
-        new TraceProperties(traceEnabled, traceMaxSpans);
-        this.traceEnabled=traceEnabled; this.traceMaxSpans=traceMaxSpans;
-        new ObservationProperties(jvmProbe != null, jvmIntervalMs, maxPeriodicSamples);
-        this.jvmIntervalMs = jvmIntervalMs; this.maxPeriodicSamples = maxPeriodicSamples;
-        this.jvmProbe = jvmProbe;
+        this(store, provenance, options, new InProcessExecutor(jvmProbe, jvmIntervalMs,
+                maxPeriodicSamples, traceEnabled, traceMaxSpans, jfr, runLogs, options.shutdownTimeoutMs()),
+                previewLimit, maxActiveRuns);
+    }
+
+    DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, ExperimentExecutor executor, int previewLimit, int maxActiveRuns) {
+        this.executor = Objects.requireNonNull(executor);
         if (previewLimit < 1 || maxActiveRuns < 1) throw new IllegalArgumentException("Run limits must be positive");
         this.store = store; this.provenance = provenance; this.options = options;
         this.previewLimit = previewLimit; this.maxActiveRuns = maxActiveRuns;
@@ -80,16 +75,8 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         var parameters = new HashMap<>(experiment.parameters(scenario));
         parameters.put("evidence.dead-letter.mode", "DATABASE_V1");
         parameters.put("evidence.dead-letter.maxRecordBytes", String.valueOf(DeadLetter.MAX_BYTES));
-        parameters.put("observation.schema.version", com.pnomeer.lab.metrics.MetricCatalog.VERSION);
-        parameters.put("observation.jvm.mode", jvmProbe == null ? "OFF" : jvmIntervalMs == 0 ? "BOUNDARY" : "PERIODIC");
-        parameters.put("observation.jvm.intervalMs", String.valueOf(jvmProbe == null ? 0 : jvmIntervalMs));
-        parameters.put("observation.jvm.maxPeriodicSamples", String.valueOf(jvmProbe == null || jvmIntervalMs == 0 ? 0 : maxPeriodicSamples));
-        parameters.put("observation.trace.mode", traceEnabled ? "EXPLICIT" : "OFF");
-        parameters.put("observation.trace.schemaVersion", "1");
-        parameters.put("observation.trace.maxSpans", String.valueOf(traceEnabled ? traceMaxSpans : 0));
-        parameters.putAll(jfr == null ? Map.of("observation.jfr.mode", "OFF") : jfr.parameters());
-        parameters.putAll(runLogs == null ? Map.of("observation.logs.mode", "OFF") : runLogs.parameters());
-        var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
+        parameters.putAll(executor.parameters());
+        var metadata = new RunMetadata(id, parameters, executor.environment(), provenance.get());
         synchronized (active) {
             if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
             return store.create(experiment.type(), scenario.scenarioId(), metadata);
@@ -118,121 +105,26 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             long started = System.currentTimeMillis();
             var preview = new ArrayDeque<MetricPoint>(previewLimit);
             var writer = new BoundedMetricWriter(store, run.runId(), options);
-            var trace = new TraceRecorder(traceEnabled ? writer : null, run.runId(), traceMaxSpans);
-            JfrRecorder.Session recording = null;
-            RunLogRecorder.Session runLog = null;
-            var logReason = RunLogRecorder.Reason.NONE;
-            var executionStage = RunLogRecorder.Stage.EXECUTION;
-            ExperimentSummary summary = ExperimentSummary.empty();
-            RunStatus status = RunStatus.SUCCEEDED;
-            String failure = null;
-            boolean interrupted = false;
-            var observation = new JvmObservationSession(jvmProbe, writer, jvmIntervalMs,
-                    maxPeriodicSamples, options.shutdownTimeoutMs(), run.runId());
-            try {
-                if (runLogs != null) runLog = runLogs.start(run.runId());
-                executionStage = RunLogRecorder.Stage.JFR;
-                if (jfr != null) recording = jfr.start(run.runId());
-                executionStage = RunLogRecorder.Stage.JVM;
-                observation.start();
-                executionStage = RunLogRecorder.Stage.EXECUTION;
-                summary = trace.call(TraceRecorder.Stage.EXPERIMENT, null, rootSpan -> experiment.execute(scenario, point -> {
-                    observation.checkFailure();
-                    writer.accept(point);
-                    synchronized (preview) {
-                        if (preview.size() == previewLimit) preview.removeFirst();
-                        preview.addLast(point);
-                    }
-                }, trace, rootSpan, new ExecutionEvidence(run.runId(), row -> {
-                    try { store.appendDeadLetter(run.runId(), row); }
-                    catch (RuntimeException ex) {
-                        log.error("job_id={} stage=dead-letter reason=persistence_failed row_index={}", run.runId(), row.rowIndex());
-                        throw new IllegalStateException("Dead-letter persistence failed", ex);
-                    }
-                })));
-                if (runLog != null) runLog.record(RunLogRecorder.Stage.EXECUTION, RunLogRecorder.Event.SUCCEEDED, RunLogRecorder.Reason.NONE);
-            } catch (Exception | OutOfMemoryError ex) {
-                boolean executionInterrupted = ex instanceof InterruptedException
-                        || ex instanceof PartialExecutionFailure partial && partial.interrupted();
-                if (ex instanceof PartialExecutionFailure partial) summary = partial.summary();
-                status = executionInterrupted ? RunStatus.INTERRUPTED : RunStatus.FAILED;
-                failure = ex instanceof OutOfMemoryError ? "Out of memory"
-                        : ex.getMessage() == null ? "Experiment failed" : ex.getMessage();
-                interrupted = Thread.interrupted() || executionInterrupted;
-                logReason = executionInterrupted ? RunLogRecorder.Reason.INTERRUPTED
-                        : ex instanceof OutOfMemoryError ? RunLogRecorder.Reason.OUT_OF_MEMORY
-                        : switch (executionStage) {
-                            case JFR -> RunLogRecorder.Reason.JFR_FAILED;
-                            case JVM -> RunLogRecorder.Reason.JVM_FAILED;
-                            default -> RunLogRecorder.Reason.EXECUTION_FAILED;
-                        };
-                if (runLog != null) runLog.record(executionStage,
-                        executionInterrupted ? RunLogRecorder.Event.INTERRUPTED : RunLogRecorder.Event.FAILED, logReason);
-            } catch (Error ex) {
-                logReason = RunLogRecorder.Reason.EXECUTION_FAILED;
-                if (runLog != null) runLog.record(executionStage, RunLogRecorder.Event.FAILED, logReason);
-                throw ex;
-            } finally {
-                try {
-                    trace.close();
-                    try { observation.finish(); }
-                    catch (RuntimeException | OutOfMemoryError ex) {
-                        status = RunStatus.FAILED;
-                        logReason = RunLogRecorder.Reason.JVM_FAILED;
-                        if (runLog != null) runLog.record(RunLogRecorder.Stage.JVM, RunLogRecorder.Event.FAILED, logReason);
-                        failure = "JVM observation failed" + (failure == null ? "" : "; experiment: " + failure);
-                        log.error("job_id={} stage=jvm-observation reason=capture_or_publish_failed", run.runId(), ex);
-                        interrupted |= Thread.interrupted();
-                    }
-                    if (recording != null) {
-                        ArtifactReference capture = null;
-                        try {
-                            capture = recording.finish();
-                            store.registerArtifact(capture);
-                        }
-                        catch (Exception | OutOfMemoryError ex) {
-                            status = RunStatus.FAILED;
-                            logReason = RunLogRecorder.Reason.JFR_FAILED;
-                            if (runLog != null) runLog.record(RunLogRecorder.Stage.JFR, RunLogRecorder.Event.FAILED, logReason);
-                            failure = "JFR capture or registration failed" + (failure == null ? "" : "; experiment: " + failure);
-                            log.error("job_id={} stage=jfr reason=capture_or_registration_failed artifact_id={}",
-                                    run.runId(), capture == null ? "unavailable" : capture.artifactId(), ex);
-                            interrupted |= Thread.interrupted();
-                        } finally { recording.close(); }
-                    }
-                    try { writer.close(); }
-                    catch (RuntimeException ex) {
-                        status = RunStatus.FAILED;
-                        logReason = RunLogRecorder.Reason.STORAGE_FAILED;
-                        if (runLog != null) runLog.record(RunLogRecorder.Stage.STORAGE, RunLogRecorder.Event.FAILED, logReason);
-                        failure = "Observation storage failed: " + ex.getMessage()
-                                + (failure == null ? "" : "; experiment: " + failure);
-                        log.error("job_id={} stage=metric-storage reason=drain_failed", run.runId(), ex);
-                        interrupted |= Thread.interrupted();
-                    }
-                } finally {
-                    if (runLog != null) {
-                        ArtifactReference capture = null;
-                        try {
-                            capture = runLog.finish(logReason);
-                            store.registerArtifact(capture);
-                        } catch (Exception | OutOfMemoryError ex) {
-                            status = RunStatus.FAILED;
-                            failure = "Run log capture or registration failed" + (failure == null ? "" : "; experiment: " + failure);
-                            log.error("job_id={} stage=run-log reason=capture_or_registration_failed artifact_id={}",
-                                    run.runId(), capture == null ? "unavailable" : capture.artifactId(), ex);
-                            interrupted |= Thread.interrupted();
-                        }
-                    }
+            var output = new ExperimentExecutor.Output(run.runId(), writer, point -> {
+                writer.accept(point);
+                synchronized (preview) {
+                    if (preview.size() == previewLimit) preview.removeFirst();
+                    preview.addLast(point);
                 }
-            }
-            if (summary == null) summary = ExperimentSummary.empty();
+            }, new ExecutionEvidence(run.runId(), row -> {
+                try { store.appendDeadLetter(run.runId(), row); }
+                catch (RuntimeException ex) {
+                    log.error("job_id={} stage=dead-letter reason=persistence_failed row_index={}", run.runId(), row.rowIndex());
+                    throw new IllegalStateException("Dead-letter persistence failed", ex);
+                }
+            }), store::registerArtifact, writer::close);
+            var outcome = executor.execute(experiment, scenario, output);
+            var status = outcome.status();
+            var summary = outcome.summary();
+            var failure = outcome.failure();
+            boolean interrupted = outcome.interrupted();
             var counters = new HashMap<>(summary.counters());
             counters.putAll(writer.counters());
-            counters.putAll(observation.counters());
-            counters.putAll(trace.counters());
-            if (runLog != null) counters.putAll(runLog.counters());
-            if (recording != null) counters.putAll(recording.counters());
             counters.put("storage.preview.limit", (long) previewLimit);
             summary = new ExperimentSummary(counters, summary.gauges(), summary.details());
             try {

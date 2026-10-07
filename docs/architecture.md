@@ -1,6 +1,6 @@
 # Architecture
 
-The implemented platform baseline is described in [Experiment Platform v2](experiment-platform-design.md), with completed work in [the implementation plan](implementation-plan.md). The proposed next iteration is [Shared Dashboard and Career Integration](dashboard-integration-design.md), tracked in [its migration plan](dashboard-integration-plan.md); it is not implemented yet. The layout below is the earlier architectural direction, not a list of existing Gradle modules.
+The implemented platform baseline is described in [Experiment Platform v2](experiment-platform-design.md), with completed work in [the implementation plan](implementation-plan.md). The proposed next iteration is [Shared Dashboard and Career Integration](dashboard-integration-design.md), tracked in [its migration plan](dashboard-integration-plan.md); its completed and pending units are tracked separately. The layout below is the earlier architectural direction, not a list of existing Gradle modules.
 
 ## Current repository build boundaries
 
@@ -26,6 +26,28 @@ execution forms with presets and comparison exports (D2 first unit). Excel uploa
 Browser state import/export preserves legacy keys and commits selected settings in one localStorage write. Opt-in legacy redirects, a streaming standalone server and optional bootDashboardJar reuse the same SPA build. External worker integration remains planned work. Career build
 projects are discovered from explicit `lab-module.properties` declarations, so new
 projects do not require edits to a fixed Gradle include list.
+
+## Implemented execution boundary (D3 first unit)
+
+`DurableExperimentRunner` retains admission/shutdown, Run creation/start/completion,
+Git provenance, the bounded metric writer and preview, and all RunStore access.
+The package-level `ExperimentExecutor` receives streaming metric, dead-letter and
+artifact sinks, plus a metric-drain callback; it cannot mutate Run lifecycle.
+`InProcessExecutor` owns experiment invocation, environment capture and JVM/trace/
+JFR/log observation. Existing public runner constructors select this executor.
+No new queue, retained evidence list, configuration or database schema is introduced.
+
+Cleanup preserves trace close → JVM sampler stop/final capture → JFR finish/register/
+close → metric drain → log finish/register → central Run completion. Drain failures
+are recorded in the final log and fail the Run. Partial progress and interrupted
+status cross the boundary; the runner restores interruption after persisting completion.
+Observation points stay out of the bounded experiment preview, as before.
+
+This is the in-process extraction only. Executor routing, external worker environment
+handshake, execution/check schema v3 and worker admission remain pending. A future
+process executor must report its own environment and observations through the boundary;
+it must not reuse the controller JVM collectors. Git provenance is still the root
+repository snapshot until worker provenance is introduced in the execution schema.
 
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
