@@ -862,6 +862,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                   setInterval(() => refreshJobs().catch(console.error), 1000);
                   refreshJobs().catch(console.error);
                 </script>
+                <script src="/dashboard/export-settings.js"></script>
                 </body>
                 </html>
                 """;
@@ -1012,6 +1013,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                   setInterval(() => refresh().catch(console.error), 1000);
                   refresh().catch(console.error);
                 </script>
+                <script src="/dashboard/export-settings.js"></script>
                 </body>
                 </html>
                 """.formatted(safeJobId, safeJobId, safeJobId);

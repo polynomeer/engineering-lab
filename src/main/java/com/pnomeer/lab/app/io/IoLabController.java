@@ -305,6 +305,7 @@ public class IoLabController {
                   loadHistory();
                   renderHistory();
                 </script>
+                <script src="/dashboard/export-settings.js"></script>
                 </body>
                 </html>
                 """.formatted(safeMsg, HISTORY_STORAGE_KEY);

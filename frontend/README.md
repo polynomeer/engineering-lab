@@ -72,6 +72,7 @@ npm run test:e2e
 - `src/main.tsx`: catalog 기반 탐색, Run/비교 화면, abort 가능한 조회·활성 Run polling
 - `src/ExecutionForm.tsx`, `src/execution.ts`: schema 기반 폼, 프리셋 저장, 단일 제출과 비교 다운로드
 - `src/LegacyTools.tsx`, `src/moduleViews.tsx`: 기존 업로드 API·Excel 상세 adapter, 현재 DB·비영속 IO 도구
+- `src/settings.ts`, `src/SettingsPage.tsx`: bounded 설정 검증·이전·단일 key 저장, 선택적 conflict 처리
 - `src/style.css`: 기존 Run 화면의 어두운 토큰과 반응형 스타일
 - `tests/dashboard.spec.ts`: 실제 서버 기반 browser E2E와 오류/cursor/legacy fallback
 - `../contracts/dashboard/v1/fixtures/evidence.json`: Java HTTP 계약 테스트와 공유하는 합성 fixture
@@ -82,9 +83,11 @@ capabilities/modules의 404만 구형 서버 호환으로 처리하며 503·HTML
 
 활성 Run 상세는 2초 간격으로 이전 요청 완료 후 갱신합니다. 오류 backoff는 최대 15초이며,
 탭 비활성·페이지 이탈·Run 종료 시 polling을 멈춥니다. 관측값은 한 페이지만 보유합니다.
-기존 localStorage 이행, IO 이력 영속화, 기존 URL redirect와 배포용 reverse proxy/embedded 패키징은 D2 후속 범위입니다.
+기존 URL redirect와 배포용 reverse proxy/embedded 패키징은 D2 후속 범위입니다.
 새 설정은 `engineering-lab.dashboard.presets.v1`에 최근 12개만 보관하며 읽기는 1 MiB/100개로 제한합니다.
 새 실험은 input=NONE, SINGLE_PASS, 정수/boolean/선택형 string schema일 때 추가 UI 분기 없이 실행 폼을 제공합니다.
 POST 실패 시 자동 재시도하지 않습니다. 네트워크 오류·5xx·접수 응답 손상은 접수 불확실로 표시합니다.
 
 `npm run build`는 `dist/`에 산출물을 만듭니다. `npm run preview`는 로컬 산출물 확인용이며 운영 서버가 아닙니다.
+
+설정 백업/이전은 `/app/settings`를 사용합니다. 구화면 내보내기 스크립트는 `src/main/resources/static/dashboard/export-settings.js`에 있고 원본 key를 변경하지 않습니다. 상세 제한과 이전 절차는 [사용 가이드](../docs/standalone-dashboard.md)를 참고하세요. 브라우저 E2E의 구화면 주소는 `LEGACY_URL`(기본 `http://127.0.0.1:18080/experiments/ui`)로 변경합니다.

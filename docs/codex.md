@@ -39,7 +39,7 @@
 
 ## 다음 구조 변경
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행과 worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환과 worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
 
 ## 실행 흐름
 

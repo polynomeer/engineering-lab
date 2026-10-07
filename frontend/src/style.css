@@ -354,3 +354,14 @@ textarea {
   overflow-wrap: anywhere;
   max-width: 100%;
 }
+.setting-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.setting-choice input {
+  width: 24px;
+  flex-shrink: 0;
+}

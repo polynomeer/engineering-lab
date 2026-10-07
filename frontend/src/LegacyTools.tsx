@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { loadSettings, saveSettings, type Echo, type LegacyEcho } from './settings';
 import { apiUrl, get } from './api';
 import { Raw, Table } from './components';
 import { csv, download } from './execution';
@@ -231,7 +232,6 @@ export function DatabaseTool() {
     </>
   );
 }
-type Echo = { time: string; mode: string; elapsedMs: number; response: string };
 export function IoEchoTool() {
   const [message, setMessage] = useState(
     new URLSearchParams(location.search).get('msg')?.slice(0, 1000) ?? 'hello',
@@ -242,6 +242,16 @@ export function IoEchoTool() {
   const [history, setHistory] = useState<Echo[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const [legacyHistory, setLegacyHistory] = useState<LegacyEcho[]>([]);
+  useEffect(() => {
+    try {
+      const saved = loadSettings();
+      setHistory(saved.echoes.slice(0, 20));
+      setLegacyHistory(saved.legacyIo.slice(0, 12));
+    } catch {
+      setError('브라우저 이력을 읽을 수 없습니다. 저장 없이 요청할 수 있습니다.');
+    }
+  }, []);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   async function run(mode: string) {
@@ -274,17 +284,23 @@ export function IoEchoTool() {
       if (!response.ok || !response.headers.get('content-type')?.includes('text/plain'))
         throw new Error(`데모 요청 실패 (${response.status})`);
       const body = await response.text();
-      setHistory((old) =>
-        [
-          {
-            time: new Date().toISOString(),
-            mode,
-            elapsedMs: Math.round(performance.now() - started),
-            response: body,
-          },
-          ...old,
-        ].slice(0, 20),
-      );
+      const next = [
+        {
+          time: new Date().toISOString(),
+          mode,
+          elapsedMs: Math.round(performance.now() - started),
+          response: body,
+        },
+        ...history,
+      ].slice(0, 20);
+      setHistory(next);
+      try {
+        saveSettings({ ...loadSettings(), echoes: next });
+      } catch {
+        setError(
+          '응답은 받았지만 브라우저에 이력을 저장하지 못했습니다. CSV로 보관할 수 있습니다.',
+        );
+      }
     } catch (e) {
       if (!abort.signal.aborted) setError((e as Error).message);
     } finally {
@@ -295,9 +311,13 @@ export function IoEchoTool() {
   return (
     <>
       <h2>IO 단건 데모</h2>
+      {legacyHistory.length > 0 && (
+        <Raw label="이전 IO 비교 이력 · 두 방식의 평균 왕복 시간" value={legacyHistory} />
+      )}
       <p>
         Run을 만들지 않는 요청 데모입니다. 소요 시간은 브라우저 왕복 시간이며 실험 처리량과
-        다릅니다. 현재 탭에 최근 20개만 보관하며 새로고침하면 지워집니다.
+        다릅니다. 이 주소의 브라우저에 최근 20개를 보관합니다. 저장이 차단되면 현재 탭에서만
+        유지됩니다.
       </p>
       <form onSubmit={(e) => e.preventDefault()}>
         <label>

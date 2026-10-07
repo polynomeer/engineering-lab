@@ -16,12 +16,37 @@ import {
   type Comparison,
 } from './api';
 import './style.css';
+import { SettingsPage } from './SettingsPage';
+import { loadSettings, saveSettings } from './settings';
 import { moduleViews } from './moduleViews';
 import { DatabaseTool, IoEchoTool } from './LegacyTools';
 import { ExecutionPage } from './ExecutionForm';
 import { comparisonCsv, download } from './execution';
 import { Table, Raw, Badge, Actions, format } from './components';
 const route = parseRoute(location.pathname, location.search);
+try {
+  const saved = loadSettings();
+  if (route.kind === 'compare') {
+    for (const key of ['baseline', 'candidate'] as const)
+      if (!route.query.has(key) && saved[key]) route.query.set(key, saved[key]);
+    saveSettings({
+      ...saved,
+      baseline: route.query.get('baseline') ?? '',
+      candidate: route.query.get('candidate') ?? '',
+    });
+  }
+  if (route.kind === 'list' && route.query.has('experiment'))
+    saveSettings({ ...saved, filter: route.query.get('experiment') ?? '' });
+  if (
+    route.kind === 'list' &&
+    !route.query.has('experiment') &&
+    saved.filter &&
+    saved.filter !== 'all'
+  )
+    route.query.set('experiment', saved.filter);
+} catch {
+  /* Navigation remains available without browser storage. */
+}
 const runLink = (id: string) => '/app/runs/' + encodeURIComponent(id);
 function App() {
   const [modules, setModules] = useState<Module[]>([]),
@@ -178,7 +203,7 @@ function App() {
       <div className="layout">
         <aside>
           <p className="eyebrow">EXPERIMENT CATALOG</p>
-          <a href="/app/runs">모든 실행</a>
+          <a href="/app/runs?experiment=">모든 실행</a>
           {groups.map((group) => (
             <section key={group.module.id}>
               <h2>{group.module.title}</h2>
@@ -194,6 +219,7 @@ function App() {
               ))}
             </section>
           ))}
+          <a href="/app/settings">설정 이전</a>
           <a href="/app/tools/ingestion-db">현재 DB 조회</a>
           <a href="/app/tools/io-echo">IO 단건 데모</a>
           <p className="note">Career Lab 실행 연동은 준비 중입니다.</p>
@@ -203,19 +229,21 @@ function App() {
             <div>
               <p className="eyebrow">RUN EVIDENCE</p>
               <h1>
-                {route.kind === 'database'
-                  ? '현재 DB 조회'
-                  : route.kind === 'echo'
-                    ? 'IO 단건 데모'
-                    : route.kind === 'execute'
-                      ? '실험 실행'
-                      : route.kind === 'detail'
-                        ? '실행 상세'
-                        : route.kind === 'compare'
-                          ? '실행 비교'
-                          : route.kind === 'missing'
-                            ? '페이지를 찾을 수 없습니다'
-                            : '실행 기록'}
+                {route.kind === 'settings'
+                  ? '설정 이전'
+                  : route.kind === 'database'
+                    ? '현재 DB 조회'
+                    : route.kind === 'echo'
+                      ? 'IO 단건 데모'
+                      : route.kind === 'execute'
+                        ? '실험 실행'
+                        : route.kind === 'detail'
+                          ? '실행 상세'
+                          : route.kind === 'compare'
+                            ? '실행 비교'
+                            : route.kind === 'missing'
+                              ? '페이지를 찾을 수 없습니다'
+                              : '실행 기록'}
               </h1>
             </div>
             <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
@@ -226,11 +254,13 @@ function App() {
           <p role="status" className="status">
             {loading
               ? '불러오는 중…'
-              : route.kind === 'database' || route.kind === 'echo'
-                ? '현재 서버의 도구 · Run 증거와 별도'
-                : route.kind === 'execute'
-                  ? '서버에 등록된 실험과 입력 범위'
-                  : '저장소에서 조회한 실행 증거'}
+              : route.kind === 'settings'
+                ? '이 브라우저에 저장된 설정 관리'
+                : route.kind === 'database' || route.kind === 'echo'
+                  ? '현재 서버의 도구 · Run 증거와 별도'
+                  : route.kind === 'execute'
+                    ? '서버에 등록된 실험과 입력 범위'
+                    : '저장소에서 조회한 실행 증거'}
           </p>
           {(error || bootstrapError) && (
             <div role="alert" className="error">
@@ -238,6 +268,7 @@ function App() {
               <button onClick={() => setRefresh((n) => n + 1)}>다시 시도</button>
             </div>
           )}
+          {route.kind === 'settings' && <SettingsPage catalog={catalog} />}
           {route.kind === 'database' && <DatabaseTool />}
           {route.kind === 'echo' && <IoEchoTool />}
           {route.kind === 'execute' && (

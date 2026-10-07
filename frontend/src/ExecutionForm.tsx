@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { loadSettings, saveSettings } from './settings';
 import { moduleViews } from './moduleViews';
 import type { Descriptor } from './api';
 import {
@@ -6,7 +7,6 @@ import {
   initialDraft,
   presets,
   readSaved,
-  storageKey,
   submitRun,
   supportsForm,
   type Draft,
@@ -83,7 +83,7 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
           (s) => s.experiment !== descriptor.id || s.draft.id !== draft.id,
         ),
       ].slice(0, 12);
-      localStorage.setItem(storageKey, JSON.stringify({ version: 1, entries }));
+      saveSettings({ ...loadSettings(), entries });
       setSaved(entries);
       setNotice('이 브라우저에 설정을 저장했습니다. 최근 12개를 보관합니다.');
       setError('');
@@ -216,7 +216,8 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
       )}
       <h2>저장한 설정</h2>
       <p className="note">
-        현재 브라우저 주소에서 저장한 설정입니다. 기존 화면의 설정 이전은 후속 단계에서 지원합니다.
+        현재 브라우저 주소에서 저장한 설정입니다. 기존 화면의 설정은 왼쪽 설정 이전에서 가져올 수
+        있습니다.
       </p>
       <div className="actions">
         {saved

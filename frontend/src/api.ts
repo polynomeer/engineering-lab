@@ -121,6 +121,7 @@ export function parseRoute(path: string, search: string) {
   const query = new URLSearchParams(search);
   if (path === '/app' || path === '/app/' || path === '/app/runs')
     return { kind: 'list' as const, query };
+  if (path === '/app/settings') return { kind: 'settings' as const, query };
   if (path === '/app/tools/ingestion-db') return { kind: 'database' as const, query };
   if (path === '/app/tools/io-echo') return { kind: 'echo' as const, query };
   if (path === '/app/experiments') return { kind: 'execute' as const, query };
