@@ -12,7 +12,7 @@
 
 DB가 완전히 접근 불가능하면 실패 상태 자체도 쓰지 못할 수 있다. API는 DB 접근 실패를 HTTP 503으로 노출하고 runner는 `job_id`와 원인을 로그에 남긴다. 이 경우 실행을 성공으로 표시하지 않으며, 저장소 복구 후 앱을 재시작하면 남은 실행을 INTERRUPTED로 처리한다. 프로세스 강제 종료 시 아직 commit되지 않은 metric은 없을 수 있다.
 
-동일 저장 경로는 한 앱만 소유할 수 있다. OS 파일 잠금과 H2 파일 잠금으로 중복 소유를 막는다. 백업은 앱을 정상 종료한 뒤 `.lab/` 전체를 복사한다. 현재 schema는 v2이며 v1은 아래의 additive 이행으로 갱신한다. v1/v2 이외 버전은 DDL 변경 전에 시작을 거부한다. 향후 버전도 명시적인 migration이 필요하다.
+동일 저장 경로는 한 앱만 소유할 수 있다. OS 파일 잠금과 H2 파일 잠금으로 중복 소유를 막는다. 백업은 앱을 정상 종료한 뒤 `.lab/` 전체를 복사한다. 현재 schema는 v3이며 v1/v2는 아래의 additive 이행으로 갱신한다. 지원하지 않는 버전은 DDL 변경 전에 시작을 거부한다. 향후 버전도 명시적인 migration이 필요하다.
 
 ## 설정
 
@@ -65,7 +65,7 @@ cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간
 
 ## Validation dead-letter 저장과 조회
 
-현재 evidence 스키마는 v2다. 기존 v1은 전용 소유권 잠금 아래 `lab_dead_letter` 테이블을 추가한 뒤 버전을 갱신한다. 기존 Run/metric/artifact는 유지한다. DDL과 버전 변경 사이에 중단되어도 다시 시작할 수 있게 이행은 반복 가능하다. 알 수 없는 버전은 변경 전에 거부한다. v2 DB를 이전 앱 버전으로 열 수 없으므로 다운그레이드 전에는 정지 상태의 저장 디렉터리 백업을 사용한다.
+dead-letter 테이블은 v2에서 추가했으며 v3에서도 그대로 유지한다. v1에서 시작하면 `lab_dead_letter`를 추가한 뒤 v3 execution/check 이행을 적용한다. 기존 Run/metric/artifact/dead-letter는 보존한다. 이행·백업·되돌리기는 아래 v3 절차를 따른다.
 
 앱에서 실행하는 Excel의 검증 실패 행은 동기적으로 즉시 저장된다. 신규 Run metadata의 `evidence.dead-letter.mode=DATABASE_V1`과 `evidence.dead-letter.maxRecordBytes=65536`으로 저장 계약을 구분한다. 이전 Run이나 직접 사용하는 LocalExperimentRunner에는 과거 실패 행을 소급 생성하지 않는다.
 
@@ -103,4 +103,26 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 
 현재 앱의 실행기는 `IN_PROCESS` 하나다. 서버 내부 `ExperimentExecutors` 등록은 실험 ID를 실행기에 연결하며, 시나리오 파라미터로 실행기를 바꿀 수 없다. 추가 실행기는 전체 `max-active-runs`와 등록별 상한을 모두 적용받고, 배타 등록된 실험은 다른 Run이 없을 때만 시작한다. 현재는 제한 충돌을 기다리는 별도 큐가 없으며 접수된 Run을 FAILED로 기록한다. 기존 제출용 task executor의 큐 설정은 그대로다.
 
-중앙 제한은 스레드 수 대신 Run ID를 센다. 중복 실행 요청은 진행 중인 원래 Run을 변경하지 않는다. 신규 접수 중단 뒤 이미 접수한 작업은 종료 대기 시작 전까지 실행할 수 있고, 종료 대기는 기존 storage shutdown timeout을 사용한다. 실제 Java 21 worker 실행·worker 대기 큐·환경 증거는 후속 단계다. 기존 `runMetadata.environment/git`은 계속 서버 환경·코드를 뜻한다.
+중앙 제한은 스레드 수 대신 Run ID를 센다. 중복 실행 요청은 진행 중인 원래 Run을 변경하지 않는다. 신규 접수 중단 뒤 이미 접수한 작업은 종료 대기 시작 전까지 실행할 수 있고, 종료 대기는 기존 storage shutdown timeout을 사용한다. 실제 Java 21 worker 실행·worker 대기 큐·환경 handshake 연결은 후속 단계다. 기존 `runMetadata.environment/git`은 계속 서버 환경·코드를 뜻한다.
+
+## v3 execution/check 저장 계약
+
+`lab_execution`과 `lab_check`를 추가했다. 이 단계는 RunStore 저장 계약까지이며, 신규 HTTP 조회·export·capability와 runner/worker의 자동 기록 연결은 후속 단계다. 기존 Run과 현재 runner는 execution이 없을 수 있다. 없는 정보를 IN_PROCESS 성공이나 checks 통과로 소급 생성하지 않는다.
+
+- execution definition은 실행 종류(IN_PROCESS/LOCAL_JVM), module ID, protocol version, 측정 범위를 저장한다. IN_PROCESS는 protocol 0/CONTROLLER_PROCESS, LOCAL_JVM은 양수 protocol/WORKER_PROCESS를 사용한다.
+- worker는 실제 JVM/OS, Git provenance, 배포물 SHA-256이다. LOCAL_JVM의 RUNNING/PREPARING에서만 최초 등록하고 동일 값의 재등록만 허용한다. handshake 전에는 null이며 서버 환경으로 대체하지 않는다. 기존 `runMetadata.environment/git`은 수정하지 않는다.
+- phase는 PREPARING → MEASURING → FINALIZING 순서다. 같은 단계 재전송은 허용하되 건너뛰기·역행은 거부한다. 외부 실행은 worker가 확인되어야 측정 단계와 check 기록을 허용한다.
+- check는 sequence, checkId, PASS/FAIL, expected/observed/description을 저장한다. `(runId, sequence)`와 `(runId, checkId)`는 불변이다. 동일 sequence/내용의 재전송은 중복 없이 처리하고 충돌은 거부한다. check의 FAIL 자체가 Run 상태를 자동 변경하지는 않으며 executor가 최종 결과를 판정한다.
+- check sequence는 0–99,999, Run당 최대 100,000개다. 세 설명 필드는 각각 최대 4,096자이며 인코딩된 레코드는 최대 64 KiB다. 조회는 `min(page-limit, 100)`개 이하, sequence 오름차순·배타 cursor(-1부터)다. 실행 중 뒤늦게 낮은 sequence가 기록될 수 있어 전체 페이지 순회는 producer 종료 후 수행한다. 전체 목록을 메모리에 모으지 않는다.
+- execution definition과 worker JSON도 각각 최대 64 KiB다. worker 환경 문자열은 각각 256자, Git commit은 128자/error는 1,024자 이하로 직렬화 전에도 제한한다. 초과 데이터는 잘라 저장하지 않는다. 이는 전체 workspace/DB 용량 quota를 구현한 것이 아니다.
+- `finishExecutionEvidence`는 executor가 최종 결과·종료·개수·flush를 확인한 뒤 호출하는 저장 계약이다. FINALIZING에서 완료 표시를 고정하며 이후 check 추가를 거부한다. execution이 등록된 Run은 증거 미완료 상태로 SUCCEEDED가 될 수 없다. worker protocol 검증 자체는 아직 구현하지 않았다.
+- terminal Run의 execution/check 변경은 거부한다. 재시작 복구는 미종료 Run을 INTERRUPTED로 바꾸며 같은 트랜잭션에서 evidenceComplete를 false로 돌린다. 이미 저장된 worker/check와 단계는 부분 증거로 유지한다.
+
+## v3 이행·백업·되돌리기
+
+1. 운영 업데이트 전 앱을 정상 종료하고 저장 디렉터리 전체(DB와 JFR/log 파일 포함)를 별도 위치에 복사한다. 사용자 `.lab/`에 대한 이행은 앱을 새 버전으로 시작할 때 수행된다. 테스트는 임시 DB만 사용한다.
+2. v1/v2를 열면 소유권 잠금 아래 H2의 일관된 DB 백업을 먼저 생성한다. 경로는 `<storage-root>/backups/schema-v<1|2>-before-v3-<UUID>.zip`이다. 생성 중 파일은 `.zip.partial`이며 완성 뒤 atomic rename한다. 백업 생성·게시 실패 시 DDL 전에 시작을 중단한다. 기존 백업을 덮어쓰지 않는다. 자동 백업에는 DB만 포함되므로 artifact 복원에는 1번의 전체 복사본이 필요하다.
+3. 테이블 추가 뒤 마지막으로 schema version을 3으로 바꾼다. H2 DDL은 전체 트랜잭션 rollback을 보장하지 않으므로 테이블 생성 후 중단되면 같은 버전으로 재시작해 나머지를 적용한다. 완료한 v3 재개방은 이행이나 추가 백업을 수행하지 않는다. 반복 실패로 생긴 백업은 운영자가 확인해 관리한다.
+4. 이전 서버로 되돌릴 때는 v3 DB를 그대로 열지 않는다. 필요한 새 Run의 기존 API export와 v3 저장 디렉터리 원본을 별도 보존하고 앱을 종료한다. 현재 HTTP export에는 신규 execution/check가 아직 포함되지 않으므로 **v3 DB 자체를 반드시 보관**한다.
+5. 별도의 빈 저장 디렉터리에 업데이트 전 전체 복사본을 복원하고 이전 서버의 storage root로 지정한다. 자동 DB 백업을 사용할 경우 ZIP의 `runs.mv.db`를 빈 디렉터리에 풀고, 백업 시점에 대응하는 artifact 파일도 전체 복사본에서 복원한다. 현재 DB 위에 실행 중 덮어쓰거나 schema version 숫자만 낮추지 않는다.
+6. 이전 서버에서 기존 Run·metric·dead-letter·artifact를 확인한다. v3 이행 뒤 생성된 Run은 v2 백업에 없으므로 보존한 v3 원본은 삭제하지 않는다. 자동 복원 테스트는 ZIP을 별도 위치에 풀어 schema 2와 원시 증거 일치를 확인한다.

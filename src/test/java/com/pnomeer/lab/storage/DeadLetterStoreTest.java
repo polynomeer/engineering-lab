@@ -45,6 +45,7 @@ class DeadLetterStoreTest {
     @Test void migratesVersionOneWithoutLosingRuns() throws Exception {
         try (var store = new JdbcRunStore(root, 10, 2)) { store.create("pipeline", "old", metadata("old")); }
         try (var connection = java.sql.DriverManager.getConnection("jdbc:h2:file:" + root.resolve("runs"), "sa", ""); var statement = connection.createStatement()) {
+            statement.execute("drop table lab_check"); statement.execute("drop table lab_execution");
             statement.execute("drop table lab_dead_letter"); statement.execute("update lab_schema set version=1 where id=1");
         }
         try (var store = new JdbcRunStore(root, 10, 2)) {

@@ -177,6 +177,8 @@ Run은 `QUEUED → RUNNING → SUCCEEDED/FAILED/INTERRUPTED`로 기록됩니다.
 
 Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata에 보존합니다. checksum은 원본 입력 보관을 대신하지 않습니다. 종료 Run의 NDJSON export는 Run·metrics·artifact **참조**를 포함하며 원본 artifact 파일과 dead-letter 전체 행은 별도로 보관해야 합니다.
 
+저장 스키마는 v3입니다. v1/v2 DB를 처음 열 때 자동 DB 백업 후 이행합니다. 업데이트 전 전체 저장 디렉터리 백업과 이전 버전 복원 방법은 [저장 가이드](docs/run-storage.md#v3-이행백업되돌리기)를 따르세요. 신규 execution/check 저장 계약은 구현했으며 자동 기록·HTTP 조회 연결은 후속 단계입니다.
+
 ## 설정
 
 기준 파일은 [application.yml](src/main/resources/application.yml)입니다. 다음은 자주 조정하는 기본값입니다. 시나리오 파일의 Excel 파라미터는 실행별 runner에 적용되며 서버의 singleton 설정을 바꾸지 않습니다.
@@ -250,7 +252,7 @@ src/main/java/com/pnomeer/lab/
   app/              HTTP API와 화면
 src/main/resources/
   static/run-browser/  Run 목록·상세·비교 UI
-  lab/                 evidence 스키마 v1/v2
+  lab/                 evidence 스키마 v1/v2/v3
 experiments/           Git 관리 시나리오와 fixture
 docs/                  사용·설계·운영·실험 결과
 ```
@@ -263,7 +265,7 @@ Spring 진입점과 작은 XLSX 생성기는 `com.pnomeer.pipeline`에 남아 �
 ./gradlew bootJar
 ```
 
-전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 현재 134개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
+전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 2026-10-08 기준 159개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
 
 기여·Codex 작업 규칙은 [AGENTS.md](AGENTS.md), 코드 위치와 검증 방법은 [docs/codex.md](docs/codex.md)를 따릅니다. 작업 단위마다 전체 `./gradlew test`, diff 검토 후 `<type>(<scope>): <영문 요약>` 형식으로 커밋합니다. 사용자 변경을 보존하고 요청 없이 push하지 않습니다.
 

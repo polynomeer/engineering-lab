@@ -24,6 +24,29 @@ public interface RunStore {
     default List<com.pnomeer.lab.core.DeadLetter> deadLetters(String runId, int afterRow, int limit) {
         throw new UnsupportedOperationException("Dead-letter persistence unavailable");
     }
+    default void registerExecution(String runId, RunExecution.Definition definition) {
+        throw new UnsupportedOperationException("Execution persistence unavailable");
+    }
+    default Optional<RunExecution> execution(String runId) {
+        throw new UnsupportedOperationException("Execution persistence unavailable");
+    }
+    default void registerWorker(String runId, RunExecution.Worker worker) {
+        throw new UnsupportedOperationException("Worker persistence unavailable");
+    }
+    default void advanceExecution(String runId, RunExecution.Phase phase) {
+        throw new UnsupportedOperationException("Execution persistence unavailable");
+    }
+    /** Caller must verify producer termination, final result, counts and durable flush before sealing. */
+    default void finishExecutionEvidence(String runId) {
+        throw new UnsupportedOperationException("Execution persistence unavailable");
+    }
+    default void appendCheck(String runId, RunCheck check) {
+        throw new UnsupportedOperationException("Check persistence unavailable");
+    }
+    /** Oldest first, exclusive cursor from -1. Complete scans require finished producers. */
+    default List<RunCheck> checks(String runId, long afterSequence, int limit) {
+        throw new UnsupportedOperationException("Check persistence unavailable");
+    }
     int recoverInterrupted();
     List<ArtifactReference> artifacts(String runId);
     void registerArtifact(ArtifactReference reference);

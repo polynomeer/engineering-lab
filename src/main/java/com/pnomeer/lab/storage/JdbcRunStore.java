@@ -66,16 +66,152 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
             // Check an existing schema before applying any DDL.
             boolean exists = Boolean.TRUE.equals(jdbc.queryForObject(
                     "select count(*) > 0 from information_schema.tables where table_name='LAB_SCHEMA'", Boolean.class));
-            if (exists) {
-                Integer version = jdbc.queryForObject("select version from lab_schema where id=1", Integer.class);
-                if (version == null || (version != 1 && version != 2)) throw new IllegalStateException("Unsupported lab schema version: " + version);
+            Integer version = exists ? jdbc.queryForObject("select version from lab_schema where id=1", Integer.class) : 0;
+            if (version == null || version < 0 || version > 3 || exists && version == 0) {
+                throw new IllegalStateException("Unsupported lab schema version: " + version);
             }
-            new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v1.sql"), new ClassPathResource("lab/schema-v2.sql")).execute(dataSource);
+            if (version == 1 || version == 2) backupBeforeV3(root, version);
+            if (version < 2) {
+                new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v1.sql"),
+                        new ClassPathResource("lab/schema-v2.sql")).execute(dataSource);
+            }
+            if (version < 3) new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v3.sql")).execute(dataSource);
         } catch (RuntimeException ex) {
             dataSource.close();
             releaseOwnership();
             throw ex;
         }
+    }
+
+    private void backupBeforeV3(Path root, int version) {
+        Path directory = root.toAbsolutePath().normalize().resolve("backups");
+        try {
+            Files.createDirectories(directory);
+            if (Files.isSymbolicLink(directory)) throw new java.io.IOException("Backup directory must not be a symbolic link");
+        } catch (java.io.IOException ex) { throw new IllegalStateException("Cannot create pre-v3 backup directory", ex); }
+        Path backup = directory.resolve("schema-v" + version + "-before-v3-" + java.util.UUID.randomUUID() + ".zip");
+        Path partial = backup.resolveSibling(backup.getFileName() + ".partial");
+        // Publish only a complete H2 backup; failed copies remain visibly partial for inspection.
+        jdbc.execute("BACKUP TO '" + partial.toString().replace("'", "''") + "'");
+        try { Files.move(partial, backup, java.nio.file.StandardCopyOption.ATOMIC_MOVE); }
+        catch (java.io.IOException ex) { throw new IllegalStateException("Cannot publish pre-v3 backup", ex); }
+    }
+
+    @Override
+    public void registerExecution(String id, RunExecution.Definition definition) {
+        String encoded = boundedEncode(java.util.Objects.requireNonNull(definition), RunExecution.MAX_BYTES);
+        transactions.executeWithoutResult(tx -> {
+            lockActiveRun(id, false);
+            var existing = execution(id);
+            if (existing.isPresent()) {
+                if (!existing.get().definition().equals(definition)) throw new IllegalStateException("Conflicting execution definition");
+                return;
+            }
+            jdbc.update("insert into lab_execution(run_id,definition_json,phase) values(?,?,'PREPARING')", id, encoded);
+        });
+    }
+
+    @Override
+    public Optional<RunExecution> execution(String id) {
+        return jdbc.query("select * from lab_execution where run_id=?", (row, n) -> new RunExecution(
+                json.readValue(row.getString("definition_json"), RunExecution.Definition.class),
+                row.getString("worker_json") == null ? null : json.readValue(row.getString("worker_json"), RunExecution.Worker.class),
+                RunExecution.Phase.valueOf(row.getString("phase")), row.getBoolean("evidence_complete")), id).stream().findFirst();
+    }
+
+    @Override
+    public void registerWorker(String id, RunExecution.Worker worker) {
+        String encoded = boundedEncode(java.util.Objects.requireNonNull(worker), RunExecution.MAX_BYTES);
+        transactions.executeWithoutResult(tx -> {
+            lockActiveRun(id, true);
+            var current = requireExecution(id);
+            if (current.definition().kind() != RunExecution.Kind.LOCAL_JVM) throw new IllegalStateException("Worker requires LOCAL_JVM execution");
+            if (current.worker() != null) {
+                if (!current.worker().equals(worker)) throw new IllegalStateException("Conflicting worker identity");
+                return;
+            }
+            if (current.phase() != RunExecution.Phase.PREPARING || current.evidenceComplete()) {
+                throw new IllegalStateException("Worker handshake requires preparation");
+            }
+            jdbc.update("update lab_execution set worker_json=? where run_id=?", encoded, id);
+        });
+    }
+
+    @Override
+    public void advanceExecution(String id, RunExecution.Phase phase) {
+        java.util.Objects.requireNonNull(phase);
+        transactions.executeWithoutResult(tx -> {
+            lockActiveRun(id, true);
+            var current = requireExecution(id);
+            if (phase == current.phase()) return;
+            if (current.evidenceComplete() || phase.ordinal() != current.phase().ordinal() + 1) {
+                throw new IllegalStateException("Execution phase must advance one step");
+            }
+            requireWorkerIdentity(current);
+            jdbc.update("update lab_execution set phase=? where run_id=?", phase.name(), id);
+        });
+    }
+
+    @Override
+    public void finishExecutionEvidence(String id) {
+        transactions.executeWithoutResult(tx -> {
+            lockActiveRun(id, true);
+            var current = requireExecution(id);
+            if (current.phase() != RunExecution.Phase.FINALIZING) throw new IllegalStateException("Evidence completion requires finalization");
+            requireWorkerIdentity(current);
+            jdbc.update("update lab_execution set evidence_complete=true where run_id=?", id);
+        });
+    }
+
+    @Override
+    public void appendCheck(String id, RunCheck check) {
+        String encoded = boundedEncode(java.util.Objects.requireNonNull(check), RunCheck.MAX_BYTES);
+        transactions.executeWithoutResult(tx -> {
+            lockActiveRun(id, true);
+            var current = requireExecution(id);
+            if (current.evidenceComplete()) throw new IllegalStateException("Execution evidence is sealed");
+            requireWorkerIdentity(current);
+            var existing = jdbc.queryForList("select record_json from lab_check where run_id=? and seq=?", String.class, id, check.sequence());
+            if (!existing.isEmpty()) {
+                if (!existing.getFirst().equals(encoded)) throw new IllegalStateException("Conflicting check sequence");
+                return;
+            }
+            try {
+                jdbc.update("insert into lab_check(run_id,seq,check_id,record_json) values(?,?,?,?)", id, check.sequence(), check.checkId(), encoded);
+            } catch (org.springframework.dao.DuplicateKeyException ex) {
+                throw new IllegalStateException("Check ID already has a different sequence", ex);
+            }
+        });
+    }
+
+    @Override
+    public List<RunCheck> checks(String id, long after, int limit) {
+        checkLimit(limit);
+        if (after < -1 || limit > RunCheck.MAX_PAGE) throw new IllegalArgumentException("Invalid check page");
+        return jdbc.query("select record_json from lab_check where run_id=? and seq>? order by seq limit ?",
+                (row, n) -> json.readValue(row.getString(1), RunCheck.class), id, after, limit);
+    }
+
+    private void lockActiveRun(String id, boolean runningOnly) {
+        var states = jdbc.queryForList("select status from lab_run where run_id=? for update", String.class, id);
+        if (states.size() != 1 || !("RUNNING".equals(states.getFirst()) || !runningOnly && "QUEUED".equals(states.getFirst()))) {
+            throw new IllegalStateException("Execution evidence requires an active Run");
+        }
+    }
+    private RunExecution requireExecution(String id) {
+        return execution(id).orElseThrow(() -> new IllegalStateException("Execution is not registered"));
+    }
+    private static void requireWorkerIdentity(RunExecution execution) {
+        if (execution.definition().kind() == RunExecution.Kind.LOCAL_JVM && execution.worker() == null) {
+            throw new IllegalStateException("Worker identity is unknown");
+        }
+    }
+    private String boundedEncode(Object value, int maxBytes) {
+        String encoded = encode(value);
+        if (encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > maxBytes) {
+            throw new IllegalArgumentException("Execution evidence exceeds 64 KiB");
+        }
+        return encoded;
     }
 
     @Override
@@ -125,9 +261,16 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
         if (status != RunStatus.SUCCEEDED && status != RunStatus.FAILED && status != RunStatus.INTERRUPTED) {
             throw new IllegalArgumentException("Completion requires a terminal status");
         }
-        int updated = jdbc.update("update lab_run set status=?, completed_at=?, summary_json=?, failure_message=? where run_id=? and status in ('QUEUED','RUNNING')",
-                status.name(), System.currentTimeMillis(), encode(summary), failure, id);
-        requireTransition(updated, id);
+        transactions.executeWithoutResult(tx -> {
+            lockActiveRun(id, false);
+            var execution = execution(id);
+            if (status == RunStatus.SUCCEEDED && execution.isPresent() && !execution.get().evidenceComplete()) {
+                throw new IllegalStateException("Successful execution requires complete evidence");
+            }
+            int updated = jdbc.update("update lab_run set status=?, completed_at=?, summary_json=?, failure_message=? where run_id=? and status in ('QUEUED','RUNNING')",
+                    status.name(), System.currentTimeMillis(), encode(summary), failure, id);
+            requireTransition(updated, id);
+        });
     }
 
     @Override
@@ -182,8 +325,11 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
 
     @Override
     public int recoverInterrupted() {
-        return jdbc.update("update lab_run set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before durable completion' where status in ('QUEUED','RUNNING')",
-                System.currentTimeMillis());
+        return transactions.execute(tx -> {
+            jdbc.update("update lab_execution set evidence_complete=false where run_id in (select run_id from lab_run where status in ('QUEUED','RUNNING'))");
+            return jdbc.update("update lab_run set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before durable completion' where status in ('QUEUED','RUNNING')",
+                    System.currentTimeMillis());
+        });
     }
 
     @Override

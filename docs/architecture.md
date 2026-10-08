@@ -36,7 +36,7 @@ artifact sinks, plus a metric-drain callback; it cannot mutate Run lifecycle.
 `InProcessExecutor` owns experiment invocation and JVM/trace/JFR/log observation.
 The runner captures the controller environment in the existing Run metadata.
 Existing public runner constructors select this executor.
-No new queue, retained evidence list, configuration or database schema is introduced.
+This execution boundary introduces no additional queue or retained evidence list.
 
 Cleanup preserves trace close → JVM sampler stop/final capture → JFR finish/register/
 close → metric drain → log finish/register → central Run completion. Drain failures
@@ -58,12 +58,32 @@ existing timeout, then interrupts them. Rejection persistence holds the admissio
 No waiting queue is added; conflicting queued attempts are recorded FAILED as before.
 Existing task-executor queues and the default global maximum of eight are unchanged.
 
-External worker environment handshake, execution/check schema v3 and worker process
-scheduling remain pending. The existing metadata environment/Git always describe the
+External worker environment handshake and worker process scheduling remain pending. The existing metadata environment/Git always describe the
 controller; actual worker environment/provenance must be registered in the future
 execution extension after HELLO, and remain unknown before that. Worker observations
 must never reuse the controller collectors. Routing isolation is currently verified
 with a test executor; it is not a claim of working Java 21 process execution.
+
+## Additive execution evidence (schema v3)
+
+`lab_execution` stores immutable execution definitions and optional worker identity,
+monotonic phase and evidence completeness. `lab_check` stores bounded immutable check
+records with sequence cursors and unique check IDs. RunStore transactions serialize
+these writes against the parent Run, reject terminal mutations and conflicting retries,
+and prevent registered executions from succeeding with incomplete evidence. Restart
+recovery retains partial evidence and clears completeness for interrupted Runs.
+
+Existing metadata, Runs, metrics, dead letters and artifacts are unchanged. No execution
+rows are inferred for old Runs. Automatic executor recording and HTTP extension APIs
+remain the next unit; these tables are currently accessed through the RunStore contract.
+The storage completion flag records the executor's assertion, not validation of a worker
+protocol that has not yet been implemented.
+
+Opening v1/v2 takes a consistent H2 ZIP backup before additive DDL. The schema version
+advances last, interrupted DDL is repeatable, and unknown versions fail before changes.
+The automatic backup covers DB bytes only. Downgrade requires a separate restored pre-v3
+storage copy, including artifact files; the v3 original must be retained because existing
+HTTP exports do not yet contain execution/check extensions. See [storage recovery](run-storage.md).
 
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
