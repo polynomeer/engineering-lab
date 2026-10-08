@@ -12,6 +12,8 @@
 | `mds-distribution` | 정산 동시성, 이벤트 멱등성 | [사용법](mds-distribution/README.md) |
 | `creator-studio` | 세션 회전, 매핑 무결성 | [사용법](creator-studio/README.md) |
 
+공통 통신 기반으로 Java 21 [worker-support](worker-support/README.md)를 추가했습니다. 다섯 실험 모듈과 별개의 infrastructure 라이브러리이며 실제 대시보드 실행 연결은 후속 단계입니다.
+
 ## 모듈 추가
 
 각 모듈의 `lab-module.properties`를 읽어 빌드에 자동 포함합니다. 새 모듈은 디렉터리·선언·빌드 파일을 추가하며 중앙 목록은 수정하지 않습니다. [확장 가이드](../docs/adding-experiments.md#현재-구현-career-빌드-모듈-추가)를 참고하세요.
@@ -27,7 +29,7 @@ MySQL/Redis 컨테이너 이미지 다운로드가 필요합니다.
 `CAREER_LAB_JAVA_HOME`을 지정하면 운영체제에 관계없이 그 경로를 우선 사용합니다.
 
 ```bash
-# 다섯 모듈 전체 테스트
+# 다섯 실험 모듈과 공통 worker-support 전체 테스트
 ./scripts/career-lab.sh test
 
 # 한 모듈만 테스트

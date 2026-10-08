@@ -182,7 +182,9 @@ standalone 화면에서는 위 경로 앞에 `/api`를 붙인다. 기존 catalog
 
 미리 빌드한 worker 배포물의 경로·SHA-256·지원 protocol·experiment ID를 서버 관리 manifest에 등록한다. 시작 명령은 서버가 고정한 Java 실행 파일과 argument 배열로 구성한다. 사용자 입력으로 shell command/classpath/메인 클래스/환경 변수를 바꾸지 못한다. 빌드 누락과 Docker 불가 여부를 admission 전에 확인한다.
 
-### Worker protocol v1 초안
+### Worker protocol v1
+
+D4 첫 단위에서 [실행 가능한 계약과 제한](../contracts/worker/v1/README.md), JSON Schema·fixture·Java 21 codec을 구현했다. 아래 설계 중 프로세스 실행·저장 연결은 아직 후속 단계다. 구체적 필드와 순서 검증은 실행 가능한 계약을 기준으로 한다.
 
 한 프로세스가 한 Run만 수행한다. stdin으로 크기 제한된 JSON 명령 한 줄을 전달하고 부모 생존 감지용으로 파이프를 열어둔다. worker의 별도 제어 reader가 EOF를 감지하면 중단한다. stdout은 protocol NDJSON 전용, stderr는 제한된 진단 로그로 분리한다. Boot banner와 일반 로그를 stdout으로 출력하지 않도록 harness에서 구성한다.
 
@@ -199,7 +201,7 @@ standalone 화면에서는 위 경로 앞에 `/api`를 붙인다. 기존 catalog
 | ARTIFACT | Run workspace 내 파일의 상대 경로·크기·hash·승인된 종류 |
 | RESULT | summary, 종료 이유, 마지막 sequence와 종류별 이벤트 수 |
 
-stdout은 한 레코드 최대 64 KiB, 전체 최대 100,000 이벤트 / 64 MiB 중 먼저 닿는 한도로 시작한다. 문자열/키/label 수도 schema에서 제한한다. 이 수치는 **제안 기본값**이며 구현 시 설정·문서·경계 테스트에 함께 반영한다. unbounded `readLine()`이나 stdout 전체 수집을 사용하지 않는다.
+stdout은 한 레코드 최대 64 KiB, 전체 최대 100,000 이벤트 / 64 MiB 중 먼저 닿는 한도로 시작한다. 문자열/키/label 수도 schema에서 제한한다. 이 수치는 codec의 기본값이자 v1 최대값으로 구현했으며 인스턴스별로 낮출 수 있다. 서버 실행 설정과의 연결은 process lifecycle 단계다. unbounded `readLine()`이나 stdout 전체 수집을 사용하지 않는다.
 
 수신자는 runId·엄격 증가 sequence·상태 순서·크기를 검증하고 중앙 저장소에 반영한다. stdout→bounded queue→writer가 막히면 OS pipe까지 배압이 전달된다. backlog로 stdout이 잠시 정지했다고 heartbeat 실패로 오인하지 않는다. 자식 생존 여부와 전체 deadline을 별도로 감시한다. stderr도 동시에 읽어 pipe deadlock을 막고, 최대 1 MiB까지 보관한 뒤 계속 drain하며 초과량·잘림 여부를 기록한다. stdout 프로토콜 오류는 조용히 버리지 않고 Run 실패로 처리한다.
 

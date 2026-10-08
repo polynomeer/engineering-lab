@@ -1,0 +1,10 @@
+{
+  "sequence-gap": "SEQUENCE",
+  "identity-mismatch": "IDENTITY_MISMATCH",
+  "counts-mismatch": "COUNTS",
+  "phase-regression": "PHASE_ORDER",
+  "unknown-version": "INTEGER_FIELD",
+  "missing-result": "MISSING_RESULT",
+  "after-result": "AFTER_RESULT",
+  "malformed": "MALFORMED_JSON"
+}

@@ -88,14 +88,26 @@ cancellation are false. Startup-validated in-process bindings report READY. The 
 recognizes capability schema version 1 and falls back for absent or unknown versions,
 while surfacing server errors. Dedicated execution/check panels and worker integration
 remain pending.
-The storage completion flag records the executor's assertion, not validation of a worker
-protocol that has not yet been implemented.
+The storage completion flag records the executor's assertion. The standalone worker
+codec described below is not yet connected to the root runner.
 
 Opening v1/v2 takes a consistent H2 ZIP backup before additive DDL. The schema version
 advances last, interrupted DDL is repeatable, and unknown versions fail before changes.
 The automatic backup covers DB bytes only. Downgrade requires a separate restored pre-v3
 storage copy, including artifact files; the v3 original must be retained because existing
 legacy HTTP exports do not contain execution/check extensions; the separate v2 export does. See [storage recovery](run-storage.md).
+
+## Worker wire contract (D4 first unit)
+
+`contracts/worker/v1` defines the command/event JSON Schemas and shared synthetic fixtures.
+`career-lab/worker-support` is a Java 21 library discovered through infrastructure metadata;
+it has no Spring or root core dependency and does not register runnable experiments.
+Its synchronous reader/writer bounds UTF-8 frame and total bytes, event counts and JSON
+structure, checks expected identity and contiguous sequence, enforces phase order and
+verifies final event counts. Invalid/truncated streams fail closed. RESULT and exit 0
+are transport evidence only; process ownership, deadline/parent monitoring, stderr drain,
+artifact verification and durable storage acknowledgement remain the next unit.
+See [the wire contract](../contracts/worker/v1/README.md) for precise defaults and limits.
 
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.

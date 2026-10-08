@@ -1,0 +1,1 @@
+{"protocolVersion":1,"runId":"fixture-run","experimentId":"fixture.sequence","parameters":{"workers":2,"variant":"AFTER"},"definitionSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","deadlineEpochMs":1893456000000,"seed":42,"workspace":"/tmp/fixture-worker"}

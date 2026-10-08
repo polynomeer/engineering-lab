@@ -1,0 +1,8 @@
+{"protocolVersion":1,"runId":"fixture-run","sequence":0,"type":"HELLO","payload":{"moduleId":"fixture-module","experimentId":"fixture.sequence","definitionSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactSha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","environment":{"javaVersion":"21-fixture","javaVendor":"Fixture","vmName":"Fixture VM","osName":"Fixture OS","osVersion":"1","osArch":"fixture","availableProcessors":2,"maxHeapBytes":134217728},"git":{"commit":null,"dirty":null,"error":"fixture provenance unknown"}}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":1,"type":"PHASE","payload":{"phase":"PREPARING"}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":2,"type":"PHASE","payload":{"phase":"MEASURING"}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":3,"type":"METRIC","payload":{"timestampEpochMs":1,"gauges":{"throughput":2.5},"counters":{"completed":2},"labels":{"variant":"AFTER"}}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":4,"type":"CHECK","payload":{"checkId":"unique","status":"PASS","expected":"2","observed":"2","description":"Synthetic fixture, not a benchmark"}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":5,"type":"PHASE","payload":{"phase":"FINALIZING"}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":6,"type":"ARTIFACT","payload":{"path":"reports/result.json","sizeBytes":2,"sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","kind":"REPORT"}}
+{"protocolVersion":1,"runId":"fixture-run","sequence":7,"type":"RESULT","payload":{"status":"SUCCEEDED","reason":"","summary":{"unique":2},"lastSequence":7,"counts":{"HELLO":1,"PHASE":3,"METRIC":1,"CHECK":1,"ARTIFACT":1}}}
