@@ -49,12 +49,11 @@ class ExperimentExecutorTest {
     }
 
     @Test
-    void runnerOwnsLifecycleAndUsesExecutorEnvironmentWithoutCapturingItsOwnJvm() {
-        var environment = new RunEnvironment("execution-java", "vendor", "vm", "os", "1", "arch", 1, 1024);
+    void runnerOwnsLifecycleAndPreservesControllerEnvironment() {
+        var environment = RunEnvironment.capture();
         try (var store = new JdbcRunStore(root, 20, 4)) {
             var executor = new ExperimentExecutor() {
                 public Map<String, String> parameters() { return Map.of("observation.jvm.mode", "OFF"); }
-                public RunEnvironment environment() { return environment; }
                 public <C extends ExperimentScenario> Outcome execute(Experiment<C> experiment, C scenario, Output output) {
                     assertEquals(RunStatus.RUNNING, store.find(output.runId()).orElseThrow().status());
                     output.experimentMetrics().accept(POINT);

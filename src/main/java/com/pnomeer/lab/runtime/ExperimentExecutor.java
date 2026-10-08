@@ -8,7 +8,6 @@ import java.util.function.Consumer;
 /** Execution boundary; admission, lifecycle and durable evidence remain with the runner. */
 interface ExperimentExecutor {
     Map<String, String> parameters();
-    RunEnvironment environment();
 
     /**
      * Stop observation producers, register their artifacts, drain metrics, then finalize logs.

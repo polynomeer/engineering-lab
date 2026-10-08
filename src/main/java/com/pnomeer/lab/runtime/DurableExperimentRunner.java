@@ -12,14 +12,12 @@ import java.util.function.Supplier;
 
 public final class DurableExperimentRunner implements ExperimentRunner, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(DurableExperimentRunner.class);
-    private final ExperimentExecutor executor;
+    private final ExperimentExecutors executors;
+    private final ExecutionAdmission admission;
     private final RunStore store;
     private final Supplier<GitProvenance> provenance;
     private final MetricWriterOptions options;
-    private final int previewLimit, maxActiveRuns;
-    private final Set<Thread> active = new HashSet<>();
-    private boolean accepting = true;
-    private boolean closing;
+    private final int previewLimit;
 
     public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns) {
@@ -62,25 +60,27 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
 
     DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, ExperimentExecutor executor, int previewLimit, int maxActiveRuns) {
-        this.executor = Objects.requireNonNull(executor);
+        this(store, provenance, options, ExperimentExecutors.inProcess(executor, maxActiveRuns), previewLimit, maxActiveRuns);
+    }
+
+    DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, ExperimentExecutors executors, int previewLimit, int maxActiveRuns) {
+        this.executors = Objects.requireNonNull(executors);
+        this.admission = new ExecutionAdmission(maxActiveRuns);
         if (previewLimit < 1 || maxActiveRuns < 1) throw new IllegalArgumentException("Run limits must be positive");
         this.store = store; this.provenance = provenance; this.options = options;
-        this.previewLimit = previewLimit; this.maxActiveRuns = maxActiveRuns;
+        this.previewLimit = previewLimit;
     }
 
     public <C extends ExperimentScenario> StoredRun prepare(Experiment<C> experiment, C scenario, String id) {
-        synchronized (active) {
-            if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
-        }
+        admission.checkAccepting();
+        var executor = executors.select(experiment.type()).executor();
         var parameters = new HashMap<>(experiment.parameters(scenario));
         parameters.put("evidence.dead-letter.mode", "DATABASE_V1");
         parameters.put("evidence.dead-letter.maxRecordBytes", String.valueOf(DeadLetter.MAX_BYTES));
         parameters.putAll(executor.parameters());
-        var metadata = new RunMetadata(id, parameters, executor.environment(), provenance.get());
-        synchronized (active) {
-            if (!accepting) throw new IllegalStateException("Experiment runner is shutting down");
-            return store.create(experiment.type(), scenario.scenarioId(), metadata);
-        }
+        var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
+        return admission.submit(() -> store.create(experiment.type(), scenario.scenarioId(), metadata));
     }
 
     @Override
@@ -93,14 +93,12 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     }
 
     public <C extends ExperimentScenario> ExperimentResult runPrepared(Experiment<C> experiment, C scenario, StoredRun run) {
-        synchronized (active) {
-            if (closing || active.size() >= maxActiveRuns) {
-                reject(run, "Execution admission limit or shutdown");
-                throw new IllegalStateException("Execution admission limit or shutdown");
-            }
-            active.add(Thread.currentThread());
+        if (!run.experimentType().equals(experiment.type()) || !run.scenarioId().equals(scenario.scenarioId())) {
+            throw new IllegalArgumentException("Prepared Run does not match the execution request");
         }
-        try {
+        var selection = executors.select(run.experimentType());
+        var lease = admission.acquire(run.runId(), selection, reason -> reject(run, reason));
+        try (lease) {
             store.start(run.runId());
             long started = System.currentTimeMillis();
             var preview = new ArrayDeque<MetricPoint>(previewLimit);
@@ -118,7 +116,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                     throw new IllegalStateException("Dead-letter persistence failed", ex);
                 }
             }), store::registerArtifact, writer::close);
-            var outcome = executor.execute(experiment, scenario, output);
+            var outcome = selection.executor().execute(experiment, scenario, output);
             var status = outcome.status();
             var summary = outcome.summary();
             var failure = outcome.failure();
@@ -140,32 +138,12 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         } catch (RuntimeException | Error ex) {
             log.error("job_id={} stage=run-storage reason=execution_or_persistence_failed", run.runId(), ex);
             throw ex;
-        } finally {
-            synchronized (active) { active.remove(Thread.currentThread()); active.notifyAll(); }
         }
     }
 
     @org.springframework.context.event.EventListener(org.springframework.context.event.ContextClosedEvent.class)
-    public void stopAccepting() {
-        synchronized (active) { accepting = false; }
-    }
+    public void stopAccepting() { admission.stopAccepting(); }
 
     @Override
-    public void close() {
-        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(options.shutdownTimeoutMs());
-        synchronized (active) {
-            accepting = false;
-            closing = true;
-            while (!active.isEmpty()) {
-                long left = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
-                if (left <= 0) break;
-                try { active.wait(left); }
-                catch (InterruptedException ex) { Thread.currentThread().interrupt(); break; }
-            }
-            if (!active.isEmpty()) {
-                log.error("stage=run-storage reason=shutdown_timeout active_runs={}", active.size());
-                active.forEach(Thread::interrupt);
-            }
-        }
-    }
+    public void close() { admission.close(options.shutdownTimeoutMs()); }
 }

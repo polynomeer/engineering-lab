@@ -15,7 +15,7 @@
 | `com/pnomeer/pipeline/ExcelPipelineApplication.java` | Spring Boot 진입점, `com.pnomeer` 컴포넌트 스캔 |
 | `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `RunMetadata`/`RunEnvironment`, `LocalExperimentRunner`, 명시적 `TraceRecorder` |
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷, `MetricCatalog` 단위·범위·의미, `JvmSnapshot` |
-| `com/pnomeer/lab/runtime/` | 영속 runner, `ExperimentExecutor` 경계와 `InProcessExecutor`, 제출/종료 lifecycle, Git provenance, JVM/trace/JFR/log 설정과 `JfrRecorder`·`RunLogRecorder` artifact 수집 |
+| `com/pnomeer/lab/runtime/` | 영속 runner, `ExperimentExecutor`/`InProcessExecutor`, `ExperimentExecutors` 선택·`ExecutionAdmission` 제한, 제출/종료 lifecycle, Git provenance, JVM/trace/JFR/log 설정과 `JfrRecorder`·`RunLogRecorder` artifact 수집 |
 | `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
 | `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 조회·비교·export·artifact 참조·검증 다운로드와 오류 응답 |
 | `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI |
@@ -39,7 +39,7 @@
 
 ## 다음 구조 변경
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계 추출도 구현했다. executor 선택·v3 저장과 worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 현재 앱은 IN_PROCESS만 등록하며 v3 저장과 worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
 
 ## 실행 흐름
 
@@ -77,7 +77,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | --- | --- |
 | 큐 / 종료 신호 | `BoundedChannelTest`, `StageShutdownTest` |
 | Excel / DB 쓰기 | `PipelineRunnerIntegrationTest`, 모델·시나리오 테스트 |
-| 공통 실행 모델 | `LocalExperimentRunnerTest`, `ExperimentExecutionStateTest`, `DurableExperimentRunnerTest`, `ExperimentExecutorTest` |
+| 공통 실행 모델 | `LocalExperimentRunnerTest`, `ExperimentExecutionStateTest`, `DurableExperimentRunnerTest`, `ExperimentExecutorTest`, `ExecutorRoutingTest`, `ExecutionAdmissionTest` |
 | 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |

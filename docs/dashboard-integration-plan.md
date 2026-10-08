@@ -67,17 +67,22 @@ URL/배포 검증 (2026-10-07): 기본 off의 302/query 보존과 legacy 우회,
 ## D3. 실행 경계와 저장 schema 확장
 
 - [x] `DurableExperimentRunner`에서 공통 lifecycle/evidence와 in-process 관측을 분리한다. 기존 결과·수집 대상·종료 순서를 유지한다.
-- [ ] executor 선택과 중앙 admission을 도입하고, 외부 실행의 JVM/환경을 서버 관측과 분리한다.
+- [x] 서버 등록 기반 executor 선택과 전체/실행기별·배타 admission을 도입한다.
+- [ ] v3 execution에 외부 worker 환경을 저장하고 서버 환경과 분리한다.
 - [ ] v3 additive migration, execution/check 저장·페이지 조회, capabilities/modules/descriptor extension을 구현한다.
 - [ ] 비교 API에 worker 환경·배포물·측정 범위 차이를 반영한다. 기존 응답 형식 안에서 cautions를 유지한다.
 
 완료 기준: 기존 플랫폼 전체 테스트가 통과하고, v2 fixture 재개방에서 Run ID·원시 증거가 유지된다. 구형/신형 UI와 API의 세 가지 조합을 테스트한다. 신규 기능 미지원 상태를 명확히 표시한다.
 
-첫 단위 구현: `ExperimentExecutor`의 streaming sink 계약과 `InProcessExecutor`를 추출했다. 중앙 runner가 Run 생성/시작/완료, bounded writer, preview, dead-letter/artifact 저장을 소유한다. 기존 생성자와 관측 설정·결과는 유지하며 실행 환경은 executor가 제공한다. 종료 순서와 저장 실패 로그, 중앙 lifecycle/환경 전달을 경계 테스트로 고정했다. DB는 v2 그대로이며 데이터 이행이 없어 이전 바이너리로 rollback할 수 있다. 실행 중 교체하지 않고 기존 종료 절차를 따른다. 외부 worker 환경 handshake와 executor routing은 아직 구현하지 않았다.
+첫 단위 구현: `ExperimentExecutor`의 streaming sink 계약과 `InProcessExecutor`를 추출했다. 중앙 runner가 Run 생성/시작/완료, bounded writer, preview, dead-letter/artifact 저장을 소유한다. 기존 생성자와 관측 설정·결과는 유지한다. 환경 수집 위치는 다음 선택/admission 단위에서 아래와 같이 정리했다. 종료 순서와 저장 실패 로그, 중앙 lifecycle/환경 전달을 경계 테스트로 고정했다. DB는 v2 그대로이며 데이터 이행이 없어 이전 바이너리로 rollback할 수 있다. 실행 중 교체하지 않고 기존 종료 절차를 따른다. 이 첫 단위에서는 외부 worker 환경 handshake와 executor routing은 구현하지 않았다.
 
 경계 추출 검증 (2026-10-08): `./gradlew test` 전체 146개 통과(실패·건너뜀 0). 기존 JVM/trace/JFR/log·dead-letter·재시작/API 회귀와 신규 경계 테스트 2개를 포함한다.
 
-독립 커밋 단위: executor 경계 추출 → v3 저장/이행 → extension API/비교. 각 단계별 DB 백업·rollback 절차를 남긴다.
+선택/admission 구현 (2026-10-08): 불변 `ExperimentExecutors`가 서버 등록 정보로 실행기를 선택하고 `ExecutionAdmission`이 Run ID별로 전체·실행기별 상한과 배타 실행을 적용한다. 기본 앱은 IN_PROCESS와 기존 전체 상한 8을 유지한다. 별도 대기 큐나 worker 설정은 아직 도입하지 않았다. 중복 Run 실행은 소유 Run을 실패로 바꾸지 않으며 종료·실패 시 슬롯을 반환한다. 설계의 metadata 호환 원칙에 따라 기존 environment는 중앙 runner가 수집하는 서버 환경으로 고정했다. 다른 실행기에 서버 관측이 붙지 않는 것은 test executor로 검증하며, 실제 worker 환경은 v3/HELLO 구현 전까지 지원하지 않는다. DB는 여전히 v2로 rollback 조건은 첫 단위와 같다.
+
+선택/admission 검증 (2026-10-08): `./gradlew test` 전체 152개 통과(실패·건너뜀 0). 신규 6개 테스트로 등록 오류, 입력에 의한 routing 변경 방지, 관측 분리, 전체/개별 상한, 배타 충돌, 중복 Run 보호, 종료 시 interrupt와 슬롯 반환을 확인했다.
+
+독립 커밋 단위: executor 경계 추출 → 선택/admission → v3 저장/이행 → extension API/비교. 각 단계별 DB 백업·rollback 절차를 남긴다.
 
 ## D4. Worker protocol과 하나의 수직 연동
 
@@ -134,4 +139,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D3: executor 선택·중앙 admission 확장과 v3 저장/이행**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.
+다음 실행 작업은 **D3: v3 execution/check 저장과 이행**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.

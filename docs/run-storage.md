@@ -29,7 +29,7 @@ DB가 완전히 접근 불가능하면 실패 상태 자체도 쓰지 못할 수
 | `shutdown-timeout-ms` | 30000 | writer drain 및 각 executor/runner 종료 대기 한도 |
 | `page-limit` | 500 | 조회당 최대 run/metric 수 |
 | `preview-limit` | 200 | runner 결과와 기존 job API의 최근 metric 수, page-limit 이하 |
-| `max-active-runs` | 8 | 동시 실행 상한; 초과 실행은 실패로 기록 |
+| `max-active-runs` | 8 | 실행기 전체를 합산한 동시 Run 상한; 초과 실행은 실패로 기록 |
 | `git-directory` | `.` | provenance를 읽을 저장소 경로 |
 | `git-timeout-ms` | 2000 | Git 명령당 timeout; 출력 제한 64 KiB |
 
@@ -98,3 +98,9 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 실패 Run summary는 `rows.produced`, `rows.inserted`, `rows.validationErrors`, `retry.count`, `rows.unconfirmed`, `shutdown.unfinishedExecutors`와 기존 검증 사유 집계를 보존한다. `rows.unconfirmed=max(0, produced-inserted-validationErrors)`는 접수/저장 확인 기준이며 읽지 않은 입력이나 커밋 결과 불확실성을 해결하지 않는다. 0이어도 전체 파일 처리가 끝났다는 의미는 아니다.
 
 `shutdown.progress=QUIESCENT`는 관련 executor 종료가 확인됐다는 뜻이다. 비협조적 드라이버 등으로 deadline을 넘긴 경우 `UNCONFIRMED`와 남은 executor 수를 기록하며 성공으로 보고하지 않는다. 이때 늦은 DB 변경이 가능하므로 snapshot 집계를 최종 확정값으로 해석하거나 자동 재실행하지 않는다. 강제 프로세스 종료, 실행되지 않은 대기 작업의 임시 파일, 미확인 행의 영속 재처리는 이 계약에 포함되지 않는다.
+
+## 실행기 선택과 중앙 제한
+
+현재 앱의 실행기는 `IN_PROCESS` 하나다. 서버 내부 `ExperimentExecutors` 등록은 실험 ID를 실행기에 연결하며, 시나리오 파라미터로 실행기를 바꿀 수 없다. 추가 실행기는 전체 `max-active-runs`와 등록별 상한을 모두 적용받고, 배타 등록된 실험은 다른 Run이 없을 때만 시작한다. 현재는 제한 충돌을 기다리는 별도 큐가 없으며 접수된 Run을 FAILED로 기록한다. 기존 제출용 task executor의 큐 설정은 그대로다.
+
+중앙 제한은 스레드 수 대신 Run ID를 센다. 중복 실행 요청은 진행 중인 원래 Run을 변경하지 않는다. 신규 접수 중단 뒤 이미 접수한 작업은 종료 대기 시작 전까지 실행할 수 있고, 종료 대기는 기존 storage shutdown timeout을 사용한다. 실제 Java 21 worker 실행·worker 대기 큐·환경 증거는 후속 단계다. 기존 `runMetadata.environment/git`은 계속 서버 환경·코드를 뜻한다.

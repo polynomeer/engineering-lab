@@ -46,8 +46,6 @@ final class InProcessExecutor implements ExperimentExecutor {
         return Map.copyOf(parameters);
     }
 
-    @Override public RunEnvironment environment() { return RunEnvironment.capture(); }
-
     @Override public <C extends ExperimentScenario> Outcome execute(Experiment<C> experiment, C scenario,
             Output output) {
         var trace = new TraceRecorder(traceEnabled ? output.observationMetrics() : null, output.runId(), traceMaxSpans);

@@ -27,14 +27,15 @@ Browser state import/export preserves legacy keys and commits selected settings 
 projects are discovered from explicit `lab-module.properties` declarations, so new
 projects do not require edits to a fixed Gradle include list.
 
-## Implemented execution boundary (D3 first unit)
+## Implemented execution boundary and admission (D3)
 
 `DurableExperimentRunner` retains admission/shutdown, Run creation/start/completion,
 Git provenance, the bounded metric writer and preview, and all RunStore access.
 The package-level `ExperimentExecutor` receives streaming metric, dead-letter and
 artifact sinks, plus a metric-drain callback; it cannot mutate Run lifecycle.
-`InProcessExecutor` owns experiment invocation, environment capture and JVM/trace/
-JFR/log observation. Existing public runner constructors select this executor.
+`InProcessExecutor` owns experiment invocation and JVM/trace/JFR/log observation.
+The runner captures the controller environment in the existing Run metadata.
+Existing public runner constructors select this executor.
 No new queue, retained evidence list, configuration or database schema is introduced.
 
 Cleanup preserves trace close → JVM sampler stop/final capture → JFR finish/register/
@@ -43,11 +44,26 @@ are recorded in the final log and fail the Run. Partial progress and interrupted
 status cross the boundary; the runner restores interruption after persisting completion.
 Observation points stay out of the bounded experiment preview, as before.
 
-This is the in-process extraction only. Executor routing, external worker environment
-handshake, execution/check schema v3 and worker admission remain pending. A future
-process executor must report its own environment and observations through the boundary;
-it must not reuse the controller JVM collectors. Git provenance is still the root
-repository snapshot until worker provenance is introduced in the execution schema.
+`ExperimentExecutors` provides immutable server-owned experiment-to-executor bindings,
+per-executor active limits and an optional exclusive flag per binding. Scenario input
+cannot override routing. Unknown executor references fail construction. Existing
+experiments default to IN_PROCESS; production still registers only that executor.
+
+`ExecutionAdmission` atomically applies the global and executor limits and excludes
+all other executions while an exclusive Run is active. The ledger is bounded by the
+global limit and keyed by Run ID, so nested runs on one thread still consume separate
+slots. Duplicate execution attempts cannot fail the active owner's Run. Leases release
+on all runner exits, and shutdown closes submission, drains admitted owners up to the
+existing timeout, then interrupts them. Rejection persistence holds the admission lock.
+No waiting queue is added; conflicting queued attempts are recorded FAILED as before.
+Existing task-executor queues and the default global maximum of eight are unchanged.
+
+External worker environment handshake, execution/check schema v3 and worker process
+scheduling remain pending. The existing metadata environment/Git always describe the
+controller; actual worker environment/provenance must be registered in the future
+execution extension after HELLO, and remain unknown before that. Worker observations
+must never reuse the controller collectors. Routing isolation is currently verified
+with a test executor; it is not a claim of working Java 21 process execution.
 
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.
