@@ -93,4 +93,20 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 
 `/runs/compare`는 기존 응답 필드 안에 `execution.*` 조건과 cautions를 추가한다. IN_PROCESS는 서버 환경/Git, LOCAL_JVM은 실제 worker 환경/Git/artifact hash를 사용한다. 미확인 worker 환경은 null이며 서버 JVM으로 대체하지 않는다. 실행 종류·모듈·protocol·측정 범위·완료 상태가 다르거나 worker Git이 불명/dirty인 경우 주의사항을 포함한다. 두 Run 모두 execution이 없으면 기존 비교 응답을 유지한다.
 
-capabilities/modules/descriptor extension과 신규 전용 화면은 아직 후속 단계다. 기존 화면은 계속 기존 API를 사용하며 비교의 공통 조건·주의사항 형식으로 확장 정보를 받을 수 있다.
+기존 화면은 계속 기존 API를 사용하며 비교의 공통 조건·주의사항 형식으로 확장 정보를 받는다. 실행/check 전용 화면과 실제 worker 연결은 후속 단계다.
+
+## 지원 기능과 catalog 확장
+
+| API | 응답 |
+| --- | --- |
+| `GET /dashboard/v1/capabilities` | schemaVersion=1, executionKinds, workerProtocolVersions, features, limits |
+| `GET /dashboard/v1/modules` | 등록 모듈의 `{module, readiness, reason, experimentIds}` 목록 |
+| `GET /dashboard/v1/experiments/{id}` | experimentId, moduleId, descriptorUrl, readiness, executionKind, variants, presentation, capabilities. 없는 ID는 404 |
+
+현재 executionKinds는 IN_PROCESS이고 workerProtocolVersions는 빈 목록이다. features의 executionEvidence/checksRead/extendedExport/executionComparison은 true, localJvm/cancellation은 아직 구현하지 않아 false다. jvmObservation/trace/jfr/runLogs는 현재 서버 설정을 반영한다. limits는 checkPageSize=min(설정 page-limit,100), maxChecksPerRun=100000, maxCheckBytes=65536, maxActiveRuns=설정값이다.
+
+모듈·실험 목록은 기존 catalog에서 가져온다. 현재 서버는 시작 시 runtime binding을 검증한 in-process 모듈만 등록하므로 readiness=READY, reason=null이다. 이는 미등록 Career 모듈이나 Docker/worker의 준비 완료를 의미하지 않는다. 향후 외부 실행기는 별도 사전 점검과 준비 불가 사유를 연결해야 한다.
+
+실험 확장은 기존 descriptor를 수정하지 않고 descriptorUrl로 참조한다. 현재 별도 variant 정의가 없어 variants는 빈 목록이며 measurementModes를 variant로 추정하지 않는다. presentation은 SUMMARY/METRICS/EXECUTION이다. capabilities는 공통 features에 fileUpload(XLSX_UPLOAD 여부)와 checksProduced=false를 더한다. checksRead=true는 저장된 check 조회 지원이며 현재 실험이 check를 생성한다는 뜻은 아니다.
+
+신규 화면은 schemaVersion=1만 인식한다. 404·지원하지 않는 버전·잘못된 capability 구조는 기존 API 모드로 전환하고, 기능은 명시적인 boolean true만 활성화 대상으로 해석한다. 503 등 서버 오류는 화면에 표시한다. 기존 `/modules`와 `/experiments` 기반 실행·조회·내보내기 흐름은 유지한다.

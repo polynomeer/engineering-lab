@@ -5,3 +5,5 @@
 프론트엔드 단위 테스트도 같은 fixture를 사용한다. 런타임의 실제 측정 결과나 성능 근거가 아니며, fixture 변경은 API 호환성을 검토한 뒤 Java/TypeScript 양쪽에서 검증한다. 운영 데이터나 사용자 경로·토큰을 넣지 않는다.
 
 execution/check 확장은 `ExecutionEvidenceControllerTest`가 HTTP 경계·cursor·미기록/부분 증거·별도 export를 검증한다. 기존 export는 schemaVersion=1이고 `/dashboard/v1/runs/{id}/export`는 schemaVersion=2다. `ScenarioApiIntegrationTest`는 실제 catalog/runner의 자동 기록을 검증한다. 기존 fixture를 새로운 실행 결과처럼 덮어쓰지 않는다.
+
+capabilities/modules/experiment extension은 `DashboardCatalogControllerTest`에서 실제 관측 설정, 지원하지 않는 worker·취소, 조회 상한, 알 수 없는 ID와 합성 신규 모듈 발견을 검증한다. capability schemaVersion은 1이며 export schemaVersion과 별개다. 프론트엔드 `capabilities.test.ts`는 알 수 없는 버전/구조와 명시적 true만 허용하는 처리를 검증한다. 전체 필드와 의미는 [지원 기능 API](../../../docs/run-evidence.md#지원-기능과-catalog-확장)를 따른다.

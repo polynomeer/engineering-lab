@@ -81,7 +81,13 @@ Compatibility constructors without a catalog retain unrecorded execution semanti
 The additive execution/check endpoints and a separate schemaVersion=2 export are implemented.
 Existing Run payloads and schemaVersion=1 export remain unchanged. Comparison adds effective
 worker conditions/cautions inside its existing shape, with unknown worker facts left null.
-Capabilities/catalog extension and dedicated frontend panels remain pending.
+The `/dashboard/v1` capabilities, modules and experiment extension endpoints now
+project the registered catalog and enabled observation settings without changing legacy
+APIs. Only IN_PROCESS is advertised; worker protocols remain empty and localJvm and
+cancellation are false. Startup-validated in-process bindings report READY. The frontend
+recognizes capability schema version 1 and falls back for absent or unknown versions,
+while surfacing server errors. Dedicated execution/check panels and worker integration
+remain pending.
 The storage completion flag records the executor's assertion, not validation of a worker
 protocol that has not yet been implemented.
 

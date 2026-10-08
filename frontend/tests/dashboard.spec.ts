@@ -35,7 +35,9 @@ test('real API: list, detail, comparison, export, deep links and mobile layout',
   }
   await page.goto('/app/runs');
   await expect(page.getByRole('heading', { name: '실행 기록', exact: true })).toBeVisible();
-  await expect(page.getByText('기존 API 호환 모드', { exact: false })).toBeVisible();
+  if (process.env.EXPECT_LEGACY === '1')
+    await expect(page.getByText('기존 API 호환 모드', { exact: false })).toBeVisible();
+  else await expect(page.getByText('기존 API 호환 모드', { exact: false })).toHaveCount(0);
   await page.getByRole('link', { name: 'dashboard-baseline', exact: true }).first().click();
   await expect(
     page.getByRole('heading', { name: 'dashboard-baseline', exact: true }),
@@ -83,6 +85,7 @@ test('real API: list, detail, comparison, export, deep links and mobile layout',
   expect(unknown.headers()['content-type']).not.toContain('text/html');
 });
 test('legacy catalog fallback, empty pages and keyboard navigation', async ({ page }) => {
+  await page.route('**/api/dashboard/v1/capabilities', (route) => route.fulfill({ status: 404, body: '' }));
   await page.route('**/api/modules', (route) => route.fulfill({ status: 404, body: '' }));
   await page.route('**/api/runs?*', (route) =>
     route.fulfill({ json: { runs: [], nextBefore: null } }),
@@ -92,6 +95,7 @@ test('legacy catalog fallback, empty pages and keyboard navigation', async ({ pa
     page.getByText('이 페이지에 저장된 실행이 없습니다.', { exact: false }),
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: '등록된 실험', exact: true })).toBeVisible();
+  await expect(page.getByText('기존 API 호환 모드', { exact: false })).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: '본문으로 이동' })).toBeFocused();
 });
@@ -124,4 +128,37 @@ test('server errors stay visible and a metric cursor of zero is followed', async
   await page.getByRole('button', { name: '다음 관측' }).click();
   await cursorRequest;
   await expect(page.getByRole('button', { name: '다음 관측' })).toHaveCount(0);
+});
+
+test('unknown capability version falls back and real API failures remain visible', async ({ page }) => {
+  await page.route('**/api/dashboard/v1/capabilities', route => route.fulfill({ json: { schemaVersion: 99, features: { localJvm: true } } }));
+  await page.goto('/app/runs');
+  await expect(page.getByText('기존 API 호환 모드', { exact: false })).toBeVisible();
+  await page.unroute('**/api/dashboard/v1/capabilities');
+  await page.route('**/api/dashboard/v1/capabilities', route => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.reload();
+  await expect(page.getByRole('alert').first()).toContainText('503');
+});
+
+test('extension catalog and legacy comparison work together against the new server', async ({ page, request }, info) => {
+  test.skip(process.env.EXPECT_LEGACY === '1', 'Extension endpoints are absent on the legacy server');
+  const caps = await (await request.get('/api/dashboard/v1/capabilities')).json();
+  expect(caps.schemaVersion).toBe(1);
+  expect(caps.features.localJvm).toBe(false);
+  expect(caps.features.executionEvidence).toBe(true);
+  const modules = await (await request.get('/api/dashboard/v1/modules')).json();
+  expect(modules).toHaveLength(3);
+  expect(modules.every((m: { readiness: string }) => m.readiness === 'READY')).toBe(true);
+  const extension = await (await request.get('/api/dashboard/v1/experiments/concurrency.queue-contention')).json();
+  expect(extension.moduleId).toBe('concurrency');
+  const response = await request.post('/api/runs', { data: definition('extension-compatibility', 2) });
+  const { runId } = await response.json();
+  await expect.poll(async () => (await (await request.get('/api/runs/' + runId)).json()).status).toBe('SUCCEEDED');
+  const evidence = await (await request.get('/api/dashboard/v1/runs/' + runId + '/execution')).json();
+  expect(evidence.execution.evidenceComplete).toBe(true);
+  const origin = new URL(process.env.LEGACY_URL ?? 'http://127.0.0.1:18080').origin;
+  await page.goto(origin + '/runs/ui?legacy=true&baseline=' + runId + '&candidate=' + runId);
+  await expect(page.getByRole('rowheader', { name: 'execution.definition', exact: true })).toBeVisible();
+  await page.getByRole('rowheader', { name: 'execution.definition', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: process.env.CAPABILITY_SCREENSHOT === '1' ? '../docs/images/15-extension-legacy-comparison.png' : info.outputPath('legacy-extension.png'), fullPage: false });
 });

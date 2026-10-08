@@ -1,3 +1,4 @@
+import { capabilities as parseCapabilities } from './capabilities';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -77,7 +78,7 @@ function App() {
       .then(([items, groups, capabilities, limits]) => {
         setCatalog(items);
         setModules(groups ?? []);
-        setLegacy(capabilities === null);
+        setLegacy(parseCapabilities(capabilities) === null);
         setOptions(limits);
         setBootstrapError('');
       })

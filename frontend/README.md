@@ -79,7 +79,8 @@ npm run test:e2e
 
 `/app/*`는 화면, `/api/*`는 backend proxy입니다. 다른 경로에 SPA HTML을 응답하지 않습니다.
 proxy는 기존 status/body/Content-Disposition을 유지하고 상대 Location 헤더에 `/api`를 붙입니다.
-capabilities/modules의 404만 구형 서버 호환으로 처리하며 503·HTML 응답 등은 오류로 표시합니다.
+capabilities/modules의 404는 구형 서버 호환으로 처리하며 503·HTML 응답 등은 오류로 표시합니다.
+capabilities는 schemaVersion=1과 올바른 features 객체만 인식합니다. 알 수 없는 버전/구조는 기존 API 모드로 전환하고, 알려진 기능 키의 boolean true만 지원으로 해석합니다. 현재 실행·조회는 기존 API를 유지하며 실행/check 전용 패널은 후속 단계입니다.
 
 활성 Run 상세는 2초 간격으로 이전 요청 완료 후 갱신합니다. 오류 backoff는 최대 15초이며,
 탭 비활성·페이지 이탈·Run 종료 시 polling을 멈춥니다. 관측값은 한 페이지만 보유합니다.
@@ -93,3 +94,5 @@ POST 실패 시 자동 재시도하지 않습니다. 네트워크 오류·5xx·�
 설정 백업/이전은 `/app/settings`를 사용합니다. 구화면 내보내기 스크립트는 `src/main/resources/static/dashboard/export-settings.js`에 있고 원본 key를 변경하지 않습니다. 상세 제한과 이전 절차는 [사용 가이드](../docs/standalone-dashboard.md)를 참고하세요. 브라우저 E2E의 구화면 주소는 `LEGACY_URL`(기본 `http://127.0.0.1:18080/experiments/ui`)로 변경합니다.
 
 독립 배포는 `npm run serve`, 내장 패키징은 루트 `./gradlew bootDashboardJar`를 사용합니다. `npm run test:serve`는 빌드 후 독립 서버의 streaming/headers/실패 응답을 검증합니다. 전체 브라우저 검증에 URL 전환을 켠 API를 쓰면 `EXPECT_REDIRECT=1`, 산출물 일치 검증에는 `VERIFY_BUILD=1`을 지정합니다.
+
+D3 호환 검증은 신규 API와 실제 D2 서버(`94c1913`)를 서로 다른 임시 DB로 띄워 수행했습니다. 구버전 서버 검증 시 `EXPECT_LEGACY=1`을 지정합니다. 신규 API의 기존 비교 화면을 촬영하려면 `CAPABILITY_SCREENSHOT=1 npm run test:e2e -- --grep 'extension catalog'`를 실행합니다. `LEGACY_URL`은 해당 API의 기존 화면 주소여야 합니다. API 계약과 지원 범위는 [Run 증거 문서](../docs/run-evidence.md#지원-기능과-catalog-확장)를 참고하세요.

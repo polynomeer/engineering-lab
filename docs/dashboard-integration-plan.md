@@ -1,6 +1,6 @@
 # 공통 대시보드 이행 계획
 
-상태: **등록 확장 기반·D1·D2 완료** · 기준: [통합 설계](dashboard-integration-design.md)
+상태: **등록 확장 기반·D1·D2·D3 완료** · 기준: [통합 설계](dashboard-integration-design.md)
 
 복구된 Career Lab과 현재 실험 플랫폼을 유지한 채 단계적으로 연결한다. 아래 작업은 각각 검증 후 독립 커밋한다. 각 단계의 완료 표시를 구현 기준으로 삼는다. 전체 worker 연동은 아직 완료되지 않았다.
 
@@ -64,14 +64,14 @@ URL/배포 검증 (2026-10-07): 기본 off의 302/query 보존과 legacy 우회,
 
 독립 커밋 단위: 큐/IO 화면 → Excel 화면 → 상태 이행 → route/배포 호환. 화면 검증을 통과하기 전 Java HTML을 제거하지 않는다.
 
-## D3. 실행 경계와 저장 schema 확장
+## D3. 실행 경계와 저장 schema 확장 — 완료 (2026-10-08)
 
 - [x] `DurableExperimentRunner`에서 공통 lifecycle/evidence와 in-process 관측을 분리한다. 기존 결과·수집 대상·종료 순서를 유지한다.
 - [x] 서버 등록 기반 executor 선택과 전체/실행기별·배타 admission을 도입한다.
 - [x] v3 execution에 worker 환경을 별도로 저장하는 계약을 구현한다. 실제 handshake 연결은 D4에 남긴다.
 - [x] v3 additive migration, execution/check 저장·페이지 조회와 백업/복원을 구현한다.
 - [x] 앱의 runner 자동 기록과 HTTP execution/check, 별도 확장 export를 구현한다.
-- [ ] capabilities/modules/descriptor extension과 화면 호환 조합 검증을 마무리한다.
+- [x] capabilities/modules/descriptor extension과 화면 호환 조합 검증을 마무리한다.
 - [x] 비교 API에 worker 환경·배포물·측정 범위 차이를 반영한다. 기존 응답 형식 안에서 cautions를 유지한다.
 
 완료 기준: 기존 플랫폼 전체 테스트가 통과하고, v2 fixture 재개방에서 Run ID·원시 증거가 유지된다. 구형/신형 UI와 API의 세 가지 조합을 테스트한다. 신규 기능 미지원 상태를 명확히 표시한다.
@@ -91,6 +91,10 @@ v3 저장 검증 (2026-10-08): `./gradlew test` 전체 159개 통과(실패·건
 자동 기록/API 구현 (2026-10-08): 앱 catalog의 module ID로 Run/definition을 atomic 생성하고 in-process phase와 성공 후 evidenceComplete를 기록한다. 저장·수집 실패는 완료로 표시하지 않는다. `/dashboard/v1/runs/{id}/execution`, `/checks`, `/export`를 추가했으며 별도 export는 schemaVersion=2로 execution/check를 포함한다. 기존 `/runs` payload와 schemaVersion=1 export는 유지한다. 기존 비교 응답 안에 실제 worker 환경·Git/hash·측정 범위·미확인 정보 cautions를 추가했다. 과거 Run과 직접 runner 호환 생성자는 execution이 없을 수 있다. capability/catalog extension, 신규 화면과 실제 worker는 아직 구현하지 않았다.
 
 자동 기록/API 검증 (2026-10-08): `./gradlew test` 전체 165개 통과(실패·건너뜀 0). 신규 6개 테스트와 실제 앱 통합 검증으로 atomic 생성 rollback, phase/seal/writer 실패, 미기록·부분 worker 증거, 페이지 경계, 재개방, 기존/신규 export와 비교 형식 유지를 확인했다. 화면 코드는 변경하지 않았으며 전용 UI와 capability 호환 조합 검증은 다음 단위다.
+
+capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`, `/experiments/{id}`를 추가했다. 등록 catalog에서 소유 모듈·실험을 유도하고 현재 연결된 IN_PROCESS만 READY로 보고한다. LOCAL_JVM·취소는 false, worker protocol 목록은 비어 있으며 관측 기능은 실제 설정을 반영한다. 기존 descriptor/API는 유지한다. 신규 화면은 schemaVersion=1만 인식하며 404·알 수 없는 버전은 기존 API 호환 모드, 503은 오류로 표시한다. 실행/check 전용 화면과 Career worker는 D4 이후 범위다.
+
+호환 검증 (2026-10-08): 루트 전체 167개, 프론트엔드 단위 17개와 production build가 통과했다. 신규 API 브라우저 12항목은 11개 통과 후 행 머리글 선택자를 수정한 1개 재검증까지 통과했다. 실제 D2 서버(`94c1913`, 별도 임시 DB)에서도 신규 화면의 실행·조회·비교·내보내기와 호환 처리 4개가 통과했다. 기존 UI→신규 API, 신규 UI→신규 API, 신규 UI→기존 API 세 조합을 확인했다. [기존 비교 화면 캡처](images/15-extension-legacy-comparison.png)는 동일 Run의 확장 조건 표시를 확인한 것으로 성능 비교 근거가 아니다.
 
 독립 커밋 단위: executor 경계 추출 → 선택/admission → v3 저장/이행 → extension API/비교. 각 단계별 DB 백업·rollback 절차를 남긴다.
 
@@ -149,4 +153,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D3: capabilities/catalog extension과 화면 호환 검증**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.
+다음 실행 작업은 **D4: worker protocol/codec과 정상·오류 fixture**다. 이후 process lifecycle과 첫 Career sequence worker를 연결한다.
