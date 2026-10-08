@@ -7,6 +7,10 @@ import java.util.Optional;
 
 public interface RunStore {
     StoredRun create(String experimentType, String scenarioId, RunMetadata metadata);
+    /** Atomically create the Run and its execution definition. */
+    default StoredRun create(String experimentType, String scenarioId, RunMetadata metadata, RunExecution.Definition execution) {
+        throw new UnsupportedOperationException("Atomic execution creation unavailable");
+    }
     void start(String runId);
     void complete(String runId, RunStatus status, ExperimentSummary summary, String failure);
     Optional<StoredRun> find(String runId);

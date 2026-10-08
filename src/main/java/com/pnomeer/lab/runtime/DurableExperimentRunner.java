@@ -14,6 +14,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     private static final Logger log = LoggerFactory.getLogger(DurableExperimentRunner.class);
     private final ExperimentExecutors executors;
     private final ExecutionAdmission admission;
+    private final Map<String, RunExecution.Definition> definitions;
     private final RunStore store;
     private final Supplier<GitProvenance> provenance;
     private final MetricWriterOptions options;
@@ -58,6 +59,17 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                 previewLimit, maxActiveRuns);
     }
 
+    public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
+            long jvmIntervalMs, int maxPeriodicSamples, boolean traceEnabled, int traceMaxSpans,
+            JfrRecorder jfr, RunLogRecorder runLogs, Map<String, String> moduleIds) {
+        this(store, provenance, options, ExperimentExecutors.inProcess(new InProcessExecutor(jvmProbe, jvmIntervalMs,
+                maxPeriodicSamples, traceEnabled, traceMaxSpans, jfr, runLogs, options.shutdownTimeoutMs()), maxActiveRuns),
+                previewLimit, maxActiveRuns, moduleIds.entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey, entry -> new RunExecution.Definition(RunExecution.Kind.IN_PROCESS, entry.getValue(),
+                                0, RunExecution.MeasurementScope.CONTROLLER_PROCESS))));
+    }
+
     DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, ExperimentExecutor executor, int previewLimit, int maxActiveRuns) {
         this(store, provenance, options, ExperimentExecutors.inProcess(executor, maxActiveRuns), previewLimit, maxActiveRuns);
@@ -65,6 +77,13 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
 
     DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, ExperimentExecutors executors, int previewLimit, int maxActiveRuns) {
+        this(store, provenance, options, executors, previewLimit, maxActiveRuns, Map.of());
+    }
+
+    private DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, ExperimentExecutors executors, int previewLimit, int maxActiveRuns,
+            Map<String, RunExecution.Definition> definitions) {
+        this.definitions = Map.copyOf(definitions);
         this.executors = Objects.requireNonNull(executors);
         this.admission = new ExecutionAdmission(maxActiveRuns);
         if (previewLimit < 1 || maxActiveRuns < 1) throw new IllegalArgumentException("Run limits must be positive");
@@ -80,7 +99,9 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         parameters.put("evidence.dead-letter.maxRecordBytes", String.valueOf(DeadLetter.MAX_BYTES));
         parameters.putAll(executor.parameters());
         var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
-        return admission.submit(() -> store.create(experiment.type(), scenario.scenarioId(), metadata));
+        var definition = definitions.get(experiment.type());
+        return admission.submit(() -> definition == null ? store.create(experiment.type(), scenario.scenarioId(), metadata)
+                : store.create(experiment.type(), scenario.scenarioId(), metadata, definition));
     }
 
     @Override
@@ -97,6 +118,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             throw new IllegalArgumentException("Prepared Run does not match the execution request");
         }
         var selection = executors.select(run.experimentType());
+        boolean executionRecorded = definitions.containsKey(run.experimentType());
         var lease = admission.acquire(run.runId(), selection, reason -> reject(run, reason));
         try (lease) {
             store.start(run.runId());
@@ -115,7 +137,8 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                     log.error("job_id={} stage=dead-letter reason=persistence_failed row_index={}", run.runId(), row.rowIndex());
                     throw new IllegalStateException("Dead-letter persistence failed", ex);
                 }
-            }), store::registerArtifact, writer::close);
+            }), store::registerArtifact, writer::close,
+                    phase -> { if (executionRecorded) store.advanceExecution(run.runId(), phase); });
             var outcome = selection.executor().execute(experiment, scenario, output);
             var status = outcome.status();
             var summary = outcome.summary();
@@ -126,6 +149,15 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             counters.put("storage.preview.limit", (long) previewLimit);
             summary = new ExperimentSummary(counters, summary.gauges(), summary.details());
             try {
+                if (executionRecorded && status == RunStatus.SUCCEEDED) {
+                    try { store.finishExecutionEvidence(run.runId()); }
+                    catch (RuntimeException | OutOfMemoryError ex) {
+                        status = RunStatus.FAILED;
+                        failure = "Execution evidence finalization failed";
+                        interrupted |= Thread.interrupted();
+                        log.error("job_id={} stage=execution-evidence reason=finalization_failed", run.runId(), ex);
+                    }
+                }
                 store.complete(run.runId(), status, summary, failure);
                 log.info("job_id={} stage=run-storage status={} written={} retries={}", run.runId(), status,
                         counters.get("storage.metrics.written"), counters.get("storage.retries"));

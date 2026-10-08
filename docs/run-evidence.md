@@ -70,3 +70,27 @@ storage root는 신뢰할 수 있는 서버 설정이다. 그 아래 jfr/logs �
 임시 디스크 부족 등 그 밖의 I/O 오류는 서버 오류로 전파한다. 전송 중 연결이 끊어지면 완료된 응답으로 간주하지 말고 Content-Length와 SHA-256을 확인한다. Range/부분 다운로드와 자동 파일 보관·삭제는 이번 API에 포함하지 않는다.
 
 검증: ArtifactDownloadTest는 재개방 뒤 정확한 바이트·헤더, 누락/다른 Run/실행 중/일반 참조/상한 거부, 파일 변조와 링크, 원본 변경 후 사본 일치, 슬롯 상한 및 연결 실패 뒤 슬롯 반환을 확인한다. LabCliIntegrationTest는 실제 서버가 생성한 세 실험의 JFR/로그를 내려받아 저장된 SHA-256과 비교한다.
+
+## 실행 정보·검증 결과 확장 API
+
+앱에 등록된 신규 실험은 Run 생성과 execution definition을 하나의 트랜잭션으로 기록한다. module ID는 서버 catalog에서 가져온다. 초기 PREPARING, 실험 호출 직전 MEASURING, 관측 종료 시작 시 FINALIZING을 기록한다. 수집·writer drain·artifact 등록이 끝나고 실행이 성공한 경우에만 evidenceComplete를 true로 확정한다. 실패·중단은 보수적으로 false를 유지한다. 기존 Run과 catalog를 전달하지 않은 직접 runner 호출은 execution 미기록일 수 있다.
+
+| API | 응답과 제약 |
+| --- | --- |
+| `GET /dashboard/v1/runs/{id}/execution` | `{runId, available, execution}`. 실행 중 phase 조회 가능. 기록이 없으면 available=false/execution=null, 없는 Run은 404 |
+| `GET /dashboard/v1/runs/{id}/checks?after=-1&limit=100` | `{runId, available, checks, nextAfter}`. 종료 Run만 허용(실행 중 409), limit은 1–min(page-limit,100), after는 -1 이상. 잘못된 범위 400 |
+| `GET /dashboard/v1/runs/{id}/export` | NDJSON schemaVersion=2. run → execution view → metric → check → artifact-reference → end 순서. end에 metricCount/checkCount/artifactCount |
+
+checks의 available은 execution 기록 여부이며 check가 실제 수행됐다는 뜻은 아니다. 빈 목록을 검증 통과로 해석하지 않는다. worker는 handshake 전 null이고, 실패·중단 Run에서도 이미 보존된 부분 증거를 조회할 수 있다. 이 단계에서는 실제 worker나 check 생성 실험을 등록하지 않는다.
+
+신규 export도 페이지 단위로 전송하며 파일을 서버나 메모리에 전체 보관하지 않는다. `Content-Disposition: attachment; filename=run-evidence-v2.ndjson`과 no-store를 사용한다. end가 없으면 불완전한 다운로드다. dead-letter 본문·원본 입력·artifact bytes는 별도 보관한다. 기존 `/runs/{id}/export`는 계속 schemaVersion=1이며 신규 execution/check를 포함하지 않는다. 기존 CLI/화면의 다운로드 형식을 변경하지 않았다.
+
+```bash
+curl --fail 'http://localhost:8080/dashboard/v1/runs/<runId>/execution'
+curl --fail 'http://localhost:8080/dashboard/v1/runs/<runId>/checks?after=-1&limit=100'
+curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<runId>/export'
+```
+
+`/runs/compare`는 기존 응답 필드 안에 `execution.*` 조건과 cautions를 추가한다. IN_PROCESS는 서버 환경/Git, LOCAL_JVM은 실제 worker 환경/Git/artifact hash를 사용한다. 미확인 worker 환경은 null이며 서버 JVM으로 대체하지 않는다. 실행 종류·모듈·protocol·측정 범위·완료 상태가 다르거나 worker Git이 불명/dirty인 경우 주의사항을 포함한다. 두 Run 모두 execution이 없으면 기존 비교 응답을 유지한다.
+
+capabilities/modules/descriptor extension과 신규 전용 화면은 아직 후속 단계다. 기존 화면은 계속 기존 API를 사용하며 비교의 공통 조건·주의사항 형식으로 확장 정보를 받을 수 있다.

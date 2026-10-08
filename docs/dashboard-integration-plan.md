@@ -70,8 +70,9 @@ URL/배포 검증 (2026-10-07): 기본 off의 302/query 보존과 legacy 우회,
 - [x] 서버 등록 기반 executor 선택과 전체/실행기별·배타 admission을 도입한다.
 - [x] v3 execution에 worker 환경을 별도로 저장하는 계약을 구현한다. 실제 handshake 연결은 D4에 남긴다.
 - [x] v3 additive migration, execution/check 저장·페이지 조회와 백업/복원을 구현한다.
-- [ ] runner 자동 기록과 HTTP execution/check, capabilities/modules/descriptor extension을 구현한다.
-- [ ] 비교 API에 worker 환경·배포물·측정 범위 차이를 반영한다. 기존 응답 형식 안에서 cautions를 유지한다.
+- [x] 앱의 runner 자동 기록과 HTTP execution/check, 별도 확장 export를 구현한다.
+- [ ] capabilities/modules/descriptor extension과 화면 호환 조합 검증을 마무리한다.
+- [x] 비교 API에 worker 환경·배포물·측정 범위 차이를 반영한다. 기존 응답 형식 안에서 cautions를 유지한다.
 
 완료 기준: 기존 플랫폼 전체 테스트가 통과하고, v2 fixture 재개방에서 Run ID·원시 증거가 유지된다. 구형/신형 UI와 API의 세 가지 조합을 테스트한다. 신규 기능 미지원 상태를 명확히 표시한다.
 
@@ -83,9 +84,13 @@ URL/배포 검증 (2026-10-07): 기본 off의 302/query 보존과 legacy 우회,
 
 선택/admission 검증 (2026-10-08): `./gradlew test` 전체 152개 통과(실패·건너뜀 0). 신규 6개 테스트로 등록 오류, 입력에 의한 routing 변경 방지, 관측 분리, 전체/개별 상한, 배타 충돌, 중복 Run 보호, 종료 시 interrupt와 슬롯 반환을 확인했다.
 
-v3 저장 구현 (2026-10-08): 기존 테이블을 유지하고 execution/check를 추가했다. worker identity는 handshake 전 null이고 등록 후 불변이며 기존 서버 metadata를 덮어쓰지 않는다. check 중복/충돌·크기/페이지 상한, phase 순서, 증거 미완료 성공 거부와 재시작 복구를 구현했다. v1/v2에서 DDL 전 DB ZIP 백업을 생성하고 실패 시 중단하며, 부분 DDL 재개와 별도 디렉터리로 v2 백업 복원을 검증한다. 기존 Run에는 실행 증거를 추정해 채우지 않는다. 현재 runner 자동 기록과 HTTP extension/export는 후속 단계다. [운영 이행·복원 절차](run-storage.md)를 따른다.
+v3 저장 구현 (2026-10-08): 기존 테이블을 유지하고 execution/check를 추가했다. worker identity는 handshake 전 null이고 등록 후 불변이며 기존 서버 metadata를 덮어쓰지 않는다. check 중복/충돌·크기/페이지 상한, phase 순서, 증거 미완료 성공 거부와 재시작 복구를 구현했다. v1/v2에서 DDL 전 DB ZIP 백업을 생성하고 실패 시 중단하며, 부분 DDL 재개와 별도 디렉터리로 v2 백업 복원을 검증한다. 기존 Run에는 실행 증거를 추정해 채우지 않는다. 이 저장 단위 이후 자동 기록·조회·확장 export 연결을 진행했다. [운영 이행·복원 절차](run-storage.md)를 따른다.
 
 v3 저장 검증 (2026-10-08): `./gradlew test` 전체 159개 통과(실패·건너뜀 0). 신규 7개 테스트로 병렬 check 저장·충돌·상한·phase/worker/완료 조건·재시작, 실제 v2 fixture의 원시 증거 보존·ZIP 복원, 백업 실패와 부분 DDL 재개를 확인했다. v1 이행 회귀도 유지한다.
+
+자동 기록/API 구현 (2026-10-08): 앱 catalog의 module ID로 Run/definition을 atomic 생성하고 in-process phase와 성공 후 evidenceComplete를 기록한다. 저장·수집 실패는 완료로 표시하지 않는다. `/dashboard/v1/runs/{id}/execution`, `/checks`, `/export`를 추가했으며 별도 export는 schemaVersion=2로 execution/check를 포함한다. 기존 `/runs` payload와 schemaVersion=1 export는 유지한다. 기존 비교 응답 안에 실제 worker 환경·Git/hash·측정 범위·미확인 정보 cautions를 추가했다. 과거 Run과 직접 runner 호환 생성자는 execution이 없을 수 있다. capability/catalog extension, 신규 화면과 실제 worker는 아직 구현하지 않았다.
+
+자동 기록/API 검증 (2026-10-08): `./gradlew test` 전체 165개 통과(실패·건너뜀 0). 신규 6개 테스트와 실제 앱 통합 검증으로 atomic 생성 rollback, phase/seal/writer 실패, 미기록·부분 worker 증거, 페이지 경계, 재개방, 기존/신규 export와 비교 형식 유지를 확인했다. 화면 코드는 변경하지 않았으며 전용 UI와 capability 호환 조합 검증은 다음 단위다.
 
 독립 커밋 단위: executor 경계 추출 → 선택/admission → v3 저장/이행 → extension API/비교. 각 단계별 DB 백업·rollback 절차를 남긴다.
 
@@ -144,4 +149,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D3: runner 실행 증거 연결과 HTTP extension API/비교**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.
+다음 실행 작업은 **D3: capabilities/catalog extension과 화면 호환 검증**이다. Career worker 연동은 D3/D4 기반 검증 뒤 시작한다.

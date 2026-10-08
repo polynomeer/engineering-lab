@@ -250,6 +250,15 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
     }
 
     @Override
+    public StoredRun create(String type, String scenario, RunMetadata metadata, RunExecution.Definition execution) {
+        return transactions.execute(tx -> {
+            var run = create(type, scenario, metadata);
+            registerExecution(run.runId(), execution);
+            return run;
+        });
+    }
+
+    @Override
     public void start(String id) {
         int updated = jdbc.update("update lab_run set status='RUNNING', started_at=? where run_id=? and status='QUEUED'",
                 System.currentTimeMillis(), id);

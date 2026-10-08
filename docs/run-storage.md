@@ -107,7 +107,7 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 
 ## v3 execution/check 저장 계약
 
-`lab_execution`과 `lab_check`를 추가했다. 이 단계는 RunStore 저장 계약까지이며, 신규 HTTP 조회·export·capability와 runner/worker의 자동 기록 연결은 후속 단계다. 기존 Run과 현재 runner는 execution이 없을 수 있다. 없는 정보를 IN_PROCESS 성공이나 checks 통과로 소급 생성하지 않는다.
+`lab_execution`과 `lab_check`를 추가했다. 앱에 등록된 신규 실험의 자동 기록과 execution/check HTTP 조회·별도 schemaVersion=2 export를 연결했다. [API 계약](run-evidence.md)을 참조한다. capability/catalog extension과 worker 연결은 후속 단계다. 기존 Run과 catalog를 전달하지 않은 직접 runner 호출은 execution이 없을 수 있다. 없는 정보를 IN_PROCESS 성공이나 checks 통과로 소급 생성하지 않는다.
 
 - execution definition은 실행 종류(IN_PROCESS/LOCAL_JVM), module ID, protocol version, 측정 범위를 저장한다. IN_PROCESS는 protocol 0/CONTROLLER_PROCESS, LOCAL_JVM은 양수 protocol/WORKER_PROCESS를 사용한다.
 - worker는 실제 JVM/OS, Git provenance, 배포물 SHA-256이다. LOCAL_JVM의 RUNNING/PREPARING에서만 최초 등록하고 동일 값의 재등록만 허용한다. handshake 전에는 null이며 서버 환경으로 대체하지 않는다. 기존 `runMetadata.environment/git`은 수정하지 않는다.
@@ -123,6 +123,6 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 1. 운영 업데이트 전 앱을 정상 종료하고 저장 디렉터리 전체(DB와 JFR/log 파일 포함)를 별도 위치에 복사한다. 사용자 `.lab/`에 대한 이행은 앱을 새 버전으로 시작할 때 수행된다. 테스트는 임시 DB만 사용한다.
 2. v1/v2를 열면 소유권 잠금 아래 H2의 일관된 DB 백업을 먼저 생성한다. 경로는 `<storage-root>/backups/schema-v<1|2>-before-v3-<UUID>.zip`이다. 생성 중 파일은 `.zip.partial`이며 완성 뒤 atomic rename한다. 백업 생성·게시 실패 시 DDL 전에 시작을 중단한다. 기존 백업을 덮어쓰지 않는다. 자동 백업에는 DB만 포함되므로 artifact 복원에는 1번의 전체 복사본이 필요하다.
 3. 테이블 추가 뒤 마지막으로 schema version을 3으로 바꾼다. H2 DDL은 전체 트랜잭션 rollback을 보장하지 않으므로 테이블 생성 후 중단되면 같은 버전으로 재시작해 나머지를 적용한다. 완료한 v3 재개방은 이행이나 추가 백업을 수행하지 않는다. 반복 실패로 생긴 백업은 운영자가 확인해 관리한다.
-4. 이전 서버로 되돌릴 때는 v3 DB를 그대로 열지 않는다. 필요한 새 Run의 기존 API export와 v3 저장 디렉터리 원본을 별도 보존하고 앱을 종료한다. 현재 HTTP export에는 신규 execution/check가 아직 포함되지 않으므로 **v3 DB 자체를 반드시 보관**한다.
+4. 이전 서버로 되돌릴 때는 v3 DB를 그대로 열지 않는다. 필요한 새 Run의 기존 API export와 v3 저장 디렉터리 원본을 별도 보존하고 앱을 종료한다. 신규 `/dashboard/v1/runs/{id}/export`는 execution/check를 포함하지만 기존 `/runs/{id}/export`는 포함하지 않는다. export는 DB 복원 도구가 아니므로 **v3 DB 자체도 반드시 보관**한다.
 5. 별도의 빈 저장 디렉터리에 업데이트 전 전체 복사본을 복원하고 이전 서버의 storage root로 지정한다. 자동 DB 백업을 사용할 경우 ZIP의 `runs.mv.db`를 빈 디렉터리에 풀고, 백업 시점에 대응하는 artifact 파일도 전체 복사본에서 복원한다. 현재 DB 위에 실행 중 덮어쓰거나 schema version 숫자만 낮추지 않는다.
 6. 이전 서버에서 기존 Run·metric·dead-letter·artifact를 확인한다. v3 이행 뒤 생성된 Run은 v2 백업에 없으므로 보존한 v3 원본은 삭제하지 않는다. 자동 복원 테스트는 ZIP을 별도 위치에 풀어 schema 2와 원시 증거 일치를 확인한다.

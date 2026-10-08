@@ -36,6 +36,45 @@ public record RunComparison(StoredRun baseline, StoredRun candidate, List<String
         metrics(values, "gauge", a.summary().gauges(), b.summary().gauges());
         return new RunComparison(a, b, List.copyOf(cautions), List.copyOf(conditions), List.copyOf(values));
     }
+    public static RunComparison of(StoredRun a, StoredRun b, RunExecution ae, RunExecution be) {
+        var base = of(a, b);
+        if (ae == null && be == null) return base;
+        var conditions = new ArrayList<>(base.conditions());
+        var cautions = new ArrayList<>(base.cautions());
+        add(conditions, "execution.definition", ae == null ? null : ae.definition(), be == null ? null : be.definition());
+        add(conditions, "execution.phase", ae == null ? null : ae.phase(), be == null ? null : be.phase());
+        add(conditions, "execution.evidenceComplete", ae == null ? null : ae.evidenceComplete(), be == null ? null : be.evidenceComplete());
+        add(conditions, "execution.environment", environment(a, ae), environment(b, be));
+        add(conditions, "execution.git", git(a, ae), git(b, be));
+        add(conditions, "execution.workerArtifactSha256", artifact(ae), artifact(be));
+        if (ae == null || be == null) cautions.add("Execution evidence is not recorded for one of these legacy runs; its execution target is unknown.");
+        if (ae != null && !ae.evidenceComplete() || be != null && !be.evidenceComplete()) cautions.add("Execution evidence is incomplete; missing worker or final evidence must not be treated as a complete measurement.");
+        if (unknownWorker(ae) || unknownWorker(be)) cautions.add("Worker identity is unknown. Controller environment is not a substitute for worker measurements.");
+        if (dirtyWorker(ae) || dirtyWorker(be)) cautions.add("Worker Git provenance is unknown or dirty; controller Git does not identify the executed worker code.");
+        if (conditions.subList(base.conditions().size(), conditions.size()).stream().anyMatch(Difference::different)) {
+            cautions.add("Execution target, worker artifact, measurement scope or evidence completeness differ. Account for these differences before comparing results.");
+        }
+        return new RunComparison(a, b, List.copyOf(cautions), List.copyOf(conditions), base.values());
+    }
+    private static boolean external(RunExecution execution) {
+        return execution != null && execution.definition().kind() == RunExecution.Kind.LOCAL_JVM;
+    }
+    private static boolean unknownWorker(RunExecution execution) { return external(execution) && execution.worker() == null; }
+    private static boolean dirtyWorker(RunExecution execution) {
+        return external(execution) && execution.worker() != null
+                && (execution.worker().git().commit() == null || !Boolean.FALSE.equals(execution.worker().git().dirty()));
+    }
+    private static Object environment(StoredRun run, RunExecution execution) {
+        if (execution == null) return null;
+        return external(execution) ? execution.worker() == null ? null : execution.worker().environment() : run.runMetadata().environment();
+    }
+    private static Object git(StoredRun run, RunExecution execution) {
+        if (execution == null) return null;
+        return external(execution) ? execution.worker() == null ? null : execution.worker().git() : run.runMetadata().git();
+    }
+    private static String artifact(RunExecution execution) {
+        return execution == null || execution.worker() == null ? null : execution.worker().artifactSha256();
+    }
     private static void add(List<Difference> target, String key, Object a, Object b) {
         target.add(new Difference(key, a, b, !Objects.equals(a, b)));
     }

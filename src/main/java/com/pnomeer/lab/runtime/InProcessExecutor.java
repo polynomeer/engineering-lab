@@ -57,6 +57,7 @@ final class InProcessExecutor implements ExperimentExecutor {
         RunStatus status = RunStatus.SUCCEEDED;
         String failure = null;
         boolean interrupted = false;
+        boolean measuring = false;
         var observation = new JvmObservationSession(jvmProbe, output.observationMetrics(), jvmIntervalMs,
                 maxPeriodicSamples, shutdownTimeoutMs, output.runId());
         try {
@@ -65,6 +66,9 @@ final class InProcessExecutor implements ExperimentExecutor {
             if (jfr != null) recording = jfr.start(output.runId());
             executionStage = RunLogRecorder.Stage.JVM;
             observation.start();
+            executionStage = RunLogRecorder.Stage.STORAGE;
+            output.phase().accept(RunExecution.Phase.MEASURING);
+            measuring = true;
             executionStage = RunLogRecorder.Stage.EXECUTION;
             summary = trace.call(TraceRecorder.Stage.EXPERIMENT, null, rootSpan -> experiment.execute(scenario, point -> {
                 observation.checkFailure();
@@ -84,6 +88,7 @@ final class InProcessExecutor implements ExperimentExecutor {
                     : switch (executionStage) {
                         case JFR -> RunLogRecorder.Reason.JFR_FAILED;
                         case JVM -> RunLogRecorder.Reason.JVM_FAILED;
+                        case STORAGE -> RunLogRecorder.Reason.STORAGE_FAILED;
                         default -> RunLogRecorder.Reason.EXECUTION_FAILED;
                     };
             if (runLog != null) runLog.record(executionStage,
@@ -94,6 +99,17 @@ final class InProcessExecutor implements ExperimentExecutor {
             throw ex;
         } finally {
             try {
+                if (measuring) {
+                    try { output.phase().accept(RunExecution.Phase.FINALIZING); }
+                    catch (RuntimeException | OutOfMemoryError ex) {
+                        status = RunStatus.FAILED;
+                        failure = "Execution phase persistence failed" + (failure == null ? "" : "; experiment: " + failure);
+                        logReason = RunLogRecorder.Reason.STORAGE_FAILED;
+                        if (runLog != null) runLog.record(RunLogRecorder.Stage.STORAGE, RunLogRecorder.Event.FAILED, logReason);
+                        log.error("job_id={} stage=execution-evidence reason=phase_failed", output.runId(), ex);
+                        interrupted |= Thread.interrupted();
+                    }
+                }
                 trace.close();
                 try { observation.finish(); }
                 catch (RuntimeException | OutOfMemoryError ex) {

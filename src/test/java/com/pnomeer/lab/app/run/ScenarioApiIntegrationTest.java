@@ -24,6 +24,7 @@ class ScenarioApiIntegrationTest {
     @Autowired ScenarioRunController controller;
     @Autowired ExperimentCatalogController catalog;
     @Autowired ModuleCatalogController modules;
+    @Autowired ExecutionEvidenceController executionEvidence;
     @Autowired RunStore store;
     @Autowired IngestionService ingestion;
     private MockMvc mvc;
@@ -35,7 +36,7 @@ class ScenarioApiIntegrationTest {
             "measurement":{"mode":"SINGLE_PASS"}}
             """;
     @BeforeEach void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules).setControllerAdvice(new ScenarioExceptionHandler()).build();
+        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence).setControllerAdvice(new ScenarioExceptionHandler()).build();
     }
     @Test void exposesModuleOwnershipWithoutChangingExperimentIds() throws Exception {
         mvc.perform(get("/modules")).andExpect(status().isOk())
@@ -57,6 +58,11 @@ class ScenarioApiIntegrationTest {
         assertEquals(a.runMetadata().parameters().get("scenario.definition.sha256"), b.runMetadata().parameters().get("scenario.definition.sha256"));
         assertTrue(a.runMetadata().parameters().get("scenario.definition").contains("api-definition"));
         assertEquals("SINGLE_PASS", a.runMetadata().parameters().get("measurement.mode"));
+        mvc.perform(get("/dashboard/v1/runs/" + first + "/execution")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.execution.definition.moduleId").value("concurrency"))
+                .andExpect(jsonPath("$.execution.definition.kind").value("IN_PROCESS"))
+                .andExpect(jsonPath("$.execution.phase").value("FINALIZING"))
+                .andExpect(jsonPath("$.execution.evidenceComplete").value(true));
     }
     @Test void invalidDefinitionsDoNotCreateRuns() throws Exception {
         int before = store.list(null, Long.MAX_VALUE, 500).size();

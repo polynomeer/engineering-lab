@@ -74,8 +74,14 @@ and prevent registered executions from succeeding with incomplete evidence. Rest
 recovery retains partial evidence and clears completeness for interrupted Runs.
 
 Existing metadata, Runs, metrics, dead letters and artifacts are unchanged. No execution
-rows are inferred for old Runs. Automatic executor recording and HTTP extension APIs
-remain the next unit; these tables are currently accessed through the RunStore contract.
+rows are inferred for old Runs. The app supplies catalog-owned module IDs to the runner,
+which atomically creates Run/definition and records in-process phases. Successful completion
+seals evidence after observation/storage cleanup; failed/interrupted runs remain incomplete.
+Compatibility constructors without a catalog retain unrecorded execution semantics.
+The additive execution/check endpoints and a separate schemaVersion=2 export are implemented.
+Existing Run payloads and schemaVersion=1 export remain unchanged. Comparison adds effective
+worker conditions/cautions inside its existing shape, with unknown worker facts left null.
+Capabilities/catalog extension and dedicated frontend panels remain pending.
 The storage completion flag records the executor's assertion, not validation of a worker
 protocol that has not yet been implemented.
 
@@ -83,7 +89,7 @@ Opening v1/v2 takes a consistent H2 ZIP backup before additive DDL. The schema v
 advances last, interrupted DDL is repeatable, and unknown versions fail before changes.
 The automatic backup covers DB bytes only. Downgrade requires a separate restored pre-v3
 storage copy, including artifact files; the v3 original must be retained because existing
-HTTP exports do not yet contain execution/check extensions. See [storage recovery](run-storage.md).
+legacy HTTP exports do not contain execution/check extensions; the separate v2 export does. See [storage recovery](run-storage.md).
 
 ## Goal
 Evolve this repository from a single Excel pipeline app into `engineering-lab`: a reusable platform for hands-on experiments, benchmarks, dashboards, and implementation exercises across multiple topics.

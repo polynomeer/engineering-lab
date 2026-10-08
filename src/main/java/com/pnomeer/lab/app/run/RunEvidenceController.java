@@ -25,7 +25,7 @@ public class RunEvidenceController {
     }
     @GetMapping("/compare")
     public RunComparison compare(@RequestParam String baseline, @RequestParam String candidate) {
-        return RunComparison.of(get(baseline), get(candidate));
+        return RunComparison.of(get(baseline), get(candidate), store.execution(baseline).orElse(null), store.execution(candidate).orElse(null));
     }
     @GetMapping("/{id}/artifacts")
     public List<ArtifactReference> artifacts(@PathVariable String id) { get(id); return store.artifacts(id); }

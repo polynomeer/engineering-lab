@@ -39,7 +39,7 @@
 
 ## 다음 구조 변경
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 현재 앱은 IN_PROCESS만 등록한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, HTTP extension·자동 기록 연결·worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 현재 앱은 IN_PROCESS만 등록한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, 앱의 자동 기록과 execution/check 조회·확장 export·비교도 연결했다. capabilities/catalog extension과 worker 연동은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
 
 ## 실행 흐름
 
@@ -85,7 +85,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | JFR 수집 | `JfrRecorderTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | 명시적 Trace | `TraceRecorderTest`, `TraceIntegrationTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | JVM 관측 | `JvmObservationTest`, `JvmPeriodicObservationTest`, `JvmSnapshotTest`, `MetricCatalogTest`; [관측 가이드](observability.md) |
-| Run 증거 | `RunEvidenceTest`, `ArtifactDownloadTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
+| Run 증거 | `RunEvidenceTest`, `ExecutionEvidenceControllerTest`, `RecordedExecutionTest`, `ArtifactDownloadTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 
 테스트 리포트는 `build/reports/tests/test/index.html`에 생성된다. UI 확인 경로는 `/runs/ui`, `/ui`, `/ingest/ui`, `/experiments/ui`, `/lab/io/ui`다. XLSX 샘플 생성은 `./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500`을 사용한다. 상세 API와 IO 실행 명령은 [README](../README.md)를 참조한다.
