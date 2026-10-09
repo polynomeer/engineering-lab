@@ -25,6 +25,9 @@ class LocalJvmExecutorTest {
         }
     };
     private DurableExperimentRunner runner(RunStore store, String mode, Set<String> metrics) throws Exception {
+        return runner(store, mode, metrics, null);
+    }
+    private DurableExperimentRunner runner(RunStore store, String mode, Set<String> metrics, WorkerArtifactImporter importer) throws Exception {
         Path jar = Path.of(System.getProperty("lab.worker.fixture"));
         String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(jar)));
         // Fixture is built for Java 21. Use a discovered Java 21 executable supplied by Gradle.
@@ -32,7 +35,7 @@ class LocalJvmExecutorTest {
         var manifest = new WorkerManifest(java, jar, hash, "fixture-module", Set.of("fixture.sequence"), 64);
         Path workspaces = Files.createDirectories(root.resolve("workspaces"));
         var executor = new LocalJvmExecutor(manifest, new WorkerProcess.Limits(Duration.ofSeconds(10), Duration.ofSeconds(1), 1024, ProtocolLimits.DEFAULT),
-                workspaces, metrics, ignored -> new LocalJvmExecutor.Request(WireJson.object().put("mode", mode), "a".repeat(64), 1));
+                workspaces, metrics, ignored -> new LocalJvmExecutor.Request(WireJson.object().put("mode", mode), "a".repeat(64), 1), importer);
         var executors = new ExperimentExecutors("LOCAL_JVM", Map.of("LOCAL_JVM", new ExperimentExecutors.Registration(executor, 1)), Map.of());
         return new DurableExperimentRunner(store, () -> GitProvenance.unknown("controller"), new MetricWriterOptions(8, 4, 20, 2, 1, 2000), executors, 5, 2,
                 Map.of("fixture.sequence", new RunExecution.Definition(RunExecution.Kind.LOCAL_JVM, "fixture-module", 1, RunExecution.MeasurementScope.WORKER_PROCESS)));
@@ -111,6 +114,29 @@ class LocalJvmExecutorTest {
             assertFalse(store.execution("artifact").orElseThrow().evidenceComplete());
             assertTrue(store.artifacts("artifact").isEmpty());
             assertTrue(store.find("artifact").orElseThrow().summary().details().get("worker.workspace").startsWith("worker-"));
+        }
+    }
+
+    @Test void importsWorkerReportAndKeepsVerifiedReferenceAcrossReopen() throws Exception {
+        Path db = root.resolve("db");
+        try (var store = new JdbcRunStore(db, 20, 4);
+             var runner = runner(store, "report", Set.of(), new WorkerArtifactImporter(db, WorkerArtifactImporter.Limits.DEFAULT))) {
+            assertEquals(ExperimentStatus.SUCCEEDED, runner.run(experiment, scenario, "report").status());
+            assertTrue(store.execution("report").orElseThrow().evidenceComplete());
+        }
+        try (var store = new JdbcRunStore(db, 20, 4)) {
+            var reference = store.artifacts("report").getFirst();
+            assertEquals("{\"count\":2}", Files.readString(db.resolve(reference.relativePath())));
+            assertEquals(Files.size(db.resolve(reference.relativePath())), reference.byteSize());
+        }
+    }
+    @Test void invalidWorkerReportCannotBeRegisteredOrSealed() throws Exception {
+        Path db = root.resolve("db");
+        try (var store = new JdbcRunStore(db, 20, 4);
+             var runner = runner(store, "bad-report", Set.of(), new WorkerArtifactImporter(db, WorkerArtifactImporter.Limits.DEFAULT))) {
+            assertEquals(ExperimentStatus.FAILED, runner.run(experiment, scenario, "report").status());
+            assertFalse(store.execution("report").orElseThrow().evidenceComplete());
+            assertTrue(store.artifacts("report").isEmpty());
         }
     }
 

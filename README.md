@@ -266,7 +266,7 @@ Spring 진입점과 작은 XLSX 생성기는 `com.pnomeer.pipeline`에 남아 �
 ./gradlew bootJar
 ```
 
-전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 2026-10-09 기준 174개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
+전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 2026-10-09 기준 182개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
 
 기여·Codex 작업 규칙은 [AGENTS.md](AGENTS.md), 코드 위치와 검증 방법은 [docs/codex.md](docs/codex.md)를 따릅니다. 작업 단위마다 전체 `./gradlew test`, diff 검토 후 `<type>(<scope>): <영문 요약>` 형식으로 커밋합니다. 사용자 변경을 보존하고 요청 없이 push하지 않습니다.
 

@@ -42,6 +42,11 @@ public final class ProcessFixture {
                         .put("expected", "2").put("observed", "2").put("description", "Synthetic integration check"));
             }
         }
+        if (mode.equals("report") || mode.equals("bad-report")) {
+            Path report = Files.writeString(workspace.resolve("report.json"), "{\"count\":2}");
+            writer.emit("ARTIFACT", WireJson.object().put("path", "report.json").put("sizeBytes", Files.size(report))
+                    .put("sha256", mode.equals("bad-report") ? "c".repeat(64) : WorkerManifest.sha256(report)).put("kind", "REPORT"));
+        }
         if (mode.equals("artifact")) writer.emit("ARTIFACT", WireJson.object().put("path", "unverified.json")
                 .put("sizeBytes", 0).put("sha256", "c".repeat(64)).put("kind", "REPORT"));
         writer.result((mode.equals("failed") || mode.equals("evidence-failed")) ? "FAILED" : "SUCCEEDED", "", WireJson.object());

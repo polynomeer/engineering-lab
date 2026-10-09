@@ -14,6 +14,7 @@ final class LocalJvmExecutor implements ExperimentExecutor {
     record Request(ObjectNode parameters, String definitionSha256, long seed) {
         Request { parameters = parameters.deepCopy(); }
     }
+    private final WorkerArtifactImporter artifactImporter;
     private final WorkerManifest manifest;
     private final WorkerProcess.Limits limits;
     private final Path workspaceRoot;
@@ -22,6 +23,11 @@ final class LocalJvmExecutor implements ExperimentExecutor {
 
     LocalJvmExecutor(WorkerManifest manifest, WorkerProcess.Limits limits, Path workspaceRoot,
                      Set<String> metricKeys, Function<ExperimentScenario, Request> requests) {
+        this(manifest, limits, workspaceRoot, metricKeys, requests, null);
+    }
+    LocalJvmExecutor(WorkerManifest manifest, WorkerProcess.Limits limits, Path workspaceRoot,
+                     Set<String> metricKeys, Function<ExperimentScenario, Request> requests, WorkerArtifactImporter artifactImporter) {
+        this.artifactImporter = artifactImporter;
         this.manifest = Objects.requireNonNull(manifest); this.limits = Objects.requireNonNull(limits);
         this.workspaceRoot = Objects.requireNonNull(workspaceRoot); this.metricKeys = Set.copyOf(metricKeys);
         this.requests = Objects.requireNonNull(requests);
@@ -43,6 +49,7 @@ final class LocalJvmExecutor implements ExperimentExecutor {
                     .put("deadlineEpochMs", System.currentTimeMillis() + limits.timeout().toMillis())
                     .put("seed", request.seed()).put("workspace", workspaceRoot.toString());
             command.set("parameters", request.parameters());
+            var artifacts = artifactImporter == null ? null : artifactImporter.open(output.runId(), output.artifacts());
             var result = new WorkerProcess(limits).execute(manifest, command, workspaceRoot, new WorkerProcess.EvidenceSink() {
                 long checkSequence;
                 public void persist(WorkerProtocol.Event event, Path workspace) throws Exception {
@@ -67,8 +74,10 @@ final class LocalJvmExecutor implements ExperimentExecutor {
                         }
                         case "CHECK" -> output.checks().accept(new RunCheck(checkSequence++, text(payload,"checkId"),
                                 RunCheck.Status.valueOf(text(payload,"status")), text(payload,"expected"), text(payload,"observed"), text(payload,"description")));
-                        // Reject until managed file containment/hash verification and artifact import are wired.
-                        case "ARTIFACT" -> throw new ProtocolException("ARTIFACT_IMPORT_UNAVAILABLE");
+                        case "ARTIFACT" -> {
+                            if (artifacts == null) throw new ProtocolException("ARTIFACT_IMPORT_UNAVAILABLE");
+                            artifacts.accept(workspace, payload);
+                        }
                         case "RESULT" -> { /* Do not seal on RESULT: await EOF, exit, flush and process cleanup. */ }
                         default -> throw new ProtocolException("EVENT_TYPE");
                     }

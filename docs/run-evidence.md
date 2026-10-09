@@ -116,6 +116,27 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 
 `LocalJvmExecutor`는 서버가 등록한 manifest·파라미터 변환기·허용 metric key 집합으로만 실행한다. HELLO 환경/Git/hash는 execution.worker에 저장하고 기존 Run metadata의 서버 환경은 유지한다. CHECK는 전체 이벤트 순번과 별개인 0부터 증가하는 cursor로 저장한다. 메트릭은 기존 bounded writer와 retry/drain 경로를 사용한다.
 
-정상 RESULT뿐 아니라 EOF·exit 0·저장 flush·프로세스 정리를 확인한 뒤 중앙 runner가 증거 완료를 기록한다. 실패한 Run의 확인된 증거는 보존하며, 프로세스 오류에 포함된 작업 폴더 이름은 summary의 worker.workspace로 남긴다. 절대 서버 경로는 이 값에 넣지 않는다. ARTIFACT는 관리 파일 검증·이관 구현 전이므로 명시적으로 실행을 실패시킨다. 저장소가 phase의 인접 전이를 요구하므로 측정 전 실패 worker는 PREPARING에서 실패 RESULT를 보내야 한다.
+정상 RESULT뿐 아니라 EOF·exit 0·저장 flush·프로세스 정리를 확인한 뒤 중앙 runner가 증거 완료를 기록한다. 실패한 Run의 확인된 증거는 보존하며, 프로세스 오류에 포함된 작업 폴더 이름은 summary의 worker.workspace로 남긴다. 절대 서버 경로는 이 값에 넣지 않는다. ARTIFACT는 아래 보고서 importer가 연결된 경우에만 REPORT를 검증·보관한다. importer 미설정이나 미지원 종류는 명시적으로 실패시킨다. 저장소가 phase의 인접 전이를 요구하므로 측정 전 실패 worker는 PREPARING에서 실패 RESULT를 보내야 한다.
 
-이 경로는 실제 Java 21 테스트 worker와 H2 재개방으로 검증했으며, 운영 실험 catalog에는 아직 등록하지 않는다. 실제 Career 실행·Docker 준비/정리·파일 검증을 연결한 뒤 capability를 활성화한다.
+이 경로는 실제 Java 21 테스트 worker와 H2 재개방으로 검증했으며, 운영 실험 catalog에는 아직 등록하지 않는다. 실제 Career 실행·Docker 준비/정리를 연결한 뒤 capability를 활성화한다.
+
+
+## Worker 보고서 검증·보관
+
+`WorkerArtifactImporter`는 worker의 REPORT 파일을 검증한 뒤 중앙 저장 루트의 `worker-reports/worker_<UUID>.bin`으로 복사하고 같은 Run에 artifact 참조를 등록한다. 원본 이름을 보관 경로에 사용하지 않는다. 내용 형식을 추측하지 않으며 미디어 타입은 `application/octet-stream`이다. JSON 파싱이나 보고서 내용의 정합성 검증을 대신하지 않는다.
+
+서버가 관리하는 storageRoot와 workspace 부모 디렉터리를 사용한다. 경로 탈출·절대 경로·빈 경로 요소·심볼릭 링크·일반 파일이 아닌 항목은 거부한다. `SecureDirectoryStream`으로 workspace와 하위 디렉터리 핸들을 고정하고 마지막 파일도 NOFOLLOW로 연다. 이 기능이 없는 파일시스템에서는 실패하며 불안전한 경로 탐색으로 대체하지 않는다. 저장 루트는 worker 출력 디렉터리와 별개로 관리해야 한다.
+
+8 KiB 버퍼로 복사하면서 실제 크기와 SHA-256이 선언과 일치하는지 확인한다. 검증한 임시 사본을 같은 디렉터리 안에서 원자적으로 이동한 후 DB 참조를 등록한다. 이후 원본이 변경돼도 보관한 사본은 달라지지 않는다. 검증이나 등록이 실패하면 이번 사본을 삭제하고 Run은 실패한다. 이전에 등록한 부분 증거는 유지한다. 파일 이동과 DB 등록은 하나의 트랜잭션이 아니므로 프로세스 강제 종료 시 미등록 파일이 남을 수 있다. 전체 저장 용량·잔여 파일 정리는 후속 운영 단계다.
+
+| 실행별 제한 | 기본값 / 최대값 |
+| --- | ---: |
+| 파일 수 | 32개 |
+| 파일당 크기 | 16 MiB |
+| 합계 크기 | 64 MiB |
+
+`WorkerArtifactImporter.Limits`로 더 작은 값을 주입할 수 있으며, 같은 Run의 중복 원본 경로와 실패 이후 재사용은 거부한다. 아직 운영 Spring 설정에는 연결하지 않았다. REPORT만 지원하며 worker JFR/LOG 검증과 다운로드 경로 통합은 D6 범위다.
+
+보고서 참조는 기존 artifact 목록/export에서 보존되지만 현재 관리 다운로드 API는 기존 JFR/log 경로만 지원한다. 따라서 보고서 바이트를 UI에서 다운로드하는 기능은 아직 없다. 서버 보관 파일은 참조의 relativePath로 확인할 수 있다.
+
+검증: `WorkerArtifactImporterTest`는 바이트 일치·원본 변경·경로/링크/종류 거부·해시/크기/개수/합계 상한·중복·등록 실패 정리를 확인한다. `LocalJvmExecutorTest`는 실제 Java 21 worker 보고서를 H2 참조와 함께 보존하고 재개방하며, 잘못된 해시가 성공이나 완료 증거로 처리되지 않음을 검증한다.

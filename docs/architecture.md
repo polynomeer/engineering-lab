@@ -109,7 +109,7 @@ are transport evidence only; a parent-side transport now verifies the manifest j
 bounded pipes, applies deadlines and stops its direct child. Interruptible evidence sinks
 and their flush acknowledgement are tested with real Java 21 fixture processes. A
 worker-side stdin monitor exposes parent disconnect. RunStore worker/metric/check mapping is now tested through the root runner; actual
-worker packaging, artifact validation, Docker readiness and container/descendant cleanup
+worker packaging, JFR/log import, Docker readiness and container/descendant cleanup
 remain pending; the runtime still advertises no LOCAL_JVM executor.
 See [the wire contract](../contracts/worker/v1/README.md) for precise defaults and limits.
 
@@ -243,7 +243,9 @@ jar and launch it against the Java 25 runner and H2. Both JDKs are required to b
 access. `LocalJvmExecutor` registers HELLO identity, forwards phase and allowlisted metrics,
 assigns independent check cursors, and waits for EOF/exit/metric drain/process cleanup
 before returning an outcome. Only the central runner seals and completes a successful Run.
-Failed Runs retain acknowledged partial evidence. Unverified ARTIFACT events fail closed
-until managed import is implemented. No Spring registration or new production capability
+Failed Runs retain acknowledged partial evidence. An optional WorkerArtifactImporter verifies REPORT paths, sizes and hashes using pinned
+secure directory handles, copies with bounded buffers, and registers only the verified
+controller-owned copy. Per-run file/count/total limits apply. Unsupported kinds and
+unconfigured importers fail closed. Report download integration remains pending. No Spring registration or new production capability
 is enabled by this adapter. Storage still requires adjacent phase transitions; a worker
 that skips MEASURING must return failure directly from PREPARING, without a FINALIZING jump.

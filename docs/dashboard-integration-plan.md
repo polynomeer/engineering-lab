@@ -105,7 +105,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] worker JSON Schema와 정상/오류 fixture, Java 21 `worker-support`를 추가한다.
 - [x] 서버 소유 manifest 모델과 jar/hash 사전 점검, bounded stdout/stderr·deadline·직접 자식 종료·저장 callback 경계를 구현한다.
 - [x] 중앙 RunStore worker/check/metric 어댑터를 실제 Java 21 fixture·H2로 검증한다.
-- [ ] 실제 worker 배포 빌드·artifact 검증·Docker 사전 점검·컨테이너/자손 정리를 연결한다.
+- [x] REPORT 파일의 경로·크기·해시 검증과 제한된 사본 보관·artifact 참조 등록을 연결한다.
+- [ ] 실제 worker 배포 빌드·Docker 사전 점검·컨테이너/자손 정리를 연결한다.
 - [ ] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [ ] UI catalog → variant 실행 → 중앙 Run → checks/metrics → 비교 → 재시작 후 조회까지 연결한다.
 - [ ] 별도 JVM 정보·코드 hash가 서버 정보와 구분되어 표시되는지 확인한다.
@@ -124,6 +125,10 @@ process transport 검증 (2026-10-09): 신규 프로세스 테스트 14개와 �
 중앙 저장 어댑터 구현 (2026-10-09): 루트에서 Java 21 worker-support만 composite 의존성으로 사용하며 기존 Career Boot 앱은 독립 빌드를 유지한다. `LocalJvmExecutor`가 HELLO 환경/Git/hash·phase·허용 metric·별도 check cursor를 RunStore sink와 bounded metric writer로 전달한다. RESULT 후 EOF/exit/drain/프로세스 정리까지 확인한 경우에만 중앙 runner가 증거를 완료 처리한다. 저장 오류·worker 실패는 부분 증거를 유지하며, 파일 검증 전 ARTIFACT는 실패시킨다. 실제 Career catalog 등록·배포·Docker 정리는 미완료다. root 빌드/테스트에는 JDK 25와 21이 필요하고 두 wrapper를 동시에 실행하지 않는다.
 
 중앙 저장 어댑터 검증 (2026-10-09): 루트 전체 174개 테스트 통과(신규 7개, 실패·건너뜀 0). 실제 worker Java 21/서버 Java 25 환경 분리, DB 재개방, worker 실패의 부분 증거, identity/check/metric flush 실패, 미등록 metric·미검증 artifact 거부를 확인했다. Career 전체 명령도 성공했다. worker-support 46개는 재실행해 통과했고 기존 다섯 모듈 42개는 성공 결과를 재사용했다. Docker 28.0.4 동작도 확인했다.
+
+worker 보고서 구현 (2026-10-09): `WorkerArtifactImporter`를 선택적으로 LocalJvmExecutor에 연결했다. REPORT만 허용하고 경로 탈출·링크·비정상 파일·크기/hash 불일치를 거부한다. 8 KiB 버퍼와 실행별 32개/파일당 16 MiB/합계 64 MiB 상한을 적용하며 원자 이동 후 DB 참조를 등록한다. 등록 실패 시 새 사본을 제거하고 앞서 보존한 증거는 유지한다. 실제 Java 21 보고서의 보관·H2 재개방과 해시 실패를 검증한다. [한도·파일시스템 요건·복구 한계](run-evidence.md#worker-보고서-검증보관)를 따른다. JFR/LOG·보고서 다운로드 UI·운영 quota/잔여 파일 정리와 실제 Career 등록은 후속 범위다.
+
+worker 보고서 검증 (2026-10-09): 루트 전체 182개 테스트 통과(신규 8개, 실패·건너뜀 0). 실제 Java 21 파일 생성→검증된 중앙 사본→H2 재개방을 확인하고 hash 오류가 완료 증거로 봉인되지 않음을 검증했다. Career 전체 명령도 성공했다. worker-support 46개는 재실행했고 기존 다섯 모듈 42개는 성공 결과를 재사용했다. 기존 관리 다운로드의 경로 정책은 변경하지 않았다.
 
 독립 커밋 단위: protocol/codec → process lifecycle → sequence harness → catalog/UI 연결. 범용 원격 worker 기능으로 확대하지 않는다.
 
@@ -167,4 +172,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: 실제 worker 배포·artifact 검증·Docker 준비/정리 연결**이다. 첫 Career sequence worker를 붙인 후 운영 catalog와 화면에서 실행·비교·재조회까지 검증한다.
+다음 실행 작업은 **D4: 실제 worker 배포·Docker 준비/정리 연결**이다. 첫 Career sequence worker를 붙인 후 운영 catalog와 화면에서 실행·비교·재조회까지 검증한다.

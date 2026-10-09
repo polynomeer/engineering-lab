@@ -39,7 +39,7 @@
 
 ## 다음 구조 변경
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 현재 앱은 IN_PROCESS만 등록한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, 앱의 자동 기록과 execution/check 조회·확장 export·비교도 연결했다. capabilities/catalog extension과 구형/신형 화면·API 세 가지 호환 조합은 검증했다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다. D4 첫 단위의 JSON Schema·fixture·Java 21 worker-support codec도 구현했다. manifest 기반 별도 JVM transport·deadline·직접 자식 종료·증거 저장 callback도 구현했다. 중앙 RunStore 어댑터를 실제 Java 21 fixture와 H2로 검증했다. 다음은 실제 worker 배포·Docker 준비/정리·artifact 검증 연결이며 실행/check 전용 화면은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 현재 앱은 IN_PROCESS만 등록한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, 앱의 자동 기록과 execution/check 조회·확장 export·비교도 연결했다. capabilities/catalog extension과 구형/신형 화면·API 세 가지 호환 조합은 검증했다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다. D4 첫 단위의 JSON Schema·fixture·Java 21 worker-support codec도 구현했다. manifest 기반 별도 JVM transport·deadline·직접 자식 종료·증거 저장 callback도 구현했다. 중앙 RunStore 어댑터를 실제 Java 21 fixture와 H2로 검증했다. REPORT 파일의 경로·크기·hash 검증과 중앙 사본/참조 보존도 구현했다. 다음은 실제 worker 배포·Docker 준비/정리 연결이며 실행/check 전용 화면은 후속 단계다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
 
 통신 계약은 [worker v1](../contracts/worker/v1/README.md), Java 21 코드와 검증은 [worker-support](../career-lab/worker-support/README.md)를 따른다. 루트 통합 테스트에서 라이브러리를 실행하지만 실제 Career catalog에는 아직 등록하지 않으므로 capability의 외부 worker 지원을 켜지 않는다.
 
@@ -87,7 +87,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 | JFR 수집 | `JfrRecorderTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | 명시적 Trace | `TraceRecorderTest`, `TraceIntegrationTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |
 | JVM 관측 | `JvmObservationTest`, `JvmPeriodicObservationTest`, `JvmSnapshotTest`, `MetricCatalogTest`; [관측 가이드](observability.md) |
-| Run 증거 | `RunEvidenceTest`, `ExecutionEvidenceControllerTest`, `RecordedExecutionTest`, `LocalJvmExecutorTest`, `ArtifactDownloadTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
+| Run 증거 | `RunEvidenceTest`, `ExecutionEvidenceControllerTest`, `RecordedExecutionTest`, `LocalJvmExecutorTest`, `WorkerArtifactImporterTest`, `ArtifactDownloadTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 
 테스트 리포트는 `build/reports/tests/test/index.html`에 생성된다. UI 확인 경로는 `/runs/ui`, `/ui`, `/ingest/ui`, `/experiments/ui`, `/lab/io/ui`다. XLSX 샘플 생성은 `./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500`을 사용한다. 상세 API와 IO 실행 명령은 [README](../README.md)를 참조한다.
