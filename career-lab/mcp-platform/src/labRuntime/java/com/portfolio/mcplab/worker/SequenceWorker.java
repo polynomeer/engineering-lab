@@ -14,7 +14,7 @@ import java.io.*;
 import java.nio.file.*;
 import java.security.MessageDigest;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /** A single isolated sequence experiment. stdout is protocol-only; application logs go to stderr. */
 public final class SequenceWorker {
@@ -44,21 +44,21 @@ public final class SequenceWorker {
                 .put("definitionSha256", identity.definitionSha256()).put("artifactSha256", identity.artifactSha256());
         hello.set("environment", env); hello.set("git", WireJson.object().putNull("commit").putNull("dirty").put("error", "Build Git provenance not embedded"));
         writer.emit("HELLO", hello); writer.emit("PHASE", WireJson.object().put("phase", "PREPARING"));
-        Thread main = Thread.currentThread(); AtomicBoolean finished = new AtomicBoolean();
-        Runnable cancel = () -> {
-            if (finished.get()) return;
-            main.interrupt();
+        WorkerCancellation cancellation = new WorkerCancellation(Thread.currentThread());
+        Consumer<String> cancel = reason -> {
+            if (!cancellation.request(reason)) return;
             Thread fallback = new Thread(() -> {
                 try { Thread.sleep(30000); } catch (InterruptedException ignored) {}
-                if (!finished.get()) Runtime.getRuntime().halt(20);
+                if (!cancellation.finished()) Runtime.getRuntime().halt(20);
             }, "sequence-stop-deadline"); fallback.setDaemon(true); fallback.start();
         };
-        ParentConnection.watch(System.in, cancel);
+        ParentConnection.watch(System.in, () -> cancel.accept("PARENT_CONNECTION_LOST"));
         Thread deadline = new Thread(() -> {
-            try { Thread.sleep(remaining); cancel.run(); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(Math.max(0, command.path("deadlineEpochMs").longValue() - System.currentTimeMillis()));
+                cancel.accept("DEADLINE_EXCEEDED"); } catch (InterruptedException ignored) {}
         }, "sequence-deadline"); deadline.setDaemon(true); deadline.start();
         String status = "FAILED", reason = "PREPARATION_FAILED";
-        ObjectNode summary = WireJson.object(); boolean measured = false, finalizing = false;
+        ObjectNode summary = WireJson.object(); boolean measured = false, finalizing = false, cleanupFailed = false;
         // No reuse, external DB URL or user-selected image. Ryuk remains enabled for abnormal process loss.
         MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0.39").withDatabaseName("sequence_lab")
                 .withUsername("lab").withPassword("lab").withReuse(false)
@@ -66,12 +66,18 @@ public final class SequenceWorker {
                 .withUrlParam("connectTimeout", "5000").withUrlParam("socketTimeout", "5000");
         ConfigurableApplicationContext context = null;
         try {
+            cancellation.check();
+            if (Boolean.parseBoolean(System.getenv("TESTCONTAINERS_RYUK_DISABLED")))
+                throw new IllegalStateException("RESOURCE_REAPER_DISABLED");
             if (!DockerClientFactory.instance().isDockerAvailable()) throw new IllegalStateException("Docker unavailable");
+            cancellation.check();
             mysql.start();
+            cancellation.check();
             context = new SpringApplicationBuilder(McpLabApplication.class).web(WebApplicationType.NONE).run(
                     "--spring.main.banner-mode=off", "--spring.datasource.url=" + mysql.getJdbcUrl(),
                     "--spring.datasource.username=" + mysql.getUsername(), "--spring.datasource.password=" + mysql.getPassword(),
                     "--spring.datasource.hikari.maximum-pool-size=" + workers, "--spring.datasource.hikari.connection-timeout=5000");
+            cancellation.check();
             ContractCodeAllocator allocator = switch (variant) {
                 case "BEFORE" -> context.getBean(NonAtomicContractCodeAllocator.class);
                 case "ATOMIC_UPDATE" -> context.getBean(AtomicUpdateContractCodeAllocator.class);
@@ -81,8 +87,10 @@ public final class SequenceWorker {
             long start = System.nanoTime();
             var ranges = ConcurrentAllocationHarness.runConcurrently(allocator, "CONTRACT_CODE", blockSize, workers);
             long elapsed = System.nanoTime() - start;
+            cancellation.check();
             int overlaps = ConcurrentAllocationHarness.findOverlaps(ranges).size();
             long value = context.getBean(JdbcTemplate.class).queryForObject("SELECT current_value FROM contract_sequence WHERE seq_key='CONTRACT_CODE'", Long.class);
+            cancellation.check();
             boolean overlapExpected = variant.equals("BEFORE") ? overlaps > 0 : overlaps == 0;
             boolean coverage = value == (long) workers * blockSize;
             long next = 1;
@@ -112,12 +120,17 @@ public final class SequenceWorker {
         } finally {
             Thread.interrupted();
             try { if (measured && !finalizing) writer.emit("PHASE", WireJson.object().put("phase", "FINALIZING")); }
-            catch (Exception e) { status = "FAILED"; reason = "PROTOCOL_FAILED"; }
+            catch (Exception e) { cleanupFailed = true; status = "FAILED"; reason = "PROTOCOL_FAILED"; }
             try { if (context != null) context.close(); }
-            catch (Exception e) { status = "FAILED"; reason = "CONTEXT_CLEANUP_FAILED"; }
+            catch (Exception e) { cleanupFailed = true; status = "FAILED"; reason = "CONTEXT_CLEANUP_FAILED"; }
             try { mysql.stop(); }
-            catch (Exception e) { status = "FAILED"; reason = "CONTAINER_CLEANUP_FAILED"; }
-            finished.set(true); deadline.interrupt();
+            catch (Exception e) { cleanupFailed = true; status = "FAILED"; reason = "CONTAINER_CLEANUP_FAILED"; }
+            String cancellationReason = cancellation.finish();
+            deadline.interrupt();
+            Thread.interrupted();
+            if (cancellationReason != null && !cleanupFailed) {
+                status = "INTERRUPTED"; reason = cancellationReason;
+            }
         }
         writer.result(status, reason, summary);
     }

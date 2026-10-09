@@ -221,7 +221,7 @@ worker는 웹 서버가 아니라 [worker v1](../../contracts/worker/v1/README.m
 실행 스레드 정리는 5초로 제한합니다. 부모 연결 종료/기한 초과는 중단을 요청하며,
 30초 동안 종료하지 못하면 프로세스를 강제 종료합니다. 정상 경로에서는 Spring 컨텍스트와
 MySQL 컨테이너 정리를 마친 뒤 RESULT를 보냅니다. Ryuk은 활성화 상태를 유지합니다.
-강제 종료 시 자손/컨테이너 잔여물 복구와 중앙 API의 Docker 사전 준비 상태 점검은 후속 작업입니다.
+중앙 API의 Docker 사전 준비 상태 점검과 일반 자손 프로세스 정리는 후속 작업입니다. 아래 장애 처리 범위와 제한을 함께 확인하세요.
 
 stdout에는 protocol만, 애플리케이션 로그와 실패 진단은 stderr에 기록합니다.
 `sequence.elapsedNanos`, `sequence.overlapPairs`, `sequence.finalValue`와 두 CHECK를 보내고,
@@ -233,3 +233,27 @@ BEFORE는 겹침과 갱신 유실이 재현되어야 PASS이며, 두 개선 구�
 BEFORE 구현에는 경합 재현용 50ms 지연이 있으므로 이 수치를 실제 업무 성능이나 공정한
 처리량 개선율로 해석하지 않습니다. 테스트는 세 variant의 CHECK·보고서와 RESULT 수신 후
 실행 소유 MySQL 컨테이너가 남지 않았는지 확인합니다.
+
+### 중단과 장애 처리
+
+부모 stdin의 EOF/추가 데이터와 deadline 초과는 각각 `PARENT_CONNECTION_LOST`,
+`DEADLINE_EXCEEDED`로 기록합니다. 최초 요청을 별도로 보존하므로 JDBC나 컨테이너
+라이브러리가 interrupt 표시를 소비해도 중단이 취소되지 않습니다. 준비·측정 경계에서
+중단을 확인하며, 자원 정리 후 최종 결과를 확정합니다. 중단과 정리가 정상 완료되면
+INTERRUPTED를 전송합니다. 정리 실패는 FAILED를 유지합니다.
+
+중단 후 30초 안에 정리하지 못하면 exit 20으로 강제 종료합니다. 이 경우 RESULT가 없으므로
+부모 transport는 미완료 증거로 거절합니다. 직접 강제 종료한 경우도 같은 성공 거부 원칙을
+적용합니다. Docker가 정상 동작하는 환경에서는 별도 Ryuk 프로세스가 worker 세션의
+컨테이너를 정리합니다. `TESTCONTAINERS_RYUK_DISABLED=true`이면 DB를 생성하기 전에
+FAILED로 거절하고 stderr에 `RESOURCE_REAPER_DISABLED`를 남깁니다. 환경 변수 기본값은
+미설정(Ryuk 활성)이며 강제 종료 복구를 위해 끄지 않습니다.
+
+`SequenceWorkerLifecycleTest`는 실제 jar로 부모 연결 종료, 준비 중 deadline,
+강제 종료 후 MySQL 정리와 다른 세션 보존, 보고서 쓰기 실패, Ryuk 비활성 거절을 검증합니다.
+보고서 쓰기 실패는 이미 생성한 CHECK를 남기되 ARTIFACT와 성공 결과를 만들지 않습니다.
+테스트의 정리 확인 제한은 종료 후 60초이며, 실패 시 테스트 소유 컨테이너만 후처리합니다.
+
+이 범위는 Docker daemon과 Ryuk이 살아 있는 로컬 환경입니다. daemon/호스트 장애,
+Ryuk 자체 장애, 재시작 후 잔여 컨테이너 조정, 일반 자손 프로세스 정리 및 중앙 API 취소는
+아직 보장하지 않습니다. 실제 Dashboard 등록도 아직 활성화하지 않습니다.

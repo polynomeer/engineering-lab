@@ -265,6 +265,11 @@ beans, and emits metrics, expectation checks and a bounded JSON report. PREPARIN
 container/schema startup; MEASURING covers concurrent allocation; FINALIZING covers report
 handoff and cleanup. RESULT follows context/container cleanup. BEFORE expects a synthetic
 race (including its existing 50ms delay), not production throughput. Parent loss/deadline
-requests interruption with a bounded forced-stop fallback; Ryuk remains enabled, but
-abnormal termination and orphan recovery still need deployment-level validation.
+records the first cancellation reason independently of the interrupt flag. Checks at stage
+boundaries and an atomic completion point after cleanup prevent consumed interrupts from
+becoming successful outcomes. A single 30-second forced-stop fallback bounds uncooperative
+cleanup. Explicit Ryuk disabling rejects before database creation. Deployment fault tests
+cover parent EOF, deadline, hard kill, report failure and cross-session container isolation
+on a healthy Docker daemon. Daemon/reaper failures, restart reconciliation and arbitrary
+process descendants still need deployment-level handling.
 Production catalog registration and LOCAL_JVM capability remain disabled.

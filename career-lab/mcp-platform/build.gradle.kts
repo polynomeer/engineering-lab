@@ -70,6 +70,7 @@ val sequenceWorkerJar by tasks.registering(org.springframework.boot.gradle.tasks
     requiresUnpack("**/mysql-*.jar")
     classpath = labRuntime.runtimeClasspath
 }
+sourceSets.test.get().compileClasspath += labRuntime.output
 tasks.test {
     dependsOn(sequenceWorkerJar)
     inputs.file(sequenceWorkerJar.flatMap { it.archiveFile })
