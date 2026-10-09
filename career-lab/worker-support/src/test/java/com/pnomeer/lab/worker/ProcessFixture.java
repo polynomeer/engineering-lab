@@ -32,8 +32,19 @@ public final class ProcessFixture {
                 .put("definitionSha256", identity.definitionSha256()).put("artifactSha256", sha);
         hello.set("environment", env); hello.set("git", WireJson.object().putNull("commit").putNull("dirty").put("error", "fixture"));
         writer.emit("HELLO", hello);
-        for (String phase : new String[]{"PREPARING", "MEASURING", "FINALIZING"}) writer.emit("PHASE", WireJson.object().put("phase", phase));
-        writer.result(mode.equals("failed") ? "FAILED" : "SUCCEEDED", "", WireJson.object());
+        for (String phase : new String[]{"PREPARING", "MEASURING", "FINALIZING"}) {
+            writer.emit("PHASE", WireJson.object().put("phase", phase));
+            if (phase.equals("MEASURING") && (mode.equals("evidence") || mode.equals("evidence-failed"))) {
+                var metric = WireJson.object().put("timestampEpochMs", 1);
+                metric.set("gauges", WireJson.object()); metric.set("counters", WireJson.object().put("fixture.completed", 2)); metric.set("labels", WireJson.object());
+                writer.emit("METRIC", metric);
+                writer.emit("CHECK", WireJson.object().put("checkId", "unique").put("status", "PASS")
+                        .put("expected", "2").put("observed", "2").put("description", "Synthetic integration check"));
+            }
+        }
+        if (mode.equals("artifact")) writer.emit("ARTIFACT", WireJson.object().put("path", "unverified.json")
+                .put("sizeBytes", 0).put("sha256", "c".repeat(64)).put("kind", "REPORT"));
+        writer.result((mode.equals("failed") || mode.equals("evidence-failed")) ? "FAILED" : "SUCCEEDED", "", WireJson.object());
         if (mode.equals("nonzero")) System.exit(7);
     }
 }

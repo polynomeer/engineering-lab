@@ -15,13 +15,14 @@
 | 경로 | 구성 | 실행 환경 / 테스트 |
 | --- | --- | --- |
 | 루트 `src/` | Excel·큐·IO 실험 플랫폼, Run UI와 증거 저장 | Java 25 / Boot 4 / `./gradlew test` |
+| `career-lab/worker-support/` | 공통 통신·프로세스 라이브러리, 루트 composite 의존성 | Java 21 / Spring 비의존 |
 | [`career-lab/`](career-lab/README.md) | equity-system, batch-excel, mcp-platform, mds-distribution, creator-studio | Java 21 / Boot 3.3.4 / Docker / `./scripts/career-lab.sh test` |
 
 Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니다.
 [모듈별 사용법과 빌드 경계](career-lab/README.md)를 참고하세요.
 아래 빠른 시작과 화면 설명은 루트 실험 플랫폼을 대상으로 합니다.
 Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
-[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, 현재 연동은 구현 전입니다.
+[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, worker 통신·프로세스 실행과 중앙 저장 어댑터를 구현했습니다. 실제 Career 시나리오의 대시보드 등록은 후속 단계입니다.
 
 별도 실행하는 [독립 대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기존 실행 화면도 계속 제공합니다. [독립·내장 배포와 기존 URL 전환](docs/dashboard-deployment.md)을 지원하며 기본은 기존 화면 유지입니다.
 
@@ -63,7 +64,7 @@ Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard
 
 ### 1. 준비
 
-- JDK **25**: `java -version`으로 확인합니다.
+- JDK **25**와 **21**: 플랫폼은 25로 실행하며 공통 worker 라이브러리 빌드·통합 테스트는 21을 사용합니다. Gradle toolchain이 두 설치를 찾을 수 있어야 합니다.
 - 저장소의 Gradle Wrapper 사용: 별도 Gradle 설치는 필요 없습니다. Wrapper는 9.3.1입니다.
 - 최초 빌드는 Gradle/Maven 의존성 다운로드를 위한 네트워크가 필요합니다.
 - 아래 명령은 저장소 루트의 macOS/Linux `bash` 또는 `zsh` 기준입니다. API 예제는 `curl`을 사용합니다.
@@ -265,7 +266,7 @@ Spring 진입점과 작은 XLSX 생성기는 `com.pnomeer.pipeline`에 남아 �
 ./gradlew bootJar
 ```
 
-전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 2026-10-08 기준 167개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
+전체 테스트 리포트는 `build/reports/tests/test/index.html`입니다. 2026-10-09 기준 174개 테스트는 파이프라인, 저장·복구, CLI/API, 관측, 제한 힙·제어된 처리량을 다룹니다. 테스트 수는 향후 변경될 수 있습니다.
 
 기여·Codex 작업 규칙은 [AGENTS.md](AGENTS.md), 코드 위치와 검증 방법은 [docs/codex.md](docs/codex.md)를 따릅니다. 작업 단위마다 전체 `./gradlew test`, diff 검토 후 `<type>(<scope>): <영문 요약>` 형식으로 커밋합니다. 사용자 변경을 보존하고 요청 없이 push하지 않습니다.
 

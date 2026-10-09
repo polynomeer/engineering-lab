@@ -80,7 +80,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         this(store, provenance, options, executors, previewLimit, maxActiveRuns, Map.of());
     }
 
-    private DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+    DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, ExperimentExecutors executors, int previewLimit, int maxActiveRuns,
             Map<String, RunExecution.Definition> definitions) {
         this.definitions = Map.copyOf(definitions);
@@ -138,7 +138,9 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                     throw new IllegalStateException("Dead-letter persistence failed", ex);
                 }
             }), store::registerArtifact, writer::close,
-                    phase -> { if (executionRecorded) store.advanceExecution(run.runId(), phase); });
+                    phase -> { if (executionRecorded) store.advanceExecution(run.runId(), phase); },
+                    worker -> store.registerWorker(run.runId(), worker),
+                    check -> store.appendCheck(run.runId(), check));
             var outcome = selection.executor().execute(experiment, scenario, output);
             var status = outcome.status();
             var summary = outcome.summary();

@@ -58,11 +58,11 @@ existing timeout, then interrupts them. Rejection persistence holds the admissio
 No waiting queue is added; conflicting queued attempts are recorded FAILED as before.
 Existing task-executor queues and the default global maximum of eight are unchanged.
 
-External worker environment handshake and worker process scheduling remain pending. The existing metadata environment/Git always describe the
-controller; actual worker environment/provenance must be registered in the future
-execution extension after HELLO, and remain unknown before that. Worker observations
-must never reuse the controller collectors. Routing isolation is currently verified
-with a test executor; it is not a claim of working Java 21 process execution.
+The app still registers only IN_PROCESS. The existing metadata environment/Git always describe the
+controller; the LocalJvmExecutor adapter now records actual worker environment/provenance through
+the execution extension after HELLO; those facts remain unknown before the handshake.
+Worker observations never reuse controller collectors. Routing isolation is verified
+with a test executor and the LocalJvmExecutor integration uses a real Java 21 fixture JVM.
 
 ## Additive execution evidence (schema v3)
 
@@ -88,8 +88,8 @@ cancellation are false. Startup-validated in-process bindings report READY. The 
 recognizes capability schema version 1 and falls back for absent or unknown versions,
 while surfacing server errors. Dedicated execution/check panels and worker integration
 remain pending.
-The storage completion flag records the executor's assertion. The standalone worker
-codec described below is not yet connected to the root runner.
+The storage completion flag records the executor's assertion. The worker codec and process transport below are connected through a server-registered
+LocalJvmExecutor adapter in integration tests; production catalog registration remains pending.
 
 Opening v1/v2 takes a consistent H2 ZIP backup before additive DDL. The schema version
 advances last, interrupted DDL is repeatable, and unknown versions fail before changes.
@@ -108,7 +108,7 @@ verifies final event counts. Invalid/truncated streams fail closed. RESULT and e
 are transport evidence only; a parent-side transport now verifies the manifest jar, launches an isolated copy, drains
 bounded pipes, applies deadlines and stops its direct child. Interruptible evidence sinks
 and their flush acknowledgement are tested with real Java 21 fixture processes. A
-worker-side stdin monitor exposes parent disconnect. Production RunStore mapping, actual
+worker-side stdin monitor exposes parent disconnect. RunStore worker/metric/check mapping is now tested through the root runner; actual
 worker packaging, artifact validation, Docker readiness and container/descendant cleanup
 remain pending; the runtime still advertises no LOCAL_JVM executor.
 See [the wire contract](../contracts/worker/v1/README.md) for precise defaults and limits.
@@ -233,3 +233,17 @@ Input failure and coordinator interruption stop production but permit bounded dr
 Worker/DB/dead-letter failure or drain timeout aborts further writes and interrupts workers. No uncertain batch is replayed. `PartialExecutionFailure` carries acknowledged row/retry counts and reason totals to both runners; durable Runs distinguish INTERRUPTED from FAILED and retain this summary. `rows.unconfirmed` is the nonnegative difference between acknowledged produced rows and acknowledged inserts/validation failures. It is not a durable row checkpoint or a promise that an uncertain DB commit did not happen. If any executor survives cleanup, `shutdown.progress=UNCONFIRMED` warns that counts may still change.
 
 SINGLE_THREAD has no stage executors: input failure flushes a safe existing chunk, while callback/storage failure does not replay the chunk. Its IO remains cooperative. Buffer copying and ZIP preflight observe interrupts between reads; arbitrary blocked InputStream/JDBC methods cannot be forcibly stopped by this contract. Process crash recovery, late writes from uncooperative drivers and durable replay of unconfirmed rows require separate mechanisms.
+
+## Local JVM evidence adapter
+
+The root build consumes only `worker-support` as a Java 21 Gradle composite dependency;
+Career Boot applications keep their independent build. Root tests build a Java 21 fixture
+jar and launch it against the Java 25 runner and H2. Both JDKs are required to build/test.
+`ExperimentExecutor.Output` exposes worker/check sinks without granting Run lifecycle
+access. `LocalJvmExecutor` registers HELLO identity, forwards phase and allowlisted metrics,
+assigns independent check cursors, and waits for EOF/exit/metric drain/process cleanup
+before returning an outcome. Only the central runner seals and completes a successful Run.
+Failed Runs retain acknowledged partial evidence. Unverified ARTIFACT events fail closed
+until managed import is implemented. No Spring registration or new production capability
+is enabled by this adapter. Storage still requires adjacent phase transitions; a worker
+that skips MEASURING must return failure directly from PREPARING, without a FINALIZING jump.

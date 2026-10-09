@@ -110,3 +110,12 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 실험 확장은 기존 descriptor를 수정하지 않고 descriptorUrl로 참조한다. 현재 별도 variant 정의가 없어 variants는 빈 목록이며 measurementModes를 variant로 추정하지 않는다. presentation은 SUMMARY/METRICS/EXECUTION이다. capabilities는 공통 features에 fileUpload(XLSX_UPLOAD 여부)와 checksProduced=false를 더한다. checksRead=true는 저장된 check 조회 지원이며 현재 실험이 check를 생성한다는 뜻은 아니다.
 
 신규 화면은 schemaVersion=1만 인식한다. 404·지원하지 않는 버전·잘못된 capability 구조는 기존 API 모드로 전환하고, 기능은 명시적인 boolean true만 활성화 대상으로 해석한다. 503 등 서버 오류는 화면에 표시한다. 기존 `/modules`와 `/experiments` 기반 실행·조회·내보내기 흐름은 유지한다.
+
+
+## 외부 worker 저장 어댑터 검증 범위
+
+`LocalJvmExecutor`는 서버가 등록한 manifest·파라미터 변환기·허용 metric key 집합으로만 실행한다. HELLO 환경/Git/hash는 execution.worker에 저장하고 기존 Run metadata의 서버 환경은 유지한다. CHECK는 전체 이벤트 순번과 별개인 0부터 증가하는 cursor로 저장한다. 메트릭은 기존 bounded writer와 retry/drain 경로를 사용한다.
+
+정상 RESULT뿐 아니라 EOF·exit 0·저장 flush·프로세스 정리를 확인한 뒤 중앙 runner가 증거 완료를 기록한다. 실패한 Run의 확인된 증거는 보존하며, 프로세스 오류에 포함된 작업 폴더 이름은 summary의 worker.workspace로 남긴다. 절대 서버 경로는 이 값에 넣지 않는다. ARTIFACT는 관리 파일 검증·이관 구현 전이므로 명시적으로 실행을 실패시킨다. 저장소가 phase의 인접 전이를 요구하므로 측정 전 실패 worker는 PREPARING에서 실패 RESULT를 보내야 한다.
+
+이 경로는 실제 Java 21 테스트 worker와 H2 재개방으로 검증했으며, 운영 실험 catalog에는 아직 등록하지 않는다. 실제 Career 실행·Docker 준비/정리·파일 검증을 연결한 뒤 capability를 활성화한다.

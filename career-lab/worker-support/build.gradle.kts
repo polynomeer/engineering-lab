@@ -12,8 +12,8 @@ dependencies {
 }
 tasks.test {
     useJUnitPlatform()
-    inputs.dir(rootProject.file("../contracts/worker/v1"))
-    systemProperty("worker.contracts", rootProject.file("../contracts/worker/v1").absolutePath)
+    inputs.dir(project.file("../../contracts/worker/v1"))
+    systemProperty("worker.contracts", project.file("../../contracts/worker/v1").absolutePath)
 }
 
 val processFixtureJar by tasks.registering(Jar::class) {
@@ -23,7 +23,7 @@ val processFixtureJar by tasks.registering(Jar::class) {
     manifest { attributes["Main-Class"] = "com.pnomeer.lab.worker.ProcessFixture" }
     from(sourceSets.test.get().output)
     from(sourceSets.main.get().output)
-    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } })
     exclude("META-INF/*.SF", "META-INF/*.RSA", "META-INF/*.DSA")
 }
 tasks.test {

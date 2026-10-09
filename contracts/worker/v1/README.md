@@ -48,4 +48,4 @@ ARTIFACT 경로는 slash로 구분한 상대 경로다. 절대 경로, `.`/`..`,
 ./gradlew test
 ```
 
-`WorkerProtocolTest`는 정상/실패 결과, 누락·역순·개수 불일치, 경계값, 무한 입력의 조기 중단, UTF-8·JSON 오류, 출력 중단 후 재시도 금지, 경로 탈출을 검증한다. `WorkerSchemaTest`는 독립 JSON Schema 검증기로 정상 예제와 구조 오류를 확인한다. `WorkerProcessTest`는 실제 테스트용 JVM의 stderr drain/포화, 부모 EOF 감시, deadline/강제 종료, 저장 callback의 지연/flush 오류를 검증한다. 실제 RunStore·컨테이너 통합 검증은 후속 단계다.
+`WorkerProtocolTest`는 정상/실패 결과, 누락·역순·개수 불일치, 경계값, 무한 입력의 조기 중단, UTF-8·JSON 오류, 출력 중단 후 재시도 금지, 경로 탈출을 검증한다. `WorkerSchemaTest`는 독립 JSON Schema 검증기로 정상 예제와 구조 오류를 확인한다. `WorkerProcessTest`는 실제 테스트용 JVM의 stderr drain/포화, 부모 EOF 감시, deadline/강제 종료, 저장 callback의 지연/flush 오류를 검증한다. 루트 `LocalJvmExecutorTest`는 실제 Java 21 worker와 H2 RunStore의 저장·재개방·저장 오류를 추가 검증한다. 실제 Career 배포·artifact/컨테이너 검증은 후속 단계다.

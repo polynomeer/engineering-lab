@@ -19,7 +19,15 @@ interface ExperimentExecutor {
     /** Streaming sinks only: executors cannot create, start or complete durable runs. */
     record Output(String runId, Consumer<MetricPoint> observationMetrics,
                   Consumer<MetricPoint> experimentMetrics, ExecutionEvidence evidence,
-                  Consumer<ArtifactReference> artifacts, Runnable drainMetrics, Consumer<RunExecution.Phase> phase) {
+                  Consumer<ArtifactReference> artifacts, Runnable drainMetrics, Consumer<RunExecution.Phase> phase,
+                  Consumer<RunExecution.Worker> worker, Consumer<RunCheck> checks) {
+        public Output(String runId, Consumer<MetricPoint> observationMetrics, Consumer<MetricPoint> experimentMetrics,
+                ExecutionEvidence evidence, Consumer<ArtifactReference> artifacts, Runnable drainMetrics,
+                Consumer<RunExecution.Phase> phase) {
+            this(runId, observationMetrics, experimentMetrics, evidence, artifacts, drainMetrics, phase,
+                    ignored -> { throw new IllegalStateException("Worker evidence unavailable"); },
+                    ignored -> { throw new IllegalStateException("Check evidence unavailable"); });
+        }
         public Output(String runId, Consumer<MetricPoint> observationMetrics, Consumer<MetricPoint> experimentMetrics,
                 ExecutionEvidence evidence, Consumer<ArtifactReference> artifacts, Runnable drainMetrics) {
             this(runId, observationMetrics, experimentMetrics, evidence, artifacts, drainMetrics, ignored -> {});

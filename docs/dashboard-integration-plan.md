@@ -104,7 +104,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 
 - [x] worker JSON Schema와 정상/오류 fixture, Java 21 `worker-support`를 추가한다.
 - [x] 서버 소유 manifest 모델과 jar/hash 사전 점검, bounded stdout/stderr·deadline·직접 자식 종료·저장 callback 경계를 구현한다.
-- [ ] 실제 worker 배포 빌드·중앙 RunStore 어댑터·Docker 사전 점검·컨테이너/자손 정리를 연결한다.
+- [x] 중앙 RunStore worker/check/metric 어댑터를 실제 Java 21 fixture·H2로 검증한다.
+- [ ] 실제 worker 배포 빌드·artifact 검증·Docker 사전 점검·컨테이너/자손 정리를 연결한다.
 - [ ] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [ ] UI catalog → variant 실행 → 중앙 Run → checks/metrics → 비교 → 재시작 후 조회까지 연결한다.
 - [ ] 별도 JVM 정보·코드 hash가 서버 정보와 구분되어 표시되는지 확인한다.
@@ -119,6 +120,10 @@ protocol/codec 검증 (2026-10-08): 신규 32개 테스트 통과(통신 30, 독
 process transport 구현 (2026-10-09): Java 21 `WorkerManifest`/`WorkerProcess`와 worker 측 `ParentConnection`을 추가했다. 서버 소유 Java/jar/실험 허용 목록, 복사 전후 SHA-256, 작업 폴더 분리, 크기 제한 stdout 및 stderr drain, monotonic deadline, 직접 자식 종료와 동기 저장/flush callback을 구현했다. 실제 JVM 오류 주입은 테스트용 실행 jar로 수행한다. 중앙 RunStore·실제 배포물·Docker/컨테이너·자손 프로세스 정리·실패 stderr 보존·workspace quota는 아직 미연결이며 capability는 계속 꺼 둔다. [상세 책임과 제한](../career-lab/worker-support/README.md#별도-jvm-실행-기반-d4-두-번째-단위)을 따른다.
 
 process transport 검증 (2026-10-09): 신규 프로세스 테스트 14개와 기존 protocol/schema 32개, 총 46개 통과. 실제 Java 21 자식의 stderr 2 MiB, RESULT 누락·오류·초과 출력, nonzero exit, deadline, 종료에 응답하지 않는 자식의 강제 종료, 부모 EOF, 저장 지연/flush 실패와 종료 확인을 검증했다. Career 전체 테스트는 성공했고 기존 다섯 모듈 42개는 UP-TO-DATE로 재사용했다. `./gradlew test`도 성공했으며 루트 167개는 기존 결과를 재사용했다.
+
+중앙 저장 어댑터 구현 (2026-10-09): 루트에서 Java 21 worker-support만 composite 의존성으로 사용하며 기존 Career Boot 앱은 독립 빌드를 유지한다. `LocalJvmExecutor`가 HELLO 환경/Git/hash·phase·허용 metric·별도 check cursor를 RunStore sink와 bounded metric writer로 전달한다. RESULT 후 EOF/exit/drain/프로세스 정리까지 확인한 경우에만 중앙 runner가 증거를 완료 처리한다. 저장 오류·worker 실패는 부분 증거를 유지하며, 파일 검증 전 ARTIFACT는 실패시킨다. 실제 Career catalog 등록·배포·Docker 정리는 미완료다. root 빌드/테스트에는 JDK 25와 21이 필요하고 두 wrapper를 동시에 실행하지 않는다.
+
+중앙 저장 어댑터 검증 (2026-10-09): 루트 전체 174개 테스트 통과(신규 7개, 실패·건너뜀 0). 실제 worker Java 21/서버 Java 25 환경 분리, DB 재개방, worker 실패의 부분 증거, identity/check/metric flush 실패, 미등록 metric·미검증 artifact 거부를 확인했다. Career 전체 명령도 성공했다. worker-support 46개는 재실행해 통과했고 기존 다섯 모듈 42개는 성공 결과를 재사용했다. Docker 28.0.4 동작도 확인했다.
 
 독립 커밋 단위: protocol/codec → process lifecycle → sequence harness → catalog/UI 연결. 범용 원격 worker 기능으로 확대하지 않는다.
 
@@ -162,4 +167,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: 중앙 RunStore 실행 어댑터와 worker 배포 연결**이다. 실제 worker 환경·checks/metrics·artifact 검증을 저장하고 Docker 사전 점검·컨테이너 정리를 연결한 뒤 첫 Career sequence worker로 검증한다.
+다음 실행 작업은 **D4: 실제 worker 배포·artifact 검증·Docker 준비/정리 연결**이다. 첫 Career sequence worker를 붙인 후 운영 catalog와 화면에서 실행·비교·재조회까지 검증한다.
