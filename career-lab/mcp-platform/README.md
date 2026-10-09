@@ -169,7 +169,7 @@ src/main/java/com/portfolio/mcplab/
 
 src/test/java/com/portfolio/mcplab/
 ├── AbstractMySqlIntegrationTest.java   Testcontainers 공유 베이스
-├── sequence/                            시나리오 1 동시성 테스트 + 하네스
+├── sequence/                            시나리오 1 동시성 테스트 + 배포 worker 검증
 ├── archrule/                            시나리오 2 — 규칙 정의 + 통과/위반 테스트
 ├── badexample/                          시나리오 2 전용 — 일부러 위반하는 데모 클래스
 └── validation/                          시나리오 3 — 검증 파이프라인 테스트
@@ -182,3 +182,54 @@ src/test/java/com/portfolio/mcplab/
 - k6/JMeter로 design 문서 2.2절의 p95 응답시간 목표 검증(이 랩은 API 재설계
   자체는 다루지 않음)
 - MyBatis(변경)+QueryDSL(조회) 이원화, Shadow Release 비교 로직(design 6-(c))
+
+## 별도 JVM sequence worker (D4)
+
+기존 세 채번 구현과 `src/main`의 `ConcurrentAllocationHarness`를 JUnit과 worker가
+공유합니다. Java 21 / Boot 3.3.4를 유지하며 worker 진입점과 Testcontainers 의존성은
+`src/labRuntime` 전용입니다. 일반 애플리케이션 배포물에는 Testcontainers를 추가하지 않습니다.
+
+저장소 루트에서 빌드하고 검증합니다. JDK 21과 실행 중인 Docker가 필요합니다.
+
+```bash
+./scripts/career-lab.sh :mcp-platform:sequenceWorkerManifest
+./scripts/career-lab.sh :mcp-platform:test
+```
+
+배포물은 `build/libs/mcp-platform-0.1.0-sequence-worker.jar`, 기술 정보는 같은 폴더의
+`sequence-worker-manifest.json`입니다. manifest에는 protocol/module/experiment ID,
+Java 21, heap 256 MiB, Docker 필요 여부, jar 파일명과 실제 SHA-256을 기록합니다.
+이는 배포 기술 정보이며 서버의 신뢰 경로 등록을 대신하지 않습니다. 빌드 Git 정보는
+아직 내장하지 않아 HELLO에 unknown 사유를 남깁니다. MySQL 라이브러리는 Boot 실행 시
+풀어서 Testcontainers의 기본 설정 파일 추출과 호환합니다. 쓰기 가능한 임시 디렉터리가 필요합니다.
+
+worker는 웹 서버가 아니라 [worker v1](../../contracts/worker/v1/README.md)의
+단일 stdin command를 받는 프로세스입니다. 서버의 `WorkerProcess`가 jar 검증·복사와
+실행을 소유합니다. 중앙 catalog/UI에는 아직 등록하지 않았으므로 화면 실행은 지원 전입니다.
+배포 통합 테스트가 이 경로를 사용해 세 variant를 각각 별도 JVM에서 실행합니다.
+
+| 입력 | 허용 값 |
+| --- | --- |
+| experimentId | `career.mcp-platform.sequence` |
+| variant | `BEFORE`, `ATOMIC_UPDATE`, `SELECT_FOR_UPDATE` |
+| workers | 정수 2–16 |
+| blockSize | 정수 1–10,000 |
+| deadlineEpochMs | 시작 시점부터 최대 15분 이내의 미래 시각 |
+
+각 실행은 재사용하지 않는 MySQL 8.0.39 컨테이너와 초기 스키마를 생성합니다.
+외부 DB 주소나 이미지 선택은 받지 않습니다. 동시 채번 대기는 전체 30초,
+실행 스레드 정리는 5초로 제한합니다. 부모 연결 종료/기한 초과는 중단을 요청하며,
+30초 동안 종료하지 못하면 프로세스를 강제 종료합니다. 정상 경로에서는 Spring 컨텍스트와
+MySQL 컨테이너 정리를 마친 뒤 RESULT를 보냅니다. Ryuk은 활성화 상태를 유지합니다.
+강제 종료 시 자손/컨테이너 잔여물 복구와 중앙 API의 Docker 사전 준비 상태 점검은 후속 작업입니다.
+
+stdout에는 protocol만, 애플리케이션 로그와 실패 진단은 stderr에 기록합니다.
+`sequence.elapsedNanos`, `sequence.overlapPairs`, `sequence.finalValue`와 두 CHECK를 보내고,
+작업 폴더에 최대 16개 할당 구간을 담은 `sequence-report.json`을 생성해 크기/hash와 함께 알립니다.
+BEFORE는 겹침과 갱신 유실이 재현되어야 PASS이며, 두 개선 구현은 겹침 없이 연속 구간과
+최종값을 만족해야 PASS입니다. 재현되지 않으면 FAILED이며 결과를 성공으로 바꾸지 않습니다.
+
+측정 시간은 동시 채번 하네스 호출 구간이며 JVM/컨테이너 시작과 스키마 준비는 제외합니다.
+BEFORE 구현에는 경합 재현용 50ms 지연이 있으므로 이 수치를 실제 업무 성능이나 공정한
+처리량 개선율로 해석하지 않습니다. 테스트는 세 variant의 CHECK·보고서와 RESULT 수신 후
+실행 소유 MySQL 컨테이너가 남지 않았는지 확인합니다.

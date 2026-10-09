@@ -60,10 +60,10 @@ Windows에서는 JDK 21을 설정하고 `career-lab\gradlew.bat -p career-lab te
 실험 플랫폼용입니다. Career Lab은 별도 wrapper와 settings를 사용하므로
 루트 테스트만으로 다섯 모듈이 검증되지는 않습니다. 양쪽 변경 시 두 테스트 명령을 모두 실행합니다.
 
-이 모듈들은 루트 앱의 Run UI/registry에 등록된 실험이 아니며, 각각 테스트로 실행합니다.
+이 모듈들은 루트 앱의 Run UI/registry에 등록된 실험이 아니며, 기본적으로 테스트로 실행합니다. `mcp-platform`의 sequence에는 실제 Java 21 worker 배포 jar와 격리 MySQL 통합 검증을 추가했습니다. [worker 빌드·계약](mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 참고하세요.
 모듈 간 소스·의존성을 임의로 합치거나 Boot 버전을 일괄 변경하지 않습니다.
 공통 Run UI 연결은 [독립 대시보드·실행 어댑터 설계](../docs/dashboard-integration-design.md)와
-[이행 계획](../docs/dashboard-integration-plan.md)에 정의했으며, 아직 구현 전입니다.
+[이행 계획](../docs/dashboard-integration-plan.md)에 정의했으며, 공통 기반과 첫 worker 배포는 구현했고 catalog/UI 연결은 후속 단계입니다.
 
 ## 복구 출처
 

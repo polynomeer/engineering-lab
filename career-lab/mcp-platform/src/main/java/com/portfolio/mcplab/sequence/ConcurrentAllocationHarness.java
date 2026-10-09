@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * [NEW-DESIGN] 세 가지 {@link ContractCodeAllocator} 구현을 같은 방식으로 동시 실행해
- * 비교하기 위한 테스트 전용 유틸리티. CLAUDE.md 지침("진짜 동시 요청 자체를 검증해야
+ * 비교하기 위한 테스트/worker 공용 유틸리티. CLAUDE.md 지침("진짜 동시 요청 자체를 검증해야
  * 하는 경우는 실제 멀티스레드 테스트가 필요")에 따라 {@link ExecutorService} +
  * {@link CountDownLatch}로 여러 스레드를 동시에 출발시켜 실제 DB에 동시 요청을 보낸다.
  */
@@ -28,6 +28,9 @@ public final class ConcurrentAllocationHarness {
                                                          String seqKey,
                                                          int blockSize,
                                                          int threadCount) throws InterruptedException {
+        if (threadCount < 2 || threadCount > 16 || blockSize < 1 || blockSize > 10000)
+            throw new IllegalArgumentException("Allocation limits exceeded");
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         ExecutorService pool = Executors.newFixedThreadPool(threadCount);
         CountDownLatch startGate = new CountDownLatch(1);
         List<Callable<AllocatedRange>> tasks = new ArrayList<>();
@@ -40,7 +43,7 @@ public final class ConcurrentAllocationHarness {
         }
 
         try {
-            // invokeAll이 태스크를 제출한 뒤 곧바로 게이트를 열어, 모든 스레드가 거의 동시에
+            // 태스크를 모두 제출한 뒤 게이트를 열어, 여러 스레드가 거의 동시에
             // allocateBlock을 호출하도록 만든다.
             List<Future<AllocatedRange>> futures = new ArrayList<>();
             for (Callable<AllocatedRange> task : tasks) {
@@ -51,7 +54,9 @@ public final class ConcurrentAllocationHarness {
             List<AllocatedRange> results = new ArrayList<>();
             for (Future<AllocatedRange> future : futures) {
                 try {
-                    results.add(future.get(30, TimeUnit.SECONDS));
+                    results.add(future.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS));
+                } catch (InterruptedException e) {
+                    throw e;
                 } catch (Exception e) {
                     throw new IllegalStateException("동시 채번 호출 중 실패", e);
                 }
@@ -59,6 +64,7 @@ public final class ConcurrentAllocationHarness {
             return results;
         } finally {
             pool.shutdownNow();
+            if (!pool.awaitTermination(5, TimeUnit.SECONDS)) throw new IllegalStateException("Allocation workers did not stop");
         }
     }
 

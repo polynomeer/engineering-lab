@@ -249,3 +249,22 @@ controller-owned copy. Per-run file/count/total limits apply. Unsupported kinds 
 unconfigured importers fail closed. Report download integration remains pending. No Spring registration or new production capability
 is enabled by this adapter. Storage still requires adjacent phase transitions; a worker
 that skips MEASURING must return failure directly from PREPARING, without a FINALIZING jump.
+
+
+## Career sequence deployment
+
+`mcp-platform` now shares its bounded `ConcurrentAllocationHarness` between existing
+JUnit checks and a `labRuntime` source set. That source set packages a dedicated Java 21
+Boot jar with worker-support and Testcontainers; the ordinary application runtime stays
+unchanged. `sequenceWorkerManifest` emits a build-relative descriptor and streamed jar
+SHA-256. The server must still register trusted paths before enabling this experiment.
+The MySQL dependency is unpacked by Boot so Testcontainers can extract its configuration.
+
+Each worker starts a fresh MySQL 8.0.39 container, uses the existing transactional allocator
+beans, and emits metrics, expectation checks and a bounded JSON report. PREPARING covers
+container/schema startup; MEASURING covers concurrent allocation; FINALIZING covers report
+handoff and cleanup. RESULT follows context/container cleanup. BEFORE expects a synthetic
+race (including its existing 50ms delay), not production throughput. Parent loss/deadline
+requests interruption with a bounded forced-stop fallback; Ryuk remains enabled, but
+abnormal termination and orphan recovery still need deployment-level validation.
+Production catalog registration and LOCAL_JVM capability remain disabled.

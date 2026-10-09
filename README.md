@@ -22,7 +22,7 @@ Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니
 [모듈별 사용법과 빌드 경계](career-lab/README.md)를 참고하세요.
 아래 빠른 시작과 화면 설명은 루트 실험 플랫폼을 대상으로 합니다.
 Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
-[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, worker 통신·프로세스 실행과 중앙 저장 어댑터를 구현했습니다. 실제 Career 시나리오의 대시보드 등록은 후속 단계입니다.
+[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, worker 통신·프로세스 실행과 중앙 저장 어댑터, [첫 sequence worker 배포물](career-lab/mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 구현했습니다. 실제 Career 시나리오의 대시보드 등록은 후속 단계입니다.
 
 별도 실행하는 [독립 대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기존 실행 화면도 계속 제공합니다. [독립·내장 배포와 기존 URL 전환](docs/dashboard-deployment.md)을 지원하며 기본은 기존 화면 유지입니다.
 

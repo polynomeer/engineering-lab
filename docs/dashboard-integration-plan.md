@@ -106,8 +106,9 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 서버 소유 manifest 모델과 jar/hash 사전 점검, bounded stdout/stderr·deadline·직접 자식 종료·저장 callback 경계를 구현한다.
 - [x] 중앙 RunStore worker/check/metric 어댑터를 실제 Java 21 fixture·H2로 검증한다.
 - [x] REPORT 파일의 경로·크기·해시 검증과 제한된 사본 보관·artifact 참조 등록을 연결한다.
-- [ ] 실제 worker 배포 빌드·Docker 사전 점검·컨테이너/자손 정리를 연결한다.
-- [ ] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
+- [x] 실제 sequence worker 배포 jar·manifest와 격리 MySQL 정상 정리를 구현한다.
+- [ ] 중앙 Docker 사전 점검·강제 종료 시 컨테이너/자손 정리를 연결·검증한다.
+- [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [ ] UI catalog → variant 실행 → 중앙 Run → checks/metrics → 비교 → 재시작 후 조회까지 연결한다.
 - [ ] 별도 JVM 정보·코드 hash가 서버 정보와 구분되어 표시되는지 확인한다.
 - [ ] 실패 주입: malformed/oversize/누락/역순, exit 0이나 RESULT 없음, exit nonzero, DB flush 실패, 강제 종료, pipe 포화, Docker 불가를 검증한다.
@@ -129,6 +130,10 @@ process transport 검증 (2026-10-09): 신규 프로세스 테스트 14개와 �
 worker 보고서 구현 (2026-10-09): `WorkerArtifactImporter`를 선택적으로 LocalJvmExecutor에 연결했다. REPORT만 허용하고 경로 탈출·링크·비정상 파일·크기/hash 불일치를 거부한다. 8 KiB 버퍼와 실행별 32개/파일당 16 MiB/합계 64 MiB 상한을 적용하며 원자 이동 후 DB 참조를 등록한다. 등록 실패 시 새 사본을 제거하고 앞서 보존한 증거는 유지한다. 실제 Java 21 보고서의 보관·H2 재개방과 해시 실패를 검증한다. [한도·파일시스템 요건·복구 한계](run-evidence.md#worker-보고서-검증보관)를 따른다. JFR/LOG·보고서 다운로드 UI·운영 quota/잔여 파일 정리와 실제 Career 등록은 후속 범위다.
 
 worker 보고서 검증 (2026-10-09): 루트 전체 182개 테스트 통과(신규 8개, 실패·건너뜀 0). 실제 Java 21 파일 생성→검증된 중앙 사본→H2 재개방을 확인하고 hash 오류가 완료 증거로 봉인되지 않음을 검증했다. Career 전체 명령도 성공했다. worker-support 46개는 재실행했고 기존 다섯 모듈 42개는 성공 결과를 재사용했다. 기존 관리 다운로드의 경로 정책은 변경하지 않았다.
+
+sequence 배포 구현 (2026-10-09): `mcp-platform`의 기존 세 allocator와 공용 `ConcurrentAllocationHarness`를 실제 Java 21 worker에서 재사용한다. `labRuntime` 전용 Boot jar와 SHA-256 배포 descriptor를 만들고, 실행마다 독립 MySQL 8.0.39를 생성한다. worker는 실제 환경·metric·기대 이상 현상 CHECK·JSON 보고서를 전송하고 Spring/MySQL 정리 후 RESULT를 보낸다. 라이브러리를 풀어 읽도록 설정해 Boot nested jar와 Testcontainers MySQL 설정 추출의 호환 문제도 해결했다. 정상 정리를 배포물로 검증하며, 중앙 catalog/Docker readiness·강제 종료 복구·UI 연결은 아직 남아 있다. [실행 계약과 측정 제한](../career-lab/mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 따른다.
+
+sequence 배포 검증 (2026-10-09): `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공. mcp-platform 19개(기존 16개 + 실제 배포 JVM 3개)를 재실행해 통과했고 나머지 72개는 성공 결과를 재사용했다. 세 variant의 CHECK·보고서와 실행 후 MySQL 제거를 확인했다. 배포 descriptor의 SHA-256 일치를 별도로 확인했고, `./gradlew test`도 성공했다(루트 182개 성공 결과 UP-TO-DATE). 실패·건너뜀은 없다.
 
 독립 커밋 단위: protocol/codec → process lifecycle → sequence harness → catalog/UI 연결. 범용 원격 worker 기능으로 확대하지 않는다.
 
@@ -172,4 +177,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: 실제 worker 배포·Docker 준비/정리 연결**이다. 첫 Career sequence worker를 붙인 후 운영 catalog와 화면에서 실행·비교·재조회까지 검증한다.
+다음 실행 작업은 **D4: 중앙 catalog 등록·Docker readiness/비정상 정리와 화면 연결**이다. 첫 Career sequence worker를 붙인 후 운영 catalog와 화면에서 실행·비교·재조회까지 검증한다.
