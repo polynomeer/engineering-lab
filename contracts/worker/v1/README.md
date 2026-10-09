@@ -4,7 +4,7 @@ D4 첫 단위의 실행 가능한 계약이다. [설계](../../../docs/dashboard
 
 ## 데이터 형식
 
-- stdin 명령: [command.schema.json](command.schema.json), UTF-8 JSON 한 줄. 이후 부모 연결 감지를 위해 stdin을 열어둔다. 실제 EOF 감시·deadline 집행은 다음 process lifecycle 단위다.
+- stdin 명령: [command.schema.json](command.schema.json), UTF-8 JSON 한 줄. 이후 부모 연결 감지를 위해 stdin을 열어둔다. `ParentConnection`과 `WorkerProcess`가 EOF 감시 callback·deadline 대기를 제공한다. 실제 Career harness의 자원 정리는 후속 단계다.
 - stdout 이벤트: [event.schema.json](event.schema.json), UTF-8 NDJSON. 한 프로세스가 한 Run만 수행한다. 일반 로그는 stderr로 보낸다.
 - 각 레코드는 LF로 끝나야 한다. 마지막 LF 누락, 빈 줄, 잘못된 UTF-8, 중복 key, 여러 JSON 값, 알 수 없는 필드·버전·이벤트는 오류다. 정수 필드는 `1.0`이나 문자열을 강제 변환하지 않는다.
 - 문자열 최대 4096자, key 1–100자, 객체/배열당 최대 64항목, 중첩 16단계, 숫자 표기 128자다. 필드별 더 작은 제한은 schema를 따른다. 무한대/NaN은 허용하지 않는다. Java 구현의 문자 길이는 UTF-16 code unit 기준으로 보수적으로 제한한다.
@@ -32,7 +32,7 @@ CHECK sequence는 전체 이벤트 순번이다. 향후 저장 어댑터가 `Run
 | 이벤트 | HELLO/RESULT 포함 100,000개 |
 | 객체/배열 | 각 64항목 |
 
-`ProtocolLimits(recordBytes, totalBytes, events)`로 세 한도를 낮출 수 있으며 최대값을 높일 수는 없다. 명령은 레코드와 totalBytes 한도를 적용한다. 실제 서버 설정으로의 연결은 process lifecycle 단위에서 기본값과 함께 구현한다.
+`ProtocolLimits(recordBytes, totalBytes, events)`로 세 한도를 낮출 수 있으며 최대값을 높일 수는 없다. 명령은 레코드와 totalBytes 한도를 적용한다. `WorkerProcess.Limits`로 프로세스별 제한을 전달한다. 루트 서버 설정과의 연결은 실행 어댑터 단위에 남아 있다.
 
 Reader는 한 레코드만 보유하고 추가 이벤트를 모으지 않는다. Writer는 직렬화 중에도 64 KiB를 넘으면 중단하며 성공 시 매 프레임을 flush한다. 호출자는 읽은 이벤트를 bounded 저장 경로에 동기 전달한 뒤 다음 프레임을 읽어 pipe까지 배압이 전달되게 해야 한다. 이 라이브러리는 비동기 큐를 추가하지 않는다. 읽기/쓰기 오류 뒤 같은 세션의 계속 진행이나 자동 재시도는 금지한다. 스트림 소유권과 종료는 호출자에게 있다.
 
@@ -48,4 +48,4 @@ ARTIFACT 경로는 slash로 구분한 상대 경로다. 절대 경로, `.`/`..`,
 ./gradlew test
 ```
 
-`WorkerProtocolTest`는 정상/실패 결과, 누락·역순·개수 불일치, 경계값, 무한 입력의 조기 중단, UTF-8·JSON 오류, 출력 중단 후 재시도 금지, 경로 탈출을 검증한다. `WorkerSchemaTest`는 독립 JSON Schema 검증기로 정상 예제와 구조 오류를 확인한다. 실제 child process의 stderr drain/포화, 부모 EOF 감시, deadline/강제 종료, DB flush 실패는 다음 단위에서 검증한다.
+`WorkerProtocolTest`는 정상/실패 결과, 누락·역순·개수 불일치, 경계값, 무한 입력의 조기 중단, UTF-8·JSON 오류, 출력 중단 후 재시도 금지, 경로 탈출을 검증한다. `WorkerSchemaTest`는 독립 JSON Schema 검증기로 정상 예제와 구조 오류를 확인한다. `WorkerProcessTest`는 실제 테스트용 JVM의 stderr drain/포화, 부모 EOF 감시, deadline/강제 종료, 저장 callback의 지연/flush 오류를 검증한다. 실제 RunStore·컨테이너 통합 검증은 후속 단계다.

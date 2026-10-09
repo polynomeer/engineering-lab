@@ -105,8 +105,12 @@ it has no Spring or root core dependency and does not register runnable experime
 Its synchronous reader/writer bounds UTF-8 frame and total bytes, event counts and JSON
 structure, checks expected identity and contiguous sequence, enforces phase order and
 verifies final event counts. Invalid/truncated streams fail closed. RESULT and exit 0
-are transport evidence only; process ownership, deadline/parent monitoring, stderr drain,
-artifact verification and durable storage acknowledgement remain the next unit.
+are transport evidence only; a parent-side transport now verifies the manifest jar, launches an isolated copy, drains
+bounded pipes, applies deadlines and stops its direct child. Interruptible evidence sinks
+and their flush acknowledgement are tested with real Java 21 fixture processes. A
+worker-side stdin monitor exposes parent disconnect. Production RunStore mapping, actual
+worker packaging, artifact validation, Docker readiness and container/descendant cleanup
+remain pending; the runtime still advertises no LOCAL_JVM executor.
 See [the wire contract](../contracts/worker/v1/README.md) for precise defaults and limits.
 
 ## Goal

@@ -15,3 +15,18 @@ tasks.test {
     inputs.dir(rootProject.file("../contracts/worker/v1"))
     systemProperty("worker.contracts", rootProject.file("../contracts/worker/v1").absolutePath)
 }
+
+val processFixtureJar by tasks.registering(Jar::class) {
+    dependsOn(tasks.testClasses)
+    archiveClassifier.set("process-fixture")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest { attributes["Main-Class"] = "com.pnomeer.lab.worker.ProcessFixture" }
+    from(sourceSets.test.get().output)
+    from(sourceSets.main.get().output)
+    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    exclude("META-INF/*.SF", "META-INF/*.RSA", "META-INF/*.DSA")
+}
+tasks.test {
+    dependsOn(processFixtureJar)
+    systemProperty("worker.fixture.jar", processFixtureJar.get().archiveFile.get().asFile.absolutePath)
+}

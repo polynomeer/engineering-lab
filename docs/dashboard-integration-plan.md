@@ -103,7 +103,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 공통 executor/manifest에 모듈 이름별 분기를 만들지 않는다. 신규 모듈 fixture도 generic 경로로 검증한다. 첫 대상은 `career.mcp-platform.sequence`다. 세 variant와 실제 동시성 결과가 명확하고, 처리량 추정보다 관측 정합성을 먼저 검증할 수 있다.
 
 - [x] worker JSON Schema와 정상/오류 fixture, Java 21 `worker-support`를 추가한다.
-- [ ] manifest 기반 배포물 빌드·사전 점검·실행, bounded stdout/stderr, deadline·종료·container 정리를 구현한다.
+- [x] 서버 소유 manifest 모델과 jar/hash 사전 점검, bounded stdout/stderr·deadline·직접 자식 종료·저장 callback 경계를 구현한다.
+- [ ] 실제 worker 배포 빌드·중앙 RunStore 어댑터·Docker 사전 점검·컨테이너/자손 정리를 연결한다.
 - [ ] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [ ] UI catalog → variant 실행 → 중앙 Run → checks/metrics → 비교 → 재시작 후 조회까지 연결한다.
 - [ ] 별도 JVM 정보·코드 hash가 서버 정보와 구분되어 표시되는지 확인한다.
@@ -114,6 +115,10 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 protocol/codec 구현 (2026-10-08): [worker v1 계약](../contracts/worker/v1/README.md)에 command/event JSON Schema와 합성 정상·실패·오류 fixture를 추가했다. Java 21 `worker-support`는 infrastructure 선언으로 자동 발견하며 Boot/루트 core에 의존하지 않는다. 한 레코드 64 KiB·총 64 MiB·100,000개 상한, 엄격한 UTF-8/JSON, HELLO identity, 연속 sequence, phase 순서, RESULT 집계/마지막 순번과 EOF를 검증한다. 읽기/쓰기 실패 후 세션을 재사용하지 않으며, exit 0만으로 성공을 확정하지 않는다. 실제 worker 실행·부모 감시·stderr/컨테이너 정리·DB flush는 다음 단위다. 따라서 runtime capability는 변경하지 않았다.
 
 protocol/codec 검증 (2026-10-08): 신규 32개 테스트 통과(통신 30, 독립 schema 검증 2), Java 21 jar 생성 성공. `./scripts/career-lab.sh test`가 성공했고 기존 다섯 모듈의 42개 결과는 UP-TO-DATE로 재사용했다. Docker 28.0.4 동작을 확인했다. 필수 `./gradlew test`도 성공했으며 기존 167개 결과를 재사용했다. 프로세스/DB 통합 테스트 결과로 해석하지 않는다.
+
+process transport 구현 (2026-10-09): Java 21 `WorkerManifest`/`WorkerProcess`와 worker 측 `ParentConnection`을 추가했다. 서버 소유 Java/jar/실험 허용 목록, 복사 전후 SHA-256, 작업 폴더 분리, 크기 제한 stdout 및 stderr drain, monotonic deadline, 직접 자식 종료와 동기 저장/flush callback을 구현했다. 실제 JVM 오류 주입은 테스트용 실행 jar로 수행한다. 중앙 RunStore·실제 배포물·Docker/컨테이너·자손 프로세스 정리·실패 stderr 보존·workspace quota는 아직 미연결이며 capability는 계속 꺼 둔다. [상세 책임과 제한](../career-lab/worker-support/README.md#별도-jvm-실행-기반-d4-두-번째-단위)을 따른다.
+
+process transport 검증 (2026-10-09): 신규 프로세스 테스트 14개와 기존 protocol/schema 32개, 총 46개 통과. 실제 Java 21 자식의 stderr 2 MiB, RESULT 누락·오류·초과 출력, nonzero exit, deadline, 종료에 응답하지 않는 자식의 강제 종료, 부모 EOF, 저장 지연/flush 실패와 종료 확인을 검증했다. Career 전체 테스트는 성공했고 기존 다섯 모듈 42개는 UP-TO-DATE로 재사용했다. `./gradlew test`도 성공했으며 루트 167개는 기존 결과를 재사용했다.
 
 독립 커밋 단위: protocol/codec → process lifecycle → sequence harness → catalog/UI 연결. 범용 원격 worker 기능으로 확대하지 않는다.
 
@@ -157,4 +162,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: manifest 기반 process lifecycle**이다. stdout/stderr 용량·deadline·부모 EOF·강제 종료와 증거 저장을 연결한 뒤 첫 Career sequence worker로 검증한다.
+다음 실행 작업은 **D4: 중앙 RunStore 실행 어댑터와 worker 배포 연결**이다. 실제 worker 환경·checks/metrics·artifact 검증을 저장하고 Docker 사전 점검·컨테이너 정리를 연결한 뒤 첫 Career sequence worker로 검증한다.
