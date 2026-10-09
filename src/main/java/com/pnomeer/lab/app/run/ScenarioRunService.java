@@ -30,6 +30,9 @@ public class ScenarioRunService {
             var invocation = registry.bind(definition, input, documents);
             TaskExecutor executor = definition.input() == null ? experimentExecutor : ingestExecutor;
             return submit(invocation, executor, input);
+        } catch (com.pnomeer.lab.runtime.LocalJvmRegistration.WorkerUnavailableException ex) {
+            if (input != null) input.close();
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
         } catch (RuntimeException | Error ex) {
             if (input != null) try { input.close(); } catch (RuntimeException close) { ex.addSuppressed(close); }
             throw ex;

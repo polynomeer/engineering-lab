@@ -246,8 +246,7 @@ before returning an outcome. Only the central runner seals and completes a succe
 Failed Runs retain acknowledged partial evidence. An optional WorkerArtifactImporter verifies REPORT paths, sizes and hashes using pinned
 secure directory handles, copies with bounded buffers, and registers only the verified
 controller-owned copy. Per-run file/count/total limits apply. Unsupported kinds and
-unconfigured importers fail closed. Report download integration remains pending. No Spring registration or new production capability
-is enabled by this adapter. Storage still requires adjacent phase transitions; a worker
+unconfigured importers fail closed. Report download integration remains pending. Opt-in Spring registration now binds the sequence deployment; default capabilities remain unchanged. Storage still requires adjacent phase transitions; a worker
 that skips MEASURING must return failure directly from PREPARING, without a FINALIZING jump.
 
 
@@ -272,4 +271,8 @@ cleanup. Explicit Ryuk disabling rejects before database creation. Deployment fa
 cover parent EOF, deadline, hard kill, report failure and cross-session container isolation
 on a healthy Docker daemon. Daemon/reaper failures, restart reconciliation and arbitrary
 process descendants still need deployment-level handling.
-Production catalog registration and LOCAL_JVM capability remain disabled.
+Production catalog registration and LOCAL_JVM capability are opt-in through `lab.career.sequence.enabled`.
+See [deployment and readiness](career-worker-deployment.md). Additional module beans extend the server catalog
+without modifying its central module list. Registered metric definitions are merged immutably into the HTTP
+schema/comparison views. A deployment binding selects the external executor and worker evidence definition;
+its preflight runs before Run creation. The current worker binding permits one exclusive run.

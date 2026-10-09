@@ -10,6 +10,14 @@ public final class MetricCatalog {
     private MetricCatalog() { }
     public static Collection<Definition> definitions() { return DEFINITIONS.values(); }
     public static String unit(String name) { var d = DEFINITIONS.get(name); return d == null ? "unknown" : d.unit(); }
+    public static Map<String, Definition> including(com.pnomeer.lab.registry.ExperimentCatalog catalog) {
+        var result = new TreeMap<>(DEFINITIONS);
+        for (var metric : catalog.metrics()) {
+            var old = result.putIfAbsent(metric.name(), metric);
+            if (old != null && !old.equals(metric)) throw new IllegalArgumentException("Conflicting metric definition: " + metric.name());
+        }
+        return Collections.unmodifiableMap(result);
+    }
     private static Map<String, Definition> build() {
         var map = new TreeMap<String, Definition>();
         add(map, "ms", "run", "time.elapsedMs timing.elapsedMs queue.avgEnqueueWaitMs virtual.avgLatencyMs reactive.avgLatencyMs queue.raw.enqueueWaitMs queue.mapped.enqueueWaitMs queue.raw.dequeueLatencyMs queue.mapped.dequeueLatencyMs backpressure.enqueueBlockingTimeMs latency.parseMs latency.validationMs latency.mappingMs latency.insertMs resource.connectionWaitMs resource.lockWaitMs");

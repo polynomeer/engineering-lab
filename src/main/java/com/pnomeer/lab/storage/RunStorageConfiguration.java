@@ -18,14 +18,14 @@ public class RunStorageConfiguration {
         catch (RuntimeException ex) { store.close(); throw ex; }
     }
     @Bean(name = "experimentRunner", destroyMethod = "close")
-    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties, com.pnomeer.lab.runtime.ObservationProperties observation, com.pnomeer.lab.runtime.TraceProperties trace, com.pnomeer.lab.runtime.JfrProperties jfr, com.pnomeer.lab.runtime.RunLogProperties logs, com.pnomeer.lab.registry.ExperimentCatalog catalog) {
+    public DurableExperimentRunner experimentRunner(JdbcRunStore store, StorageProperties properties, com.pnomeer.lab.runtime.ObservationProperties observation, com.pnomeer.lab.runtime.TraceProperties trace, com.pnomeer.lab.runtime.JfrProperties jfr, com.pnomeer.lab.runtime.RunLogProperties logs, com.pnomeer.lab.registry.ExperimentCatalog catalog, java.util.List<com.pnomeer.lab.runtime.LocalJvmRegistration> workers) {
         var moduleIds = new java.util.HashMap<String, String>();
         catalog.modules().forEach(entry -> entry.experiments().forEach(experiment -> moduleIds.put(experiment.id(), entry.module().id())));
-        return new DurableExperimentRunner(store,
+        return DurableExperimentRunner.configured(store,
                 new GitProvenanceProvider(Path.of(properties.gitDirectory()), Duration.ofMillis(properties.gitTimeoutMs())),
                 properties.writerOptions(), properties.previewLimit(), properties.maxActiveRuns(),
                 observation.jvmEnabled() ? com.pnomeer.lab.metrics.JvmSnapshot::capture : null,
                 observation.jvmIntervalMs(), observation.maxPeriodicSamples(), trace.enabled(), trace.maxSpans(), new com.pnomeer.lab.runtime.JfrRecorder(Path.of(properties.root()), jfr),
-                new com.pnomeer.lab.runtime.RunLogRecorder(Path.of(properties.root()), logs), moduleIds);
+                new com.pnomeer.lab.runtime.RunLogRecorder(Path.of(properties.root()), logs), moduleIds, workers);
     }
 }

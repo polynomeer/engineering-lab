@@ -15,9 +15,15 @@ import java.util.*;
 @RequestMapping("/runs")
 public class RunEvidenceController {
     private final RunStore store;
+    private final Map<String, com.pnomeer.lab.metrics.MetricCatalog.Definition> metrics;
     private final int pageSize;
     private final JsonMapper json = JsonMapper.builder().build();
     public RunEvidenceController(RunStore store, StorageProperties properties) {
+        this(store, properties, com.pnomeer.lab.registry.ExperimentCatalog.load());
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public RunEvidenceController(RunStore store, StorageProperties properties, com.pnomeer.lab.registry.ExperimentCatalog catalog) {
+        metrics = com.pnomeer.lab.metrics.MetricCatalog.including(catalog);
         this.store = store; this.pageSize = Math.min(100, properties.pageLimit());
     }
     private StoredRun get(String id) {
@@ -25,7 +31,10 @@ public class RunEvidenceController {
     }
     @GetMapping("/compare")
     public RunComparison compare(@RequestParam String baseline, @RequestParam String candidate) {
-        return RunComparison.of(get(baseline), get(candidate), store.execution(baseline).orElse(null), store.execution(candidate).orElse(null));
+        var comparison = RunComparison.of(get(baseline), get(candidate), store.execution(baseline).orElse(null), store.execution(candidate).orElse(null));
+        return new RunComparison(comparison.baseline(), comparison.candidate(), comparison.cautions(), comparison.conditions(),
+                comparison.values().stream().map(value -> new RunComparison.Value(value.kind(), value.name(),
+                        metrics.containsKey(value.name()) ? metrics.get(value.name()).unit() : value.unit(), value.baseline(), value.candidate())).toList());
     }
     @GetMapping("/{id}/artifacts")
     public List<ArtifactReference> artifacts(@PathVariable String id) { get(id); return store.artifacts(id); }

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mcp-platform.sequence",
+  "scenario": {
+    "id": "sequence-atomic-update",
+    "hypothesis": "Atomic allocation prevents overlapping ranges and preserves complete coverage"
+  },
+  "parameters": { "variant": "ATOMIC_UPDATE", "workers": 10, "blockSize": 1000 },
+  "measurement": { "mode": "SINGLE_PASS" }
+}

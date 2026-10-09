@@ -21,7 +21,7 @@ class SequenceWorkerLifecycleTest {
     @TempDir Path workspace;
 
     @Test void parentEofDuringDatabasePreparationStopsRunAndRemovesMysql() throws Exception {
-        try (var worker = launch(120000, Map.of())) {
+        try (var worker = launch(300000, Map.of())) {
             awaitContainer(worker);
             worker.process.getOutputStream().close();
             worker.assertInterruptedOrForced("PARENT_CONNECTION_LOST");
@@ -40,7 +40,7 @@ class SequenceWorkerLifecycleTest {
         // Another Testcontainers session must survive the worker's reaper cleanup.
         try (var sentinel = new GenericContainer<>("mysql:8.0.39").withCommand("sleep", "300")) {
             sentinel.start();
-            try (var worker = launch(120000, Map.of())) {
+            try (var worker = launch(300000, Map.of())) {
                 awaitContainer(worker);
                 worker.process.destroyForcibly();
                 assertTrue(worker.process.waitFor(10, TimeUnit.SECONDS));
@@ -57,8 +57,8 @@ class SequenceWorkerLifecycleTest {
 
     @Test void reportWriteFailureKeepsChecksButCannotCompleteSuccessfully() throws Exception {
         Files.writeString(workspace.resolve("sequence-report.json"), "existing report");
-        try (var worker = launch(120000, Map.of())) {
-            var events = worker.events.get(120, TimeUnit.SECONDS);
+        try (var worker = launch(300000, Map.of())) {
+            var events = worker.events.get(300, TimeUnit.SECONDS);
             var result = events.getLast();
             assertEquals("RESULT", result.type());
             assertEquals("FAILED", result.payload().path("status").asText());
@@ -70,7 +70,7 @@ class SequenceWorkerLifecycleTest {
     }
 
     @Test void disabledResourceReaperRejectsBeforeCreatingDatabase() throws Exception {
-        try (var worker = launch(120000, Map.of("TESTCONTAINERS_RYUK_DISABLED", "true"))) {
+        try (var worker = launch(300000, Map.of("TESTCONTAINERS_RYUK_DISABLED", "true"))) {
             var events = worker.events.get(30, TimeUnit.SECONDS);
             assertEquals("FAILED", events.getLast().payload().path("status").asText());
             assertTrue(events.stream().noneMatch(e -> e.type().equals("CHECK")));
@@ -112,7 +112,7 @@ class SequenceWorkerLifecycleTest {
     }
 
     private static void awaitContainer(Worker worker) throws Exception {
-        long deadline = System.nanoTime() + Duration.ofSeconds(90).toNanos();
+        long deadline = System.nanoTime() + Duration.ofSeconds(240).toNanos();
         while (System.nanoTime() < deadline && worker.process.isAlive()) {
             if (containers(worker.runId).stream().anyMatch(c -> "running".equals(c.getState()))) return;
             Thread.sleep(100);

@@ -9,10 +9,10 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Function;
 
-/** Server-registered external executor. No app registration until real worker readiness/cleanup is wired. */
-final class LocalJvmExecutor implements ExperimentExecutor {
-    record Request(ObjectNode parameters, String definitionSha256, long seed) {
-        Request { parameters = parameters.deepCopy(); }
+/** Server-registered external executor; admission and readiness remain with the central runner. */
+public class LocalJvmExecutor implements ExperimentExecutor {
+    public record Request(ObjectNode parameters, String definitionSha256, long seed) {
+        public Request { parameters = parameters.deepCopy(); }
     }
     private final WorkerArtifactImporter artifactImporter;
     private final WorkerManifest manifest;

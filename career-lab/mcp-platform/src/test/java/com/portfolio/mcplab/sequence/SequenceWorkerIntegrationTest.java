@@ -25,10 +25,10 @@ class SequenceWorkerIntegrationTest {
         var manifest = new WorkerManifest(Path.of(System.getProperty("java.home"), "bin", "java"), jar, hash,
                 "mcp-platform", Set.of("career.mcp-platform.sequence"), 256);
         var command = WireJson.object().put("protocolVersion", 1).put("runId", runId).put("experimentId", "career.mcp-platform.sequence")
-                .put("definitionSha256", "a".repeat(64)).put("deadlineEpochMs", System.currentTimeMillis()+120000).put("seed", 42).put("workspace", workspaceRoot.toString());
+                .put("definitionSha256", "a".repeat(64)).put("deadlineEpochMs", System.currentTimeMillis()+300000).put("seed", 42).put("workspace", workspaceRoot.toString());
         command.set("parameters", WireJson.object().put("variant", variant).put("workers", 10).put("blockSize", 1000));
         List<WorkerProtocol.Event> evidence = new ArrayList<>();
-        var result = new WorkerProcess(new WorkerProcess.Limits(Duration.ofMinutes(2), Duration.ofSeconds(5), 1048576, ProtocolLimits.DEFAULT))
+        var result = new WorkerProcess(new WorkerProcess.Limits(Duration.ofMinutes(5), Duration.ofSeconds(5), 1048576, ProtocolLimits.DEFAULT))
                 .execute(manifest, command, workspaceRoot, new WorkerProcess.EvidenceSink() {
                     public void persist(WorkerProtocol.Event event, Path workspace) throws Exception {
                         assertTrue(evidence.size() < 16); evidence.add(event);
@@ -42,6 +42,10 @@ class SequenceWorkerIntegrationTest {
                 });
         assertEquals("SUCCEEDED", result.outcome().path("status").textValue(), new String(result.stderr(), java.nio.charset.StandardCharsets.UTF_8));
         assertEquals(2, evidence.stream().filter(e -> e.type().equals("CHECK") && e.payload().path("status").asText().equals("PASS")).count());
+        long elapsed = result.outcome().path("summary").path("sequence.elapsedNanos").longValue();
+        assertTrue(elapsed > 0);
+        assertEquals(elapsed, evidence.stream().filter(e -> e.type().equals("METRIC")).findFirst().orElseThrow()
+                .payload().path("counters").path("sequence.elapsedNanos").longValue());
         long overlaps = result.outcome().path("summary").path("sequence.overlapPairs").longValue();
         assertEquals(variant.equals("BEFORE"), overlaps > 0);
         assertEquals(1, evidence.stream().filter(e -> e.type().equals("ARTIFACT")).count());

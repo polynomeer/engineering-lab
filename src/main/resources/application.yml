@@ -25,6 +25,11 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  career:
+    sequence:
+      enabled: false
+      manifest: ""
+      java-executable: ""
   dashboard:
     redirect-enabled: false
     frontend-origin: ""

@@ -11,9 +11,12 @@ public class RegistryConfiguration {
     @Bean public ScenarioDocuments scenarioDocuments(ScenarioProperties properties) {
         return new ScenarioDocuments(properties.maxDocumentBytes());
     }
-    @Bean public ExperimentCatalog experimentCatalog() {
-        var catalog = ExperimentCatalog.load();
-        com.pnomeer.lab.metrics.MetricCatalog.definitions(); // Reject conflicting metric ownership at startup.
+    @Bean public ExperimentCatalog experimentCatalog(List<ExperimentModule> additionalModules) {
+        var providers = new java.util.ArrayList<ExperimentModule>();
+        java.util.ServiceLoader.load(ExperimentModule.class).forEach(providers::add);
+        providers.addAll(additionalModules);
+        var catalog = new ExperimentCatalog(providers);
+        com.pnomeer.lab.metrics.MetricCatalog.including(catalog); // Reject conflicting metric ownership at startup.
         return catalog;
     }
     @Bean public ExperimentRegistry experimentRegistry(ExperimentCatalog catalog, List<ExperimentRegistration<?>> registrations) {

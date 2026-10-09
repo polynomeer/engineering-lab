@@ -5,6 +5,17 @@ import java.nio.file.*;
 /** Isolated executable used only by process integration tests. */
 public final class ProcessFixture {
     public static void main(String[] args) throws Exception {
+        if (args.length == 1 && args[0].equals("--probe")) {
+            String probeMode = "ready";
+            try (var input = ProcessFixture.class.getResourceAsStream("/probe-mode.txt")) {
+                if (input != null) probeMode = new String(input.readNBytes(64), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if (probeMode.equals("hang")) { Thread.sleep(60000); return; }
+            if (probeMode.equals("oversize")) { System.out.write(new byte[8192]); return; }
+            System.out.write(WireJson.encode(WireJson.object().put("protocolVersion", 1).put("moduleId", "fixture-module")
+                    .put("javaMajor", Runtime.version().feature()).put("ready", !probeMode.equals("unavailable"))));
+            return;
+        }
         var command = WorkerProtocol.readCommand(System.in, ProtocolLimits.DEFAULT);
         Path workspace = Path.of(command.path("workspace").textValue());
         Files.writeString(workspace.resolve("pid"), Long.toString(ProcessHandle.current().pid()));

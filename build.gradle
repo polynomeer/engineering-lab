@@ -108,3 +108,26 @@ tasks.register('bootDashboardJar', org.springframework.boot.gradle.tasks.bundlin
         }
     }
 }
+
+// Explicit Docker integration suite; run after building the independent Career deployment.
+sourceSets {
+    careerTest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations.careerTestImplementation.extendsFrom(configurations.testImplementation)
+configurations.careerTestRuntimeOnly.extendsFrom(configurations.testRuntimeOnly)
+tasks.register('careerSequenceTest', Test) {
+    group = 'verification'
+    description = 'Run the actual sequence deployment through the central API (requires Docker and Career build).'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
+    def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/mcp-platform/build/libs') { include '*-sequence-worker.jar' })
+    systemProperty 'lab.sequence.manifest', manifest.absolutePath
+    outputs.upToDateWhen { false }
+}

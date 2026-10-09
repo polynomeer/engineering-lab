@@ -108,9 +108,11 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] REPORT 파일의 경로·크기·해시 검증과 제한된 사본 보관·artifact 참조 등록을 연결한다.
 - [x] 실제 sequence worker 배포 jar·manifest와 격리 MySQL 정상 정리를 구현한다.
 - [x] 실제 sequence worker의 부모 EOF/deadline/강제 종료와 정상 Docker 환경의 세션별 컨테이너 정리를 검증한다.
-- [ ] 중앙 Docker 사전 점검·daemon/재시작 복구·일반 자손 프로세스 정리를 연결·검증한다.
+- [x] 서버 소유 배포물의 bounded probe로 Java/protocol/Docker 준비 상태를 확인하고 접수 전 거절한다.
+- [ ] daemon/재시작 복구·일반 자손 프로세스 정리를 연결·검증한다.
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
-- [ ] UI catalog → variant 실행 → 중앙 Run → checks/metrics → 비교 → 재시작 후 조회까지 연결한다.
+- [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
+- [ ] 전용 UI catalog/실행/check 화면과 실제 서버 재시작 후 UI 조회를 연결한다.
 - [ ] 별도 JVM 정보·코드 hash가 서버 정보와 구분되어 표시되는지 확인한다.
 - [ ] 실패 주입: malformed/oversize/누락/역순, exit 0이나 RESULT 없음, exit nonzero, DB flush 실패, 강제 종료, pipe 포화, Docker 불가를 검증한다.
 
@@ -139,6 +141,10 @@ sequence 배포 검증 (2026-10-09): `./scripts/career-lab.sh test :mcp-platform
 sequence 장애 처리 구현 (2026-10-09): 최초 중단 사유를 interrupt flag와 독립적으로 보존하고, 준비·측정 경계와 정리 후 완료 지점에서 확인한다. 부모 EOF/deadline이 겹쳐도 강제 종료 감시 스레드는 하나만 생성한다. 정리 완료 시 INTERRUPTED, 정리 실패 시 FAILED, 정리 제한 초과 시 exit 20/미완료 protocol로 처리하며 SUCCEEDED로 바꾸지 않는다. Ryuk 비활성 설정은 DB 생성 전 거절한다. 실제 배포 jar의 연결 종료·deadline·강제 종료·보고서 쓰기 실패와 다른 Testcontainers 세션 보존을 검증한다. Docker daemon/Ryuk 자체 장애와 재시작 조정·일반 자손 정리는 범위 밖이며 중앙 capability는 계속 비활성이다.
 
 sequence 장애 검증 (2026-10-09): 신규 8개 테스트(실제 배포 jar 장애 5개, 중단 상태 3개)를 추가했다. `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공. mcp-platform 27개를 재실행해 모두 통과했고 나머지 72개는 성공 결과를 재사용했다. 부모 EOF/deadline, 강제 종료 후 MySQL 제거·다른 세션 보존, 보고서 생성 실패·Ryuk 비활성 거절을 확인했다. `./gradlew test`도 성공했다(루트 182개 성공 결과 UP-TO-DATE). 실패·건너뜀은 없다.
+
+sequence 중앙 등록 구현 (2026-10-09): 기본 비활성을 유지하며 `lab.career.sequence.enabled` 설정으로 모듈·schema·실행기를 함께 등록한다. 서버 소유 descriptor/hash/Java 경로를 검증하고, 동일 jar 사본의 bounded `--probe`로 Java 21/protocol/Docker 준비 상태를 확인한다. 상태는 5초 캐시하며 준비되지 않은 접수는 Run 생성 전 503이다. 모듈 이름 분기 없이 `LocalJvmRegistration`이 실행기·배타 슬롯·worker evidence 정의를 연결한다. 세 variant는 공통 `/runs`로 접수하고 중앙 CHECK/metric/보고서 참조·비교 단위를 사용한다. worker의 미지원 관측은 capability false다. 기존 SPI catalog에 선택적 모듈 bean을 합치고 HTTP metric schema/비교에 모듈 단위를 반영한다. [배포·검증 가이드](career-worker-deployment.md)를 따른다. 전용 UI와 오프라인 CLI Career 검증, daemon/재시작 조정·일반 자손·작업 폴더 quota는 후속 범위다.
+
+sequence 중앙 등록 검증 (2026-10-09): `./gradlew test careerSequenceTest` 성공. 루트 191개는 이번 작업 중 재실행해 통과했고 최종 명령에서는 성공 결과를 재사용했다. 별도 실제 API 통합 테스트 1개에서 세 variant의 Java 21 worker 실행, Java 25 서버 환경 분리, CHECK·보고서·비교 단위와 저장소 재개방 후 조회를 확인했다. `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest`도 성공했다. Career 99개 중 mcp-platform 27개와 worker-support 46개를 재실행했고 나머지 26개는 성공 결과를 재사용했다. 모두 실패·건너뜀 0이다. 검증 중 Docker 환경 장애를 복구했으며, 느린 MySQL 준비를 위한 테스트 실행 한도만 5분으로 조정했다. 실제 측정 30초와 중단 후 정리 제한은 유지한다. 브라우저 전용 화면과 전체 서버 재시작 검증은 이 결과에 포함하지 않는다.
 
 독립 커밋 단위: protocol/codec → process lifecycle → sequence harness → catalog/UI 연결. 범용 원격 worker 기능으로 확대하지 않는다.
 
@@ -182,4 +188,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: 중앙 catalog 등록·Docker readiness/복구와 화면 연결**이다. 첫 Career sequence worker를 붙인 후 운영 catalog와 화면에서 실행·비교·재조회까지 검증한다.
+다음 실행 작업은 **D4: Career 전용 화면 연결·복구 보강**이다. 선택적 중앙 API 등록을 활성화한 뒤 화면에서 실행·비교·재조회까지 검증한다.

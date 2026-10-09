@@ -70,6 +70,32 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
                                 0, RunExecution.MeasurementScope.CONTROLLER_PROCESS))));
     }
 
+    public static DurableExperimentRunner configured(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
+            long interval, int samples, boolean traceEnabled, int spans, JfrRecorder jfr, RunLogRecorder logs,
+            Map<String, String> modules, List<LocalJvmRegistration> workers) {
+        var registrations = new HashMap<String, ExperimentExecutors.Registration>();
+        var bindings = new HashMap<String, ExperimentExecutors.Binding>();
+        var definitions = new HashMap<String, RunExecution.Definition>();
+        registrations.put("IN_PROCESS", new ExperimentExecutors.Registration(new InProcessExecutor(jvmProbe,
+                interval, samples, traceEnabled, spans, jfr, logs, options.shutdownTimeoutMs()), maxActiveRuns));
+        modules.forEach((id, module) -> definitions.put(id, new RunExecution.Definition(RunExecution.Kind.IN_PROCESS,
+                module, 0, RunExecution.MeasurementScope.CONTROLLER_PROCESS)));
+        for (var worker : workers) {
+            if (registrations.putIfAbsent(worker.id(), new ExperimentExecutors.Registration(worker.executor(), 1)) != null)
+                throw new IllegalArgumentException("Duplicate worker registration");
+            for (String id : worker.manifest().experiments()) {
+                if (!worker.manifest().moduleId().equals(modules.get(id)) || bindings.putIfAbsent(id,
+                        new ExperimentExecutors.Binding(worker.id(), true)) != null)
+                    throw new IllegalArgumentException("Worker catalog ownership mismatch");
+                definitions.put(id, new RunExecution.Definition(RunExecution.Kind.LOCAL_JVM,
+                        worker.manifest().moduleId(), 1, RunExecution.MeasurementScope.WORKER_PROCESS));
+            }
+        }
+        return new DurableExperimentRunner(store, provenance, options, new ExperimentExecutors("IN_PROCESS",
+                registrations, bindings), previewLimit, maxActiveRuns, definitions);
+    }
+
     DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, ExperimentExecutor executor, int previewLimit, int maxActiveRuns) {
         this(store, provenance, options, ExperimentExecutors.inProcess(executor, maxActiveRuns), previewLimit, maxActiveRuns);
@@ -94,6 +120,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     public <C extends ExperimentScenario> StoredRun prepare(Experiment<C> experiment, C scenario, String id) {
         admission.checkAccepting();
         var executor = executors.select(experiment.type()).executor();
+        executor.preflight();
         var parameters = new HashMap<>(experiment.parameters(scenario));
         parameters.put("evidence.dead-letter.mode", "DATABASE_V1");
         parameters.put("evidence.dead-letter.maxRecordBytes", String.valueOf(DeadLetter.MAX_BYTES));

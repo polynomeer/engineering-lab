@@ -21,6 +21,17 @@ public final class SequenceWorker {
     public static void main(String[] args) throws Exception {
         OutputStream protocol = System.out;
         System.setOut(System.err);
+        if (args.length != 0) {
+            if (args.length != 1 || !args[0].equals("--probe")) throw new IllegalArgumentException("Unsupported worker command");
+            boolean ready = false;
+            if (!Boolean.parseBoolean(System.getenv("TESTCONTAINERS_RYUK_DISABLED"))) {
+                try { ready = DockerClientFactory.instance().isDockerAvailable(); } catch (Exception ignored) {}
+            }
+            protocol.write(WireJson.encode(WireJson.object().put("protocolVersion", 1).put("moduleId", "mcp-platform")
+                    .put("javaMajor", Runtime.version().feature()).put("ready", ready)));
+            protocol.flush();
+            return;
+        }
         ObjectNode command = WorkerProtocol.readCommand(System.in, ProtocolLimits.DEFAULT);
         if (!"career.mcp-platform.sequence".equals(command.path("experimentId").textValue())) throw new IllegalArgumentException("Unsupported experiment");
         var parameters = command.path("parameters");
@@ -110,7 +121,7 @@ public final class SequenceWorker {
             Path file = workspace.resolve("sequence-report.json"); Files.write(file, WireJson.encode(report), StandardOpenOption.CREATE_NEW);
             writer.emit("PHASE", WireJson.object().put("phase", "FINALIZING")); finalizing = true;
             writer.emit("ARTIFACT", WireJson.object().put("path", file.getFileName().toString()).put("kind", "REPORT").put("sizeBytes", Files.size(file)).put("sha256", hash(file)));
-            summary.put("sequence.overlapPairs", overlaps).put("sequence.finalValue", value).put("variant", variant);
+            summary.put("sequence.elapsedNanos", elapsed).put("sequence.overlapPairs", overlaps).put("sequence.finalValue", value).put("variant", variant);
             status = overlapExpected && stateExpected ? "SUCCEEDED" : "FAILED"; reason = status.equals("SUCCEEDED") ? "" : "EXPECTATION_NOT_MET";
         } catch (Exception e) {
             boolean interrupted = Thread.interrupted() || e instanceof InterruptedException;
