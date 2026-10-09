@@ -12,7 +12,7 @@
 | `mds-distribution` | 정산 동시성, 이벤트 멱등성 | [사용법](mds-distribution/README.md) |
 | `creator-studio` | 세션 회전, 매핑 무결성 | [사용법](creator-studio/README.md) |
 
-공통 통신 기반으로 Java 21 [worker-support](worker-support/README.md)를 추가했습니다. 다섯 실험 모듈과 별개의 infrastructure 라이브러리입니다. sequence의 [선택적 중앙 API 연결](../docs/career-worker-deployment.md)을 지원하며 전용 화면은 후속 단계입니다.
+공통 통신 기반으로 Java 21 [worker-support](worker-support/README.md)를 추가했습니다. 다섯 실험 모듈과 별개의 infrastructure 라이브러리입니다. sequence의 [선택적 중앙 API 연결](../docs/career-worker-deployment.md)을 지원하며 [전용 화면 사용법](../docs/standalone-dashboard.md#career-sequence-실행과-검증-결과)도 제공합니다.
 
 ## 모듈 추가
 
@@ -63,7 +63,7 @@ Windows에서는 JDK 21을 설정하고 `career-lab\gradlew.bat -p career-lab te
 기본 실행은 각 모듈의 테스트입니다. 설정으로 활성화하면 sequence 실험을 중앙 registry에 등록할 수 있습니다. `mcp-platform`의 sequence에는 실제 Java 21 worker 배포 jar와 격리 MySQL 통합 검증을 추가했습니다. [worker 빌드·계약](mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 참고하세요.
 모듈 간 소스·의존성을 임의로 합치거나 Boot 버전을 일괄 변경하지 않습니다.
 공통 Run UI 연결은 [독립 대시보드·실행 어댑터 설계](../docs/dashboard-integration-design.md)와
-[이행 계획](../docs/dashboard-integration-plan.md)에 정의했으며, 공통 기반·첫 worker 배포·선택적 sequence 중앙 API 등록을 구현했습니다. 전용 UI 연결은 후속 단계입니다.
+[이행 계획](../docs/dashboard-integration-plan.md)에 정의했으며, 공통 기반·첫 worker 배포·선택적 sequence 중앙 API 등록을 구현했습니다. 독립 대시보드의 실행·검증 결과 UI도 연결했습니다.
 
 ## 복구 출처
 

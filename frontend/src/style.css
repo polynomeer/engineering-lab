@@ -365,3 +365,17 @@ textarea {
   width: 24px;
   flex-shrink: 0;
 }
+
+.readiness-gate {
+  border: 0;
+  padding: 0;
+  margin: 16px 0;
+  min-width: 0;
+}
+.readiness-gate > legend {
+  font-weight: 600;
+}
+
+.execution-form label > small {
+  margin-top: 6px;
+}

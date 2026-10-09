@@ -82,11 +82,11 @@ export const apiUrl = (path: string) => {
   if (!path.startsWith('/') || path.startsWith('//')) throw new Error('Invalid API path');
   return '/api' + path;
 };
-export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function get<T>(path: string, signal?: AbortSignal, timeoutMs = 15000): Promise<T> {
   const response = await fetch(apiUrl(path), {
     signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
-      : AbortSignal.timeout(15000),
+      ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+      : AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) throw new ApiError(response.status);
   if (!response.headers.get('content-type')?.includes('application/json'))

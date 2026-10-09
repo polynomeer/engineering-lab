@@ -205,7 +205,7 @@ Java 21, heap 256 MiB, Docker 필요 여부, jar 파일명과 실제 SHA-256을 
 
 worker는 웹 서버가 아니라 [worker v1](../../contracts/worker/v1/README.md)의
 단일 stdin command를 받는 프로세스입니다. 서버의 `WorkerProcess`가 jar 검증·복사와
-실행을 소유합니다. [중앙 API 등록](../../docs/career-worker-deployment.md)을 설정으로 활성화할 수 있으며 전용 화면 실행은 지원 전입니다.
+실행을 소유합니다. [중앙 API 등록](../../docs/career-worker-deployment.md)을 설정으로 활성화할 수 있으며 [독립 대시보드](../../docs/standalone-dashboard.md#career-sequence-실행과-검증-결과)에서 실행·검증 결과를 조회할 수 있습니다.
 배포 통합 테스트가 이 경로를 사용해 세 variant를 각각 별도 JVM에서 실행합니다.
 
 | 입력 | 허용 값 |
@@ -256,4 +256,4 @@ FAILED로 거절하고 stderr에 `RESOURCE_REAPER_DISABLED`를 남깁니다. 환
 
 이 범위는 Docker daemon과 Ryuk이 살아 있는 로컬 환경입니다. daemon/호스트 장애,
 Ryuk 자체 장애, 재시작 후 잔여 컨테이너 조정, 일반 자손 프로세스 정리 및 중앙 API 취소는
-아직 보장하지 않습니다. 중앙 등록은 명시적으로 활성화한 경우에만 사용하며 전용 Dashboard 실행/check 화면은 후속 단계입니다.
+아직 보장하지 않습니다. 중앙 등록은 명시적으로 활성화한 경우에만 사용하며 독립 Dashboard에서 실행·검증 결과를 확인할 수 있습니다.

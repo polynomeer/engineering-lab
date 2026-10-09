@@ -1,3 +1,4 @@
+import { ExecutionReadiness } from './WorkerEvidence';
 import React, { useEffect, useRef, useState } from 'react';
 import { loadSettings, saveSettings } from './settings';
 import { moduleViews } from './moduleViews';
@@ -15,9 +16,11 @@ import {
 export function ExecutionPage({
   catalog,
   experiment,
+  checkReadiness,
 }: {
   catalog: Descriptor[];
   experiment: string | null;
+  checkReadiness: boolean;
 }) {
   const descriptor = catalog.find((d) => d.id === experiment);
   const Input = descriptor && moduleViews[descriptor.id]?.input;
@@ -47,7 +50,13 @@ export function ExecutionPage({
         (Input ? (
           <Input />
         ) : supportsForm(descriptor) ? (
-          <ExecutionForm key={descriptor.id} descriptor={descriptor} catalog={catalog} />
+          checkReadiness ? (
+            <ExecutionReadiness key={descriptor.id} id={descriptor.id}>
+              <ExecutionForm key={descriptor.id} descriptor={descriptor} catalog={catalog} />
+            </ExecutionReadiness>
+          ) : (
+            <ExecutionForm key={descriptor.id} descriptor={descriptor} catalog={catalog} />
+          )
         ) : (
           <p>이 실험의 입력 화면은 이행 중입니다. 상단의 기존 실험 실행 화면을 이용하세요.</p>
         ))}
@@ -78,7 +87,10 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
       const document = definition(descriptor, draft);
       // Re-read before writing to retain presets saved by another tab.
       const entries = [
-        { experiment: descriptor.id, draft: { ...draft, parameters: document.parameters } },
+        {
+          experiment: descriptor.id,
+          draft: { ...draft, parameters: document.parameters },
+        },
         ...readSaved(localStorage, catalog).filter(
           (s) => s.experiment !== descriptor.id || s.draft.id !== draft.id,
         ),
@@ -115,6 +127,9 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
   return (
     <section aria-label="실험 실행 설정">
       <h2>{descriptor.title}</h2>
+      {moduleViews[descriptor.id]?.introduction && (
+        <p className="note">{moduleViews[descriptor.id].introduction}</p>
+      )}
       <a href={'/app/runs?experiment=' + encodeURIComponent(descriptor.id)}>이 실험의 실행 기록</a>
       <div className="actions" aria-label="기본 프리셋">
         {(presets[descriptor.id] ?? []).map((p) => (
@@ -158,7 +173,10 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([key, spec]) => {
                 const change = (value: string | boolean) =>
-                  setDraft({ ...draft, parameters: { ...draft.parameters, [key]: value } });
+                  setDraft({
+                    ...draft,
+                    parameters: { ...draft.parameters, [key]: value },
+                  });
                 return (
                   <label key={key}>
                     {key}

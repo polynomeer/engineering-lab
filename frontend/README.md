@@ -3,7 +3,7 @@
 기존 Lab API를 사용하는 독립 React + TypeScript + Vite 프론트엔드입니다.
 현재 Run 목록·상세·비교·페이지 조회·NDJSON export·관리 artifact 다운로드를 지원합니다.
 큐·IO 실행 폼과 기본 프리셋, 최근 설정 12개 저장·복원, 비교 요약 CSV/JSON도 지원합니다.
-모듈/실험 목록과 입력 범위는 서버 catalog에서 가져옵니다. Excel 업로드·처리 현황·현재 DB 조회·IO 단건 데모도 지원합니다. Career worker 연결은 후속 단계입니다.
+모듈/실험 목록과 입력 범위는 서버 catalog에서 가져옵니다. Excel 업로드·처리 현황·현재 DB 조회·IO 단건 데모도 지원합니다. 설정으로 등록된 Career sequence의 실행과 worker 환경·검증 결과 조회도 지원합니다.
 
 ## 준비와 실행
 
@@ -73,6 +73,7 @@ npm run test:e2e
 - `src/ExecutionForm.tsx`, `src/execution.ts`: schema 기반 폼, 프리셋 저장, 단일 제출과 비교 다운로드
 - `src/LegacyTools.tsx`, `src/moduleViews.tsx`: 기존 업로드 API·Excel 상세 adapter, 현재 DB·비영속 IO 도구
 - `src/settings.ts`, `src/SettingsPage.tsx`: bounded 설정 검증·이전·단일 key 저장, 선택적 conflict 처리
+- `src/WorkerEvidence.tsx`: 실행 준비 상태, worker 환경, 종료 후 검증 결과의 bounded 페이지 조회와 확장 내보내기
 - `src/style.css`: 기존 Run 화면의 어두운 토큰과 반응형 스타일
 - `tests/dashboard.spec.ts`: 실제 서버 기반 browser E2E와 오류/cursor/legacy fallback
 - `../contracts/dashboard/v1/fixtures/evidence.json`: Java HTTP 계약 테스트와 공유하는 합성 fixture
@@ -80,10 +81,10 @@ npm run test:e2e
 `/app/*`는 화면, `/api/*`는 backend proxy입니다. 다른 경로에 SPA HTML을 응답하지 않습니다.
 proxy는 기존 status/body/Content-Disposition을 유지하고 상대 Location 헤더에 `/api`를 붙입니다.
 capabilities/modules의 404는 구형 서버 호환으로 처리하며 503·HTML 응답 등은 오류로 표시합니다.
-capabilities는 schemaVersion=1과 올바른 features 객체만 인식합니다. 알 수 없는 버전/구조는 기존 API 모드로 전환하고, 알려진 기능 키의 boolean true만 지원으로 해석합니다. 현재 실행·조회는 기존 API를 유지하며 실행/check 전용 패널은 후속 단계입니다.
+capabilities는 schemaVersion=1과 올바른 features 객체만 인식합니다. 알 수 없는 버전/구조는 기존 API 모드로 전환하고, 알려진 기능 키의 boolean true만 지원으로 해석합니다. 실행·조회는 기존 API를 유지하며, 명시적으로 지원되는 경우 실행 환경·검증 결과 패널과 확장 내보내기를 추가합니다.
 
 활성 Run 상세는 2초 간격으로 이전 요청 완료 후 갱신합니다. 오류 backoff는 최대 15초이며,
-탭 비활성·페이지 이탈·Run 종료 시 polling을 멈춥니다. 관측값은 한 페이지만 보유합니다.
+탭 비활성·페이지 이탈·Run 종료 시 polling을 멈춥니다. 실행 증거도 자체 요청이 끝난 뒤 갱신하므로 느린 응답을 Run 목록 갱신이 반복 취소하지 않습니다. 관측값과 검증 결과는 각각 한 페이지만 보유합니다.
 기존 URL의 선택적 302와 독립 서버·내장 패키징은 [배포 가이드](../docs/dashboard-deployment.md)를 따릅니다. 기본값은 기존 화면 유지입니다.
 새 설정은 `engineering-lab.dashboard.presets.v1`에 최근 12개만 보관하며 읽기는 1 MiB/100개로 제한합니다.
 새 실험은 input=NONE, SINGLE_PASS, 정수/boolean/선택형 string schema일 때 추가 UI 분기 없이 실행 폼을 제공합니다.
@@ -96,3 +97,21 @@ POST 실패 시 자동 재시도하지 않습니다. 네트워크 오류·5xx·�
 독립 배포는 `npm run serve`, 내장 패키징은 루트 `./gradlew bootDashboardJar`를 사용합니다. `npm run test:serve`는 빌드 후 독립 서버의 streaming/headers/실패 응답을 검증합니다. 전체 브라우저 검증에 URL 전환을 켠 API를 쓰면 `EXPECT_REDIRECT=1`, 산출물 일치 검증에는 `VERIFY_BUILD=1`을 지정합니다.
 
 D3 호환 검증은 신규 API와 실제 D2 서버(`94c1913`)를 서로 다른 임시 DB로 띄워 수행했습니다. 구버전 서버 검증 시 `EXPECT_LEGACY=1`을 지정합니다. 신규 API의 기존 비교 화면을 촬영하려면 `CAPABILITY_SCREENSHOT=1 npm run test:e2e -- --grep 'extension catalog'`를 실행합니다. `LEGACY_URL`은 해당 API의 기존 화면 주소여야 합니다. API 계약과 지원 범위는 [Run 증거 문서](../docs/run-evidence.md#지원-기능과-catalog-확장)를 참고하세요.
+
+## Career sequence 브라우저 검증
+
+[worker 배포 가이드](../docs/career-worker-deployment.md)에 따라 sequence를 활성화하고 Docker를 실행한 API를 사용합니다.
+
+```bash
+CAREER_E2E=1 npm run test:e2e -- tests/career.spec.ts
+```
+
+실제 BEFORE/ATOMIC_UPDATE 실행·비교·내보내기·모바일 폭·새로고침을 확인합니다. `CAREER_E2E`가 없으면 실제 Docker 실행 테스트를 건너뛰며, 준비 불가/부분 증거/오류/페이지 이동 테스트는 합성 응답으로 실행합니다. 문서 캡처는 `DOC_SCREENSHOTS=1`로 생성합니다. 준비 상태 조회는 최대 75초를 기다리고 자동 실행 재시도는 하지 않습니다. 확인 중이나 준비 불가일 때 입력과 실행을 잠그며, 재확인해도 작성한 설정을 유지합니다.
+
+서버를 같은 저장소 경로로 재시작한 뒤에는 완료된 두 Run ID를 지정해 저장 증거의 브라우저 재조회를 검증합니다. 아래 값은 실제 ID로 바꿉니다.
+
+```bash
+CAREER_REOPEN_IDS=before-run-id,atomic-run-id npm run test:e2e -- --grep 'stored Career evidence after server restart'
+```
+
+이 검증은 정상 재시작 후 조회이며 강제 종료·Docker daemon 장애 복구를 검증한 것은 아닙니다.

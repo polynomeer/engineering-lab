@@ -5,6 +5,16 @@ export type Draft = {
   parameters: Record<string, string | number | boolean>;
 };
 export const presets: Record<string, Draft[]> = {
+  'career.mcp-platform.sequence': ['ATOMIC_UPDATE', 'BEFORE', 'SELECT_FOR_UPDATE'].map(
+    (variant) => ({
+      id: 'sequence-' + variant.toLowerCase().replaceAll('_', '-'),
+      hypothesis:
+        variant === 'BEFORE'
+          ? '동시 채번의 겹침을 재현한다'
+          : '원자적인 채번으로 겹침 없이 전체 구간을 할당한다',
+      parameters: { variant, workers: 10, blockSize: 1000 },
+    }),
+  ),
   'concurrency.queue-contention': [
     ['queue-quick-demo', 4, 2, 1, 40, 1],
     ['queue-backpressure-stress', 2, 3, 1, 150, 6],

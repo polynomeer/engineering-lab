@@ -2,7 +2,7 @@
 
 첫 Career 실험 `career.mcp-platform.sequence`를 별도 Java 21 worker로 실행하고,
 Java 25 플랫폼의 기존 Run 저장·조회·비교 API에 결과를 보관한다. 기본값은 비활성이다.
-전용 실행/check 화면과 오프라인 CLI의 Career 검증은 아직 연결하지 않았다.
+독립 대시보드의 실행·검증 결과 화면을 지원한다. [화면 사용법](standalone-dashboard.md#career-sequence-실행과-검증-결과)을 참고한다. 오프라인 CLI의 Career 검증은 아직 연결하지 않았다.
 기존 `/runs/ui`와 Run 조회 API에서 접수된 실행을 조회할 수 있다.
 
 ## 빌드와 검증

@@ -1,3 +1,4 @@
+import { WorkerEvidence } from './WorkerEvidence';
 import { capabilities as parseCapabilities } from './capabilities';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -52,18 +53,25 @@ const runLink = (id: string) => '/app/runs/' + encodeURIComponent(id);
 function App() {
   const [modules, setModules] = useState<Module[]>([]),
     [catalog, setCatalog] = useState<Descriptor[]>([]);
+  const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [bootstrapError, setBootstrapError] = useState('');
   const [error, setError] = useState(''),
     [loading, setLoading] = useState(true),
     [legacy, setLegacy] = useState(false);
-  const [options, setOptions] = useState({ pageSize: 20, artifactDownloadMaxBytes: 0 });
+  const [options, setOptions] = useState({
+    pageSize: 20,
+    artifactDownloadMaxBytes: 0,
+  });
   const [page, setPage] = useState<{ runs: Run[]; nextBefore: number | null }>({
     runs: [],
     nextBefore: null,
   });
   const [run, setRun] = useState<Run | null>(null),
     [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [metrics, setMetrics] = useState<MetricPage>({ metrics: [], nextAfter: null }),
+  const [metrics, setMetrics] = useState<MetricPage>({
+      metrics: [],
+      nextAfter: null,
+    }),
     [after, setAfter] = useState(-1);
   const [comparison, setComparison] = useState<Comparison | null>(null),
     [refresh, setRefresh] = useState(0);
@@ -78,7 +86,9 @@ function App() {
       .then(([items, groups, capabilities, limits]) => {
         setCatalog(items);
         setModules(groups ?? []);
-        setLegacy(parseCapabilities(capabilities) === null);
+        const supported = parseCapabilities(capabilities);
+        setLegacy(supported === null);
+        setFeatures(supported?.features ?? {});
         setOptions(limits);
         setBootstrapError('');
       })
@@ -95,7 +105,9 @@ function App() {
       try {
         setLoading(true);
         if (route.kind === 'list') {
-          const params = new URLSearchParams({ limit: String(Math.min(options.pageSize, 100)) });
+          const params = new URLSearchParams({
+            limit: String(Math.min(options.pageSize, 100)),
+          });
           for (const key of ['experiment', 'before'])
             if (route.query.get(key))
               params.set(key === 'experiment' ? 'experimentType' : key, route.query.get(key)!);
@@ -171,7 +183,11 @@ function App() {
     ? modules
     : [
         {
-          module: { id: 'all', title: '등록된 실험', collection: 'engineering' },
+          module: {
+            id: 'all',
+            title: '등록된 실험',
+            collection: 'engineering',
+          },
           experiments: catalog,
         },
       ];
@@ -225,7 +241,7 @@ function App() {
           <a href="/app/settings">설정 이전</a>
           <a href="/app/tools/ingestion-db">현재 DB 조회</a>
           <a href="/app/tools/io-echo">IO 단건 데모</a>
-          <p className="note">Career Lab 실행 연동은 준비 중입니다.</p>
+          <p className="note">서버에 등록된 모듈만 표시됩니다.</p>
         </aside>
         <main id="content">
           <div className="page-heading">
@@ -275,7 +291,11 @@ function App() {
           {route.kind === 'database' && <DatabaseTool />}
           {route.kind === 'echo' && <IoEchoTool />}
           {route.kind === 'execute' && (
-            <ExecutionPage catalog={catalog} experiment={route.query.get('experiment')} />
+            <ExecutionPage
+              catalog={catalog}
+              experiment={route.query.get('experiment')}
+              checkReadiness={features.localJvm === true}
+            />
           )}
           {route.kind === 'missing' && <a href="/app/runs">실행 기록으로 돌아가기</a>}
           {route.kind === 'list' && (
@@ -338,6 +358,14 @@ function App() {
                 {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
               </p>
               {DetailPanel && <DetailPanel id={run.runId} status={run.status} />}
+              {(features.executionEvidence || features.checksRead) && (
+                <WorkerEvidence
+                  key={run.runId}
+                  run={run}
+                  features={features}
+                  pageSize={options.pageSize}
+                />
+              )}
               <h2>결과 요약</h2>
               <Table
                 label="원본 metric 이름과 값"
@@ -355,8 +383,11 @@ function App() {
               <h2>입력과 실행 환경</h2>
               <Raw label="파라미터와 시나리오 정의" value={run.runMetadata.parameters} />
               <Raw
-                label="JVM / 운영체제 / Git"
-                value={{ ...run.runMetadata.environment, git: run.runMetadata.git }}
+                label="서버 JVM / 운영체제 / Git"
+                value={{
+                  ...run.runMetadata.environment,
+                  git: run.runMetadata.git,
+                }}
               />
               <h2>관측 기록</h2>
               <Table
