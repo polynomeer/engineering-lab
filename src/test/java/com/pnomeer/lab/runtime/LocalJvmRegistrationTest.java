@@ -22,8 +22,11 @@ class LocalJvmRegistrationTest {
         return new WorkerManifest(Path.of(System.getProperty("lab.worker.java")), jar, hash, "fixture-module", Set.of("fixture.sequence"), 64);
     }
     private LocalJvmRegistration registration(boolean ready) throws Exception {
+        return registration(ready, "evidence");
+    }
+    private LocalJvmRegistration registration(boolean ready, String mode) throws Exception {
         return new LocalJvmRegistration("fixture-worker", manifest(), Files.createDirectories(root.resolve("workspaces")), root,
-                Set.of("fixture.completed"), ignored -> new LocalJvmExecutor.Request(WireJson.object().put("mode", "evidence"), "a".repeat(64), 1),
+                Set.of("fixture.completed"), ignored -> new LocalJvmExecutor.Request(WireJson.object().put("mode", mode), "a".repeat(64), 1),
                 () -> new LocalJvmRegistration.Readiness(ready ? "READY" : "DOCKER_UNAVAILABLE", null), List.of("BEFORE", "AFTER"));
     }
     private DurableExperimentRunner runner(RunStore store, LocalJvmRegistration binding) {
@@ -42,13 +45,34 @@ class LocalJvmRegistrationTest {
         }
     }
     @Test void registeredWorkerUsesCentralEvidenceAndPreservesWorkerIdentity() throws Exception {
-        try (var store = new JdbcRunStore(root.resolve("db"), 20, 4); var runner = runner(store, registration(true))) {
+        var binding = registration(true);
+        try (var store = new JdbcRunStore(root.resolve("db"), 20, 4); var runner = runner(store, binding)) {
             assertEquals(ExperimentStatus.SUCCEEDED, runner.run(experiment, () -> "scenario", "routed").status());
             var execution = store.execution("routed").orElseThrow();
             assertEquals(RunExecution.Kind.LOCAL_JVM, execution.definition().kind());
             assertTrue(execution.evidenceComplete());
             assertTrue(execution.worker().environment().javaVersion().startsWith("21"));
             assertEquals(1, store.checks("routed", -1, 20).size());
+            assertTrue(binding.readiness().get().ready());
+            assertEquals(ExperimentStatus.SUCCEEDED, runner.run(experiment, () -> "scenario", "second").status());
+        }
+    }
+    @Test void failedWorkerPreservesEvidenceAndBlocksNewRegistrationBeforeRunCreation() throws Exception {
+        try (var store = new JdbcRunStore(root.resolve("db"), 20, 4)) {
+            try (var runner = runner(store, registration(true, "evidence-failed"))) {
+                assertEquals(ExperimentStatus.FAILED, runner.run(experiment, () -> "scenario", "failed-worker").status());
+                assertEquals(1, store.checks("failed-worker", -1, 20).size());
+            }
+            Path marker = LocalJvmRegistration.marker(root.resolve("workspaces"), "fixture-worker");
+            byte[] original = Files.readAllBytes(marker);
+            var restarted = registration(true);
+            assertEquals("WORKER_ACTIVE_OR_RECOVERY_REQUIRED", restarted.readiness().get().reason());
+            try (var runner = runner(store, restarted)) {
+                assertThrows(LocalJvmRegistration.WorkerUnavailableException.class,
+                        () -> runner.run(experiment, () -> "scenario", "blocked"));
+                assertTrue(store.find("blocked").isEmpty());
+                assertArrayEquals(original, Files.readAllBytes(marker));
+            }
         }
     }
     @Test void readinessVerifiesJarAndSameJavaDeploymentProbe() throws Exception {

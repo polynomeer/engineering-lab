@@ -111,3 +111,5 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 새 Codex 작업도 루트 `AGENTS.md`를 기준으로 진행한다. 이 구조는 모델·개인 전역 설정을 고정하지 않는 저장소 지침 방식이며, [공식 OpenAI 안내](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)의 간결한 지침과 필요한 문서만 참조하는 원칙을 따른다.
 
 루트 `settings.gradle`은 `career-lab/worker-support`만 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM capability는 기본 false이며 sequence 등록을 활성화하면 true다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
+
+등록 LOCAL_JVM의 비정상 종료 후 접수 보호는 `WorkerRecoveryGuard`와 `LocalJvmRegistration`에서 담당한다. `WorkerRecoveryGuardTest`, `LocalJvmRegistrationTest`로 강제 종료 기록 보존·실패 후 재접수 거절·정상 해제를 검증한다. [운영 복구 절차](worker-recovery.md)를 따르며 자동 자원 회수는 미구현이다.

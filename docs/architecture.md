@@ -276,3 +276,11 @@ See [deployment and readiness](career-worker-deployment.md). Additional module b
 without modifying its central module list. Registered metric definitions are merged immutably into the HTTP
 schema/comparison views. A deployment binding selects the external executor and worker evidence definition;
 its preflight runs before Run creation. The current worker binding permits one exclusive run.
+
+Registered workers now acquire a persistent, exclusive admission marker before process launch.
+Only a successful executor outcome after transport cleanup and metric drain releases the matching
+marker. Failure, interruption or controller death retains it, and registration readiness checks it
+before cached deployment probes. This bounds repeat admission after uncertain cleanup; it does
+not reconcile Docker resources or arbitrary descendants. The marker is one file per registration,
+limited to 4 KiB, and requires the same administrator-owned workspace and registration ID across
+restarts. See [recovery guarantees and operator procedure](worker-recovery.md).
