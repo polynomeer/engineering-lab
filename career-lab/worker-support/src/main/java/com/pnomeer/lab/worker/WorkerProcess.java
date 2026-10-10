@@ -67,6 +67,7 @@ public final class WorkerProcess {
         Process process;
         try { process = builder.start(); }
         catch (IOException e) { throw new Failure("START_FAILED", workspace); }
+        var tree = new WorkerProcessTree(process);
         ExecutorService io = Executors.newFixedThreadPool(3, runnable -> {
             Thread thread = new Thread(runnable, "worker-pipe"); thread.setDaemon(true); return thread;
         });
@@ -99,18 +100,10 @@ public final class WorkerProcess {
                     : e.getCause() instanceof TimeoutException ? "DEADLINE_EXCEEDED" : "PIPE_OR_EVIDENCE_FAILED";
             throw new Failure(reason, workspace);
         } finally {
-            // Stop the child before closing stdin: a writer may be blocked on a full pipe.
-            if (process.isAlive()) process.destroy();
+            // Track descendants before the direct child can exit and reparent them.
             try {
-                if (!process.waitFor(limits.stopGrace().toMillis(), TimeUnit.MILLISECONDS)) {
-                    process.destroyForcibly();
-                    if (!process.waitFor(limits.stopGrace().toMillis(), TimeUnit.MILLISECONDS)) throw new Failure("PROCESS_CLEANUP_UNCONFIRMED", workspace);
-                }
-            } catch (InterruptedException e) {
-                interrupted = true; process.destroyForcibly();
-                if (!process.waitFor(limits.stopGrace().toMillis(), TimeUnit.MILLISECONDS))
-                    throw new Failure("PROCESS_CLEANUP_UNCONFIRMED", workspace);
-                throw e;
+                if (!tree.stop(limits.stopGrace())) throw new Failure("PROCESS_TREE_CLEANUP_UNCONFIRMED", workspace);
+                if (Thread.interrupted()) { interrupted = true; throw new InterruptedException(); }
             } finally {
                 outputReader.cancel(true); errorReader.cancel(true); commandWriter.cancel(true); io.shutdownNow();
                 // A sink must honor interruption. Never report cleanup success while it can still publish evidence.

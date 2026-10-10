@@ -284,3 +284,11 @@ before cached deployment probes. This bounds repeat admission after uncertain cl
 not reconcile Docker resources or arbitrary descendants. The marker is one file per registration,
 limited to 4 KiB, and requires the same administrator-owned workspace and registration ID across
 restarts. See [recovery guarantees and operator procedure](worker-recovery.md).
+
+
+`WorkerProcessTree` observes at most 128 descendant identities at 50ms intervals while the
+controller lives. Cleanup stops the observer, checks start instants before signalling, and
+uses the existing stop grace for graceful and forced termination. Uncertain tracking or
+termination fails the execution and keeps the registration recovery marker. This is bounded
+observation, not OS containment: pre-observation detachment, controller death and Docker
+resources still need separate reconciliation. See [scope and limits](worker-recovery.md).

@@ -100,6 +100,71 @@ class WorkerProcessTest {
         var failure = assertThrows(WorkerProcess.Failure.class, () -> runner(2).execute(manifest(), command("success"), root, sink));
         assertEquals("DEADLINE_EXCEEDED", failure.getMessage()); assertTrue(stopped.get()); assertDead(failure.workspace());
     }
+    @ParameterizedTest @ValueSource(strings={"descendant-success", "descendant-timeout"})
+    void observedStubbornDescendantIsStoppedWithoutTouchingUnrelatedProcess(String mode) throws Exception {
+        var manifest = manifest();
+        Process unrelated = new ProcessBuilder(manifest.javaExecutable().toString(), "-jar", manifest.jar().toString(), "--descendant")
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        Path workspace = null;
+        try {
+            if (mode.endsWith("success")) workspace = runner(10).execute(manifest, command(mode), root, sink()).workspace();
+            else workspace = assertThrows(WorkerProcess.Failure.class,
+                    () -> runner(2).execute(manifest, command(mode), root, sink())).workspace();
+            assertDead(workspace);
+            long pid = Long.parseLong(Files.readString(workspace.resolve("descendant.pid")));
+            assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));
+            assertTrue(unrelated.isAlive());
+        } finally {
+            unrelated.destroyForcibly().waitFor();
+            // Also clean the fixture on assertion failure, without depending on production cleanup.
+            try (var files = Files.walk(root)) {
+                for (Path file : files.filter(p -> p.getFileName().toString().equals("descendant.pid")).toList()) {
+                    stopFixtureChild(file);
+                }
+            }
+        }
+    }
+    @Test void interruptionStillCleansObservedDescendantAndPreservesInterrupt() throws Exception {
+        var manifest = manifest();
+        var request = command("descendant-timeout");
+        var failure = new AtomicReference<Throwable>();
+        var interrupted = new AtomicBoolean();
+        Thread caller = new Thread(() -> {
+            try { runner(10).execute(manifest, request, root, sink()); }
+            catch (Throwable e) { failure.set(e); interrupted.set(Thread.currentThread().isInterrupted()); }
+        });
+        caller.start();
+        Path childPid = null;
+        try {
+            long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+            while (childPid == null && System.nanoTime() < deadline) {
+                try (var files = Files.walk(root)) {
+                    childPid = files.filter(p -> p.getFileName().toString().equals("descendant.pid")).findFirst().orElse(null);
+                }
+                Thread.sleep(20);
+            }
+            assertNotNull(childPid);
+            // Allow observation before injecting caller interruption.
+            Thread.sleep(300);
+            caller.interrupt(); caller.join(5000);
+            assertFalse(caller.isAlive());
+            assertInstanceOf(InterruptedException.class, failure.get());
+            assertTrue(interrupted.get());
+            assertDead(childPid.getParent());
+            long pid = Long.parseLong(Files.readString(childPid));
+            assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));
+        } finally {
+            caller.interrupt(); caller.join(5000);
+            if (childPid != null) stopFixtureChild(childPid);
+        }
+    }
+    private void stopFixtureChild(Path pidFile) throws Exception {
+        ProcessHandle.of(Long.parseLong(Files.readString(pidFile))).ifPresent(handle -> {
+            var arguments = handle.info().arguments();
+            if (arguments.isPresent() && Arrays.asList(arguments.get()).contains(pidFile.getParent().resolve("worker.jar").toString())
+                    && Arrays.asList(arguments.get()).contains("--descendant")) handle.destroyForcibly();
+        });
+    }
     private void assertDead(Path workspace) throws Exception {
         long pid = Long.parseLong(Files.readString(workspace.resolve("pid")));
         assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));

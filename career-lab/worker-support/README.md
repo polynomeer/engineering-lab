@@ -31,7 +31,7 @@ Reader/Writer는 하나의 소유 스레드에서 사용한다. 여러 측정 �
 
 `EvidenceSink.persist`는 검증된 이벤트를 동기 저장하고 ARTIFACT 실제 파일·hash·허용 종류도 검증해야 한다. `flush`는 저장 완료를 확인해야 한다. 두 callback은 bounded·interruptible이어야 하며 timeout 이후 계속 쓰면 안 된다. flush 오류나 미종료 I/O 스레드는 성공으로 반환하지 않는다. 루트의 `LocalJvmExecutor`가 RunStore worker/check sink와 bounded metric writer에 연결한다. 실제 Java 21 fixture와 H2 재개방·저장 오류 주입으로 검증했다. 루트의 선택적 WorkerArtifactImporter는 REPORT의 경로·크기·hash와 보관을 검증한다. 운영 catalog 등록과 JFR/LOG·다운로드 통합은 후속 단계다.
 
-`ParentConnection.watch`는 명령을 읽은 뒤 worker가 stdin EOF/추가 바이트/읽기 오류를 감지하도록 돕는다. callback에서 실제 harness와 자원을 종료해야 한다. 통합 테스트 worker는 즉시 halt하지만 실제 Career harness에는 컨테이너 정리와 제한 시간 종료를 구현해야 한다. 부모는 자신이 시작한 직접 자식 Process만 종료하며 자손 프로세스·컨테이너 정리는 아직 제공하지 않는다.
+`ParentConnection.watch`는 명령을 읽은 뒤 worker가 stdin EOF/추가 바이트/읽기 오류를 감지하도록 돕는다. callback에서 실제 harness와 자원을 종료해야 한다. 통합 테스트 worker는 즉시 halt하지만 실제 Career harness에는 컨테이너 정리와 제한 시간 종료를 구현해야 한다. 부모는 직접 worker와 실행 중 관찰한 자손을 종료한다. 전용 daemon 관찰 스레드가 50ms 간격으로 최대 128개 identity를 추적하고, 시작 시각을 대조한 뒤 graceful/강제 종료를 확인한다. 추적 상한·조회/종료 실패는 `PROCESS_TREE_CLEANUP_UNCONFIRMED`로 실패한다. 관찰 전에 분리된 프로세스·controller 강제 종료 후 고아 프로세스·컨테이너 회수는 보장하지 않는다. [정확한 범위와 운영 복구](../../docs/worker-recovery.md#실행-중-관찰한-자손-프로세스-종료)를 참고한다.
 
 `processFixtureJar`는 테스트 전용 자체 실행 jar다. 배포 worker나 실험 결과물이 아니다. `WorkerProcessTest`는 실제 Java 21 JVM에서 stderr 2 MiB 출력, RESULT 누락·잘못된 JSON·64 KiB 초과, nonzero exit, timeout·종료에 응답하지 않는 자식의 강제 종료, 부모 연결 종료, 저장 지연·flush 실패와 자식 종료를 검증한다.
 

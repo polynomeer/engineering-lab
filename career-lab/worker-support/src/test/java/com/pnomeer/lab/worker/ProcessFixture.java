@@ -5,6 +5,12 @@ import java.nio.file.*;
 /** Isolated executable used only by process integration tests. */
 public final class ProcessFixture {
     public static void main(String[] args) throws Exception {
+        if (args.length == 1 && args[0].equals("--descendant")) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try { Thread.sleep(60000); } catch (InterruptedException ignored) {}
+            }));
+            Thread.sleep(60000); return;
+        }
         if (args.length == 1 && args[0].equals("--probe")) {
             String probeMode = "ready";
             try (var input = ProcessFixture.class.getResourceAsStream("/probe-mode.txt")) {
@@ -21,6 +27,15 @@ public final class ProcessFixture {
         Files.writeString(workspace.resolve("pid"), Long.toString(ProcessHandle.current().pid()));
         ParentConnection.watch(System.in, () -> Runtime.getRuntime().halt(19));
         String mode = command.path("parameters").path("mode").textValue();
+        if (mode.startsWith("descendant-")) {
+            Process child = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "-jar", workspace.resolve("worker.jar").toString(), "--descendant")
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            Files.writeString(workspace.resolve("descendant.pid"), Long.toString(child.pid()));
+            // Keep the relationship observable before exit; detached-before-observation is out of scope.
+            Thread.sleep(500);
+            if (mode.equals("descendant-timeout")) { Thread.sleep(60000); return; }
+        }
         if (mode.equals("stubborn")) Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try { Thread.sleep(60000); } catch (InterruptedException ignored) {}
         }));
