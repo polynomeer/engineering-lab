@@ -5,7 +5,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /** Best-effort observation, never a replacement for OS process containment. */
-final class WorkerProcessTree {
+public final class WorkerProcessTree {
     static final int MAX_DESCENDANTS = 128;
     private final Process root;
     private final Map<ProcessHandle, Instant> descendants = new LinkedHashMap<>();
@@ -13,8 +13,8 @@ final class WorkerProcessTree {
     private volatile boolean stopping;
     private boolean uncertain;
 
-    WorkerProcessTree(Process root) {
-        this.root = root;
+    public WorkerProcessTree(Process root) {
+        this.root = Objects.requireNonNull(root);
         observer = new Thread(() -> {
             while (!stopping) {
                 observe();
@@ -65,7 +65,9 @@ final class WorkerProcessTree {
     }
 
     /** Interrupts do not skip cleanup; restore the caller's flag after bounded waits. */
-    boolean stop(Duration grace) {
+    public boolean stop(Duration grace) {
+        if (grace.isNegative() || grace.isZero() || grace.compareTo(Duration.ofSeconds(30)) > 0)
+            throw new IllegalArgumentException("Invalid process cleanup grace");
         boolean interrupted = Thread.interrupted();
         stopping = true;
         observer.interrupt();

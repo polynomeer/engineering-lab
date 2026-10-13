@@ -117,3 +117,5 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 sequence 컨테이너 소유권 기록·복구 명령은 Career `mcp-platform`의 `labRuntime` 내 `SequenceContainerRecovery`와 `SequenceWorker --recover`에 있다. 변경 시 `SequenceContainerRecoveryTest`, 실제 배포 CLI 통합 검증과 기존 lifecycle 회귀를 확인한다. 중앙 시작 시 복구는 `WorkerStartupRecoveryTest`와 별도 `careerSequenceTest`의 `SequenceStartupRecoveryTest`로 검증한다. `SequenceRecoveryTransportTest`는 실제 배포물의 Docker HTTP 장애를 루프백 서버로 주입하며, 실제 엔진 중단/재시작 검증과 구분한다. [운영 절차와 자동 복구 제한](sequence-container-recovery.md)을 따른다.
 
 실제 private 엔진 재시작 fixture는 `SequenceDaemonRecoveryTest`와 별도 `careerDaemonRecoveryTest`다. 일반 suite에서는 제외한다. 2026-10-13 승인된 privileged 실행에서 강제 종료·재시작·소유 자원 회수·테스트 컨테이너와 익명 볼륨 삭제를 검증했다. [독립 엔진 절차](sequence-container-recovery.md#독립-docker-엔진-재시작-검증)의 명시적 승인과 옵션 없이 실행하지 않는다. 완료 기록 없는 실행과 OS 수준 격리는 미검증 범위다.
+
+시작 시 복구 명령의 프로세스 정리도 공개 `WorkerProcessTree`를 재사용한다. `WorkerStartupRecoveryTest`가 정상 응답·시간 초과·호출 인터럽트에서 실제 자손 강제 종료·무관한 프로세스 보존을 검증한다. 정리 대기는 단계별 2초이며 OS 격리나 완료 기록 없는 실행의 자동 복구로 해석하지 않는다.

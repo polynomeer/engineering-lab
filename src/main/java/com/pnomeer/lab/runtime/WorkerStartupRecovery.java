@@ -2,6 +2,7 @@ package com.pnomeer.lab.runtime;
 
 import com.pnomeer.lab.core.storage.RunStore;
 import com.pnomeer.lab.worker.WorkerManifest;
+import com.pnomeer.lab.worker.WorkerProcessTree;
 import com.pnomeer.lab.worker.WireJson;
 import java.nio.file.*;
 import java.time.Duration;
@@ -50,6 +51,7 @@ public final class WorkerStartupRecovery {
         if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(60)) > 0)
             throw new IllegalArgumentException("Recovery timeout");
         Process child = null; Path directory = null;
+        WorkerProcessTree tree = null;
         boolean confirmed = false, cleanup = true, interrupted = false;
         var io = Executors.newSingleThreadExecutor(r -> { var t = new Thread(r, "worker-recovery"); t.setDaemon(true); return t; });
         try {
@@ -69,7 +71,9 @@ public final class WorkerStartupRecovery {
             var builder = new ProcessBuilder(manifest.javaExecutable().toString(), "-Xmx" + manifest.heapMiB() + "m", "-jar", jar.toString(),
                     "--recover", workspace.toRealPath().toString(), runId).directory(directory.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD);
             for (String key : List.of("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "CLASSPATH")) builder.environment().remove(key);
-            child = builder.start(); child.getOutputStream().close();
+            child = builder.start();
+            tree = new WorkerProcessTree(child);
+            child.getOutputStream().close();
             Process process = child;
             long deadline = System.nanoTime() + timeout.toNanos();
             var read = io.submit(() -> process.getInputStream().readNBytes(4097));
@@ -86,7 +90,11 @@ public final class WorkerStartupRecovery {
         catch (Exception e) { confirmed = false; }
         finally {
             interrupted |= Thread.interrupted();
-            if (child != null && child.isAlive()) {
+            if (tree != null) {
+                // Recovery commands need the same observed-descendant cleanup as experiment workers.
+                cleanup = tree.stop(Duration.ofSeconds(2));
+                interrupted |= Thread.interrupted();
+            } else if (child != null && child.isAlive()) {
                 child.destroyForcibly();
                 try { cleanup = child.waitFor(2, TimeUnit.SECONDS); }
                 catch (InterruptedException e) { interrupted = true; cleanup = false; }

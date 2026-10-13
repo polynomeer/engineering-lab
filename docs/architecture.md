@@ -310,3 +310,11 @@ failures stay blocked. A verified same-artifact recovery subprocess must confirm
 reconciliation before the matching receipt/marker can be released. Historical Run evidence is
 unchanged. Missing receipts and arbitrary crash recovery still require operator reconciliation
 and stronger isolation. See [startup contract](sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구).
+
+
+Startup reconciliation subprocesses now share `WorkerProcessTree` with experiment transport.
+A valid recovery response is necessary but insufficient: observed descendants, the direct
+process and IO must also finish cleanup before admission is released. The recovery path uses
+2-second observer/graceful/forced waits and a further 2-second IO wait; interruption restores
+the caller flag and fails recovery. This does not extend observation into OS containment or
+make missing completion receipts eligible for automatic recovery.

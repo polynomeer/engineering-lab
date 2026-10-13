@@ -36,3 +36,8 @@ Reader/Writer는 하나의 소유 스레드에서 사용한다. 여러 측정 �
 `processFixtureJar`는 테스트 전용 자체 실행 jar다. 배포 worker나 실험 결과물이 아니다. `WorkerProcessTest`는 실제 Java 21 JVM에서 stderr 2 MiB 출력, RESULT 누락·잘못된 JSON·64 KiB 초과, nonzero exit, timeout·종료에 응답하지 않는 자식의 강제 종료, 부모 연결 종료, 저장 지연·flush 실패와 자식 종료를 검증한다.
 
 루트 Gradle은 이 디렉터리를 독립 composite build로 참조한다. `settings.gradle.kts`는 그 진입점이며 Career 전체 settings의 자동 발견도 유지한다. 동일 산출물 경로를 공유하므로 루트와 Career 빌드를 병렬 실행하지 않는다. 루트 `./gradlew test`는 Java 25와 21 설치가 필요하고 테스트 worker jar를 자동 생성한다.
+
+`WorkerProcessTree`는 복구 명령에서도 재사용하는 공개 수명주기 도우미다. 생성 직후 관찰을
+시작하므로 소유자는 반드시 `finally`에서 `stop(grace)`를 호출해야 한다. 유예는 0초 초과,
+30초 이하이며 정리 불확실성은 false로 반환한다. 이 반환값을 무시하고 성공 처리하면 안 된다.
+프로세스 관찰 도우미이며 OS 격리 경계를 제공하지 않는다.

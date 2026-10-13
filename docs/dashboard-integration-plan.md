@@ -114,6 +114,7 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] sequence 컨테이너 생성 전 소유권 기록·배타 잠금과 실행별 복구 명령을 제공한다.
 - [x] 종료 확인 기록이 있는 sequence의 opt-in 시작 시 재조정·접수 재개를 연결한다.
 - [x] 실제 복구 배포물의 Docker HTTP 장애·응답 유실·무응답과 새 프로세스 재시도 시 접수 차단을 검증한다.
+- [x] 시작 시 복구 명령에도 관찰된 자손 정리를 적용하고 정상 응답·시간 초과·인터럽트 회귀를 검증한다.
 - [x] 종료 확인 기록이 있는 실행의 전용 Docker 엔진 SIGKILL·재시작·소유 자원 회수와 테스트 자원 삭제를 검증한다.
 - [ ] 종료 미확인 강제 종료 후 자동 재조정과 관찰 범위 밖 프로세스 격리·정리를 연결·검증한다.
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
@@ -175,6 +176,9 @@ sequence 소유권·복구 검증 (2026-10-13): `./scripts/career-lab.sh test :m
 Docker 통신 장애 검증 (2026-10-13): `SequenceRecoveryTransportTest`가 실제 Java 21 배포물과 별도 중앙 복구 프로세스를 루프백 Docker API에 연결한다. 조회 503·무응답·삭제 503·삭제 후 응답 유실·삭제 후 엔진 ID 변경을 주입했다. 모든 첫 복구가 접수 차단과 완료 기록을 보존하며, 정상 응답 복원 후 새 프로세스가 같은 저장소를 열어 재조정하고 원래 Run 실패 상태·사유와 journal을 유지하는 것을 검증했다. 이미 삭제된 자원은 다음 프로세스에서 재삭제하지 않는다. 소유권 토큰·조회 상한·정확한 ID 삭제와 Testcontainers 세션 한정 정리 요청을 검사한다. `./gradlew test careerSequenceTest` 성공: 신규 장애 5개와 기존 실제 Docker/API/서버 재시작 2개를 실행해 통과했고, 루트 222개는 기존 성공 결과를 재사용했다. 모두 실패·오류·건너뜀 0이다. 실제 공유 엔진을 중단하지 않았으며 엔진/호스트 재시작·OS 격리 검증은 여전히 후속 범위다. [재현 방법](sequence-container-recovery.md#docker-통신-장애-회귀-검증)을 따른다.
 
 독립 엔진 장애 검증 (2026-10-13): 명시적 실행 승인 후 `./gradlew test careerDaemonRecoveryTest -PlabAllowPrivilegedDaemonTest=true` 성공. 전용 privileged Docker-in-Docker의 SIGKILL·동일 데이터 재시작을 실제로 수행한 테스트 1개가 통과했고 루트 222개는 기존 성공 결과를 재사용했다(실패·오류·건너뜀 0). 엔진 중단 중 접수 차단·완료 기록 유지, 재시작 후 동일 엔진 ID·컨테이너 metadata 유지, 실제 배포 복구 명령의 소유 자원 회수·다른 토큰 자원 보존·반복 복구와 원래 실패 Run·journal 불변을 확인했다. 이미지 전달 경로와 준비 확인을 수정하고, 오래된 PID 파일로 인한 재시작 실패를 막도록 `/run`에 16 MiB tmpfs를 적용했다. 테스트의 finally에서 UUID·전체 ID를 대조해 전용 컨테이너와 익명 볼륨을 삭제하고 부재를 검증했으며, 최종 별도 조회에서도 테스트 컨테이너가 없었다. 완료 기록은 합성한 경계이며 실제 MySQL 데이터 복구·종료 미확인 worker·호스트 전원 장애·OS 격리의 증거는 아니다. [실행 범위와 잔존 자원 확인](sequence-container-recovery.md#독립-docker-엔진-재시작-검증)을 따른다.
+
+
+복구 명령의 자손 정리 보강 (2026-10-13): `WorkerStartupRecovery`도 공용 `WorkerProcessTree`를 사용해 정상 응답·실패·timeout·인터럽트 이후 직접 프로세스와 관찰된 자손을 정리한다. 추적 상한 128개·관찰 간격 50ms·시작 시각 대조를 유지하며 관찰 종료/정상 종료/강제 종료에 각각 2초, IO 종료에 추가 2초를 적용한다. 정리 미확인은 복구 실패로 처리해 marker를 유지하고 호출 인터럽트는 복원한다. 실제 JVM 회귀 3개에서 정상 응답·timeout·인터럽트 시 종료 신호에 버티는 자손의 강제 종료와 무관한 프로세스 보존을 확인했다. `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공: Career 120개 중 mcp-platform 42개·worker-support 52개를 재실행하고 나머지 26개 성공 결과를 재사용했다. 이어 `./gradlew test careerSequenceTest`로 루트 225개와 실제 배포물 통합 7개를 재실행해 통과했다(모두 실패·오류·건너뜀 0). 완료 기록 없는 실행의 자동 복구와 OS 수준 격리는 여전히 후속 범위다.
 
 ## D5. 다섯 모듈의 나머지 시나리오
 

@@ -114,6 +114,16 @@ class WorkerStartupRecoveryTest {
     }
     @ParameterizedTest @ValueSource(strings={"success", "nonzero", "wrong-run", "oversize", "malformed", "hang", "admission", "removed"})
     void recoveryProcessRequiresBoundedExactResponseAndZeroExit(String mode) throws Exception {
+        var manifest = fixtureManifest();
+        Path workspace = Files.createDirectory(root.resolve("worker-" + mode));
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> assertEquals(mode.equals("success"),
+                WorkerStartupRecovery.recoverProcess(manifest, workspace, "run", Duration.ofSeconds(2))));
+        if (mode.equals("hang")) {
+            long pid = Long.parseLong(Files.readString(workspace.resolve("pid")));
+            assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));
+        }
+    }
+    private WorkerManifest fixtureManifest() throws Exception {
         Path jar = root.resolve("worker.jar");
         var manifest = new java.util.jar.Manifest();
         manifest.getMainAttributes().putValue("Manifest-Version", "1.0");
@@ -124,18 +134,78 @@ class WorkerStartupRecoveryTest {
             output.putNextEntry(new java.util.jar.JarEntry(entry)); input.transferTo(output); output.closeEntry();
         }
         String hash = HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(jar)));
+        return binding(hash).manifest();
+    }
+    @ParameterizedTest @ValueSource(strings={"child-success", "child-timeout", "child-interrupt"})
+    void recoveryCleansObservedDescendantsAndPreservesUnrelatedProcess(String mode) throws Exception {
+        var manifest = fixtureManifest();
         Path workspace = Files.createDirectory(root.resolve("worker-" + mode));
-        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> assertEquals(mode.equals("success"),
-                WorkerStartupRecovery.recoverProcess(binding(hash).manifest(), workspace, "run", Duration.ofSeconds(2))));
-        if (mode.equals("hang")) {
-            long pid = Long.parseLong(Files.readString(workspace.resolve("pid")));
-            assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));
+        Process unrelated = new ProcessBuilder(manifest.javaExecutable().toString(), "-jar", manifest.jar().toString(),
+                "--descendant", "unrelated").redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        var result = new java.util.concurrent.atomic.AtomicReference<Boolean>();
+        var failure = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var interrupted = new java.util.concurrent.atomic.AtomicBoolean();
+        Thread caller = new Thread(() -> {
+            try { result.set(WorkerStartupRecovery.recoverProcess(manifest, workspace, "run",
+                    Duration.ofSeconds(mode.equals("child-timeout") ? 3 : 15))); }
+            catch (Throwable e) { failure.set(e); }
+            finally { interrupted.set(Thread.currentThread().isInterrupted()); }
+        });
+        caller.start();
+        try {
+            if (mode.equals("child-interrupt")) {
+                long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+                while (!Files.exists(workspace.resolve("child-ready")) && System.nanoTime() < deadline) Thread.sleep(20);
+                assertTrue(Files.exists(workspace.resolve("child-ready")));
+                // Retain the parent/child relationship for several observer intervals.
+                Thread.sleep(500);
+                caller.interrupt();
+            }
+            caller.join(20000);
+            assertFalse(caller.isAlive()); assertNull(failure.get());
+            assertEquals(mode.equals("child-success"), result.get());
+            assertEquals(mode.equals("child-interrupt"), interrupted.get());
+            for (String name : List.of("pid", "child.pid")) {
+                long pid = Long.parseLong(Files.readString(workspace.resolve(name)));
+                assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false), name);
+            }
+            assertTrue(unrelated.isAlive());
+        } finally {
+            caller.interrupt(); caller.join(10000);
+            unrelated.destroyForcibly(); assertTrue(unrelated.waitFor(5, java.util.concurrent.TimeUnit.SECONDS));
+            // Independently clean fixture failures, checking the unique workspace argument before signalling.
+            for (String name : List.of("pid", "child.pid")) {
+                Path file = workspace.resolve(name);
+                if (!Files.exists(file)) continue;
+                ProcessHandle.of(Long.parseLong(Files.readString(file))).ifPresent(handle -> {
+                    if (handle.info().arguments().map(args -> Arrays.asList(args).contains(workspace.toString())).orElse(false))
+                        handle.destroyForcibly();
+                });
+            }
         }
     }
     public static class RecoveryFixture {
         public static void main(String[] args) throws Exception {
+            if (args[0].equals("--descendant")) {
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    try { Thread.sleep(60000); } catch (InterruptedException ignored) {}
+                }));
+                if (!args[1].equals("unrelated")) Files.writeString(Path.of(args[1]).resolve("child-ready"), "ready");
+                Thread.sleep(60000); return;
+            }
             Path workspace = Path.of(args[1]); String mode = workspace.getFileName().toString().substring(7);
             if (!args[0].equals("--recover")) System.exit(9);
+            if (mode.startsWith("child-")) {
+                Files.writeString(workspace.resolve("pid"), Long.toString(ProcessHandle.current().pid()));
+                Process child = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                        "-cp", System.getProperty("java.class.path"), RecoveryFixture.class.getName(), "--descendant", workspace.toString())
+                        .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+                Files.writeString(workspace.resolve("child.pid"), Long.toString(child.pid()));
+                while (!Files.exists(workspace.resolve("child-ready"))) Thread.sleep(20);
+                Thread.sleep(500);
+                if (!mode.equals("child-success")) Thread.sleep(60000);
+            }
             if (mode.equals("hang")) { Files.writeString(workspace.resolve("pid"), Long.toString(ProcessHandle.current().pid())); Thread.sleep(60000); }
             if (mode.equals("oversize")) { System.out.print("x".repeat(8192)); return; }
             if (mode.equals("malformed")) { System.out.print("{broken"); return; }
