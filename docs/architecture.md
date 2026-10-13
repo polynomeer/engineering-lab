@@ -292,3 +292,11 @@ uses the existing stop grace for graceful and forced termination. Uncertain trac
 termination fails the execution and keeps the registration recovery marker. This is bounded
 observation, not OS containment: pre-observation detachment, controller death and Docker
 resources still need separate reconciliation. See [scope and limits](worker-recovery.md).
+
+
+Sequence deployment now journals a random ownership token, Run, artifact hash and Docker daemon
+identity before container creation, while holding a workspace file lock for the worker lifetime.
+A separate bounded `--recover` process takes the same lock and validates the journal, deployment,
+daemon, exact container name/image/labels and full ID before removal. It retains evidence and
+never clears controller admission. This is operator-invoked reconciliation, not automatic startup
+recovery or proof against late Docker requests. See [recovery contract](sequence-container-recovery.md).

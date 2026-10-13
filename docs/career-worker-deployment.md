@@ -88,3 +88,5 @@ worker의 JFR/trace/일반 로그/JVM 관측 capability는 false다. controller 
 등록 worker는 실행 전 영속 기록을 만들고 성공·정리 확인 후 제거한다. 실행 중이거나 실패·강제 종료 후 기록이 남으면 `INCOMPATIBLE` / `WORKER_ACTIVE_OR_RECOVERY_REQUIRED`로 새 접수를 차단한다. [복구 기록과 운영자 해제 절차](worker-recovery.md)를 따른다. Docker/Ryuk 자체 장애, 호스트 재시작 이후 잔여물 자동 조정과 일반 자손 프로세스 정리는 남아 있다.
 Run 저장소의 기존 재시작 복구는 중단된 Run을 실패로 처리하며 성공으로 추정하지 않는다.
 EOF/exit/증거 저장이 모두 확인되어야 성공 증거가 완료된다. 과거 Run 조회에는 worker 실행이 필요 없다.
+
+새 sequence worker는 컨테이너 생성 전에 소유권 기록과 배타 잠금을 만든다. controller 정지 후 같은 배포물의 `--recover <workspace> <runId>`로 해당 컨테이너를 회수할 수 있다. [복구 명령·검사·한계](sequence-container-recovery.md)를 따르며 접수 차단 해제는 별도 운영 절차다.

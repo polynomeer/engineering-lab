@@ -42,6 +42,10 @@ class SequenceWorkerLifecycleTest {
             sentinel.start();
             try (var worker = launch(300000, Map.of())) {
                 awaitContainer(worker);
+                var intent = new Properties();
+                try (var input = Files.newInputStream(workspace.resolve("sequence-container.properties"))) { intent.load(input); }
+                assertEquals(worker.runId, intent.getProperty("runId"));
+                assertEquals(intent.getProperty("token"), containers(worker.runId).getFirst().getLabels().get("engineering-lab.owner-token"));
                 worker.process.destroyForcibly();
                 assertTrue(worker.process.waitFor(10, TimeUnit.SECONDS));
                 assertNotEquals(0, worker.process.exitValue());
@@ -50,6 +54,19 @@ class SequenceWorkerLifecycleTest {
                 assertEquals("MISSING_RESULT", failure.getCause().getMessage());
                 assertTrue(worker.observed.stream().noneMatch(e -> e.type().equals("RESULT")));
                 worker.assertResourcesRemoved();
+                // Reopen the journal from a fresh deployment process after an actual worker kill.
+                Path output = workspace.resolve("recovered.json");
+                var recoveryBuilder = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                        "-Xmx256m", "-jar", System.getProperty("sequence.worker.jar"), "--recover", workspace.toString(), worker.runId)
+                        .redirectOutput(output.toFile()).redirectError(workspace.resolve("recovery.log").toFile());
+                for (String key : List.of("JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "CLASSPATH")) recoveryBuilder.environment().remove(key);
+                Process recovery = recoveryBuilder.start();
+                try {
+                    assertTrue(recovery.waitFor(70, TimeUnit.SECONDS));
+                    assertEquals(0, recovery.exitValue());
+                    assertEquals("RECOVERED", WireJson.parse(Files.readAllBytes(output)).path("status").asText());
+                    assertTrue(Files.exists(workspace.resolve("sequence-container.properties")));
+                } finally { if (recovery.isAlive()) recovery.destroyForcibly().waitFor(); }
                 assertTrue(sentinel.isRunning(), "An unrelated session's container must survive");
             }
         }

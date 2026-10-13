@@ -257,3 +257,7 @@ FAILED로 거절하고 stderr에 `RESOURCE_REAPER_DISABLED`를 남깁니다. 환
 이 범위는 Docker daemon과 Ryuk이 살아 있는 로컬 환경입니다. daemon/호스트 장애,
 Ryuk 자체 장애, 재시작 후 잔여 컨테이너 조정, 일반 자손 프로세스 정리 및 중앙 API 취소는
 아직 보장하지 않습니다. 중앙 등록은 명시적으로 활성화한 경우에만 사용하며 독립 Dashboard에서 실행·검증 결과를 확인할 수 있습니다.
+
+### 컨테이너 소유권과 실행별 복구
+
+worker는 workspace 배타 잠금을 유지하고 MySQL 생성 전 Run·배포 hash·Docker 엔진·소유권 토큰을 기록한다. 같은 배포 jar의 `--recover <workspace> <runId>`는 worker가 종료된 경우에만 해당 소유 컨테이너를 회수한다. 기록을 보존하고 중앙 접수 차단을 해제하지 않는다. [명령과 보장 범위](../../docs/sequence-container-recovery.md)를 따른다.

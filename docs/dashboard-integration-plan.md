@@ -111,7 +111,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 서버 소유 배포물의 bounded probe로 Java/protocol/Docker 준비 상태를 확인하고 접수 전 거절한다.
 - [x] 등록 worker의 영속 실행 기록으로 비정상 종료 후 새 접수를 차단하고 수동 복구 절차를 제공한다.
 - [x] 살아 있는 controller가 관찰한 자손을 제한된 개수로 추적하고 정상 종료·timeout·인터럽트 시 정리한다.
-- [ ] daemon/재시작 후 잔여 자원 자동 조정과 관찰 범위 밖 프로세스 격리·정리를 연결·검증한다.
+- [x] sequence 컨테이너 생성 전 소유권 기록·배타 잠금과 실행별 복구 명령을 제공한다.
+- [ ] daemon/재시작 후 서버의 자동 재조정·접수 재개와 관찰 범위 밖 프로세스 격리·정리를 연결·검증한다.
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
@@ -160,6 +161,10 @@ sequence 화면 검증 (2026-10-10): Node 24.19.0/npm 11.6.0에서 typecheck/bui
 
 관찰된 자손 종료 검증 (2026-10-10): 최종 `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공. Career 105개 중 worker-support 52개와 mcp-platform 27개를 재실행했고 나머지 26개는 성공 결과를 재사용했다. 신규 6개 테스트는 실제 자손의 정상/timeout/인터럽트 정리·무관한 프로세스 보존과 합성 상한/identity 누락/PID 재사용을 다룬다. 실제 MySQL 세 variant와 기존 부모 EOF/deadline/보고서 실패/강제 종료·세션 격리 회귀도 통과했다. 이어서 `./gradlew test` 루트 전체 195개를 재실행해 통과했다. 모두 실패·오류·건너뜀 0이다.
 
+sequence 소유권·복구 명령 구현 (2026-10-13): worker는 workspace 배타 잠금을 유지하고 MySQL 생성 전에 Run·배포 hash·Docker 엔진·UUID 토큰을 최대 4 KiB 기록으로 저장한다. 별도 배포 프로세스의 `--recover <workspace> <runId>`는 같은 잠금과 소유권을 검증해 해당 컨테이너만 회수하며 60초 종료 제한을 적용한다. 실행 중 잠금·손상/링크 기록·다른 엔진·모호한 후보·라벨/이름/이미지 불일치를 거부하고 기록과 중앙 접수 차단을 보존한다. [복구 계약과 운영 절차](sequence-container-recovery.md)를 따른다. 서버 시작 시 자동 재조정과 실제 daemon 장애 주입 검증은 이 단위에 포함하지 않는다.
+
+sequence 소유권·복구 검증 (2026-10-13): `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공. Career 120개 중 변경된 mcp-platform 42개를 재실행했고 나머지 78개는 성공 결과를 재사용했다. 신규 15개 검증으로 잠금·기록 재개방·불완전/링크/크기·Run/hash/엔진·소유권·모호한 후보·삭제 미확인·반복 복구를 확인했다. 실제 배포 명령으로 살아 있는 소유 컨테이너만 회수하고 같은 Run 라벨의 다른 컨테이너를 보존했으며, 기존 강제 종료 테스트에서 실제 worker 기록을 새 프로세스로 재개방했다. 기존 세 variant와 장애 회귀도 통과했다. 필수 `./gradlew test`는 루트 195개 성공 결과를 재사용해 통과했다. 모두 실패·오류·건너뜀 0이다. 실제 daemon 재시작/호스트 장애 실험은 미실시다.
+
 ## D5. 다섯 모듈의 나머지 시나리오
 
 D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 시 기존 회귀 테스트도 실행한다.
@@ -200,4 +205,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: daemon/재시작 장애 복구 보강**이다. 영속 접수 보호와 관찰된 자손 종료 이후 소유 자원 기록·제한된 자동 조정과 OS 수준 프로세스 격리를 구현·검증한다. [현재 보호 범위와 수동 복구](worker-recovery.md)를 따른다.
+다음 실행 작업은 **D4: daemon/재시작 장애 복구 보강**이다. 소유권 기록과 명시적 복구 명령 이후 실제 daemon 장애 주입·서버 시작 시 재조정·접수 재개와 OS 수준 프로세스 격리를 구현·검증한다. [현재 컨테이너 회수 범위](sequence-container-recovery.md)를 따른다. [현재 보호 범위와 수동 복구](worker-recovery.md)를 따른다.
