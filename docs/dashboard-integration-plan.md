@@ -117,7 +117,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 시작 시 복구 명령에도 관찰된 자손 정리를 적용하고 정상 응답·시간 초과·인터럽트 회귀를 검증한다.
 - [x] 종료 확인 기록이 있는 실행의 전용 Docker 엔진 SIGKILL·재시작·소유 자원 회수와 테스트 자원 삭제를 검증한다.
 - [x] 비특권 worker 컨테이너 경계에서 분리 프로세스·controller 강제 종료·새 회수 프로세스를 검증하고 설계를 확정한다(I1).
-- [ ] 영속 소유권·container transport·sequence DB 소유자 분리·종료 미확인 복구를 연결·검증한다(I2–I5).
+- [x] 영속 소유권과 컨테이너 생성·시작·회수 어댑터를 구현하고 미확인 요청 차단을 검증한다(I2).
+- [ ] container transport·sequence DB 소유자 분리·종료 미확인 복구를 연결·검증한다(I3–I5).
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
@@ -183,6 +184,8 @@ Docker 통신 장애 검증 (2026-10-13): `SequenceRecoveryTransportTest`가 실
 
 컨테이너 격리 기반 검증 (2026-10-13): [실행 경계 설계와 단계](worker-container-isolation.md)를 추가했다. controller가 Docker 자원을 소유하고 worker에는 Docker 접근을 주지 않는 별도 실행 경로를 선택했다. 기존 LOCAL_JVM/marker는 유지한다. `workerContainerIsolationTest`의 실제 Docker 검증 2개가 통과했다. PPID 1·독립 세션의 분리 프로세스가 controller kill 뒤에도 실행 중임을 확인하고, 새 JVM이 실행 중인 경계 또는 PID 공간 init을 SIGKILL한 경계를 소유권 검사 후 회수했다. 비교 컨테이너 보존·기존 미완료 marker 불변·시험 자원 삭제를 확인했다. 필수 `./gradlew test`는 루트 225개 성공 결과를 재사용했다. 실제 Java 21 transport·DB 소유자 분리·새 영속 기록/자동 해제는 아직 구현하지 않았고, 다음 단위는 I2 container lifecycle 어댑터다.
 
+컨테이너 수명주기 구현·검증 (2026-10-13): `WorkerContainerLifecycle`이 실행별 파일 잠금과 최대 6개/각 4 KiB 영속 기록으로 생성 의도·전체 ID·시작 의도/응답·회수 의도/완료를 관리한다. `DockerContainerEngine`은 고정 비특권 프로파일, 이미지 ID·명령·소유권 검증, bounded CLI를 제공한다. 생성/시작 응답 유실은 운영자 확인을 유지하고, 삭제 응답 유실은 같은 엔진·전체 ID의 부재를 확인해 재개한다. 기록을 새 JVM으로 재개방하며 과거 중앙 marker/Run을 변경하지 않는다. `./gradlew test workerContainerIsolationTest` 성공: 신규 상태/장애 단위 18개를 포함한 루트 243개와 실제 Docker 검증 4개(I1 2개, 어댑터의 정지/실행 경계 회수 2개)를 재실행해 통과했다. 실패·오류·건너뜀 0이며 최종 Docker 조회에서 시험 컨테이너가 없었다. Career 모듈 코드/빌드는 변경하지 않았다. I2를 완료하며 다음은 I3 protocol transport와 중앙 executor 연결이다.
+
 ## D5. 다섯 모듈의 나머지 시나리오
 
 D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 시 기존 회귀 테스트도 실행한다.
@@ -223,4 +226,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4-I2: 컨테이너 수명주기와 영속 소유권 어댑터**다. [I1–I5 설계](worker-container-isolation.md)에 따라 생성 의도 기록 → 정지 상태 생성 → 전체 ID 검증·기록 → 시작 순서를 구현하고, 미확인 create/start 응답은 자동 해제하지 않는다. I1의 경계 검증과 기존 완료 기록 기반 재조정은 완료했으며 운영 container executor와 종료 미확인 자동 복구는 후속 단위다. [현재 컨테이너 회수 범위](sequence-container-recovery.md)를 따른다. [현재 보호 범위와 수동 복구](worker-recovery.md)를 따른다.
+다음 실행 작업은 **D4-I3: 실제 Java 21 protocol transport와 중앙 executor 연결**이다. [I1–I5 설계](worker-container-isolation.md)에 따라 container lifecycle 어댑터를 protocol/evidence 경계에 연결한다. I2는 영속 소유권·생성/시작 미확인 차단·정확한 ID 회수를 제공하지만 중앙 marker 해제와 Run 복구는 아직 담당하지 않는다. sequence DB 소유자 분리와 종료 미확인 자동 복구는 I4/I5에서 진행한다.

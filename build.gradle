@@ -126,6 +126,7 @@ tasks.register('careerSequenceTest', Test) {
     useJUnitPlatform()
     exclude '**/SequenceDaemonRecoveryTest*'
     exclude '**/WorkerContainerIsolationTest*'
+    exclude '**/WorkerContainerLifecycleIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -143,6 +144,7 @@ tasks.register('workerContainerIsolationTest', Test) {
     classpath = sourceSets.careerTest.runtimeClasspath
     useJUnitPlatform()
     include '**/WorkerContainerIsolationTest.class'
+    include '**/WorkerContainerLifecycleIntegrationTest.class'
     systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
     outputs.upToDateWhen { false }
 }

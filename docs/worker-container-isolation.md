@@ -4,7 +4,9 @@
 
 2026-10-13 D4의 다음 실행 경계로 **controller가 소유하는 비특권 worker 컨테이너**를 선택한다.
 기존 LOCAL_JVM과 완료 기록 기반 복구는 유지한다. 이 문서의 운영 경로는 설계이며,
-현재 추가한 `WorkerContainerIsolationTest`는 PID 공간과 별도 복구 프로세스의 검증용 fixture다.
+`WorkerContainerIsolationTest`는 PID 공간과 별도 복구 프로세스의 검증용 fixture다.
+I2의 `WorkerContainerLifecycle`과 `DockerContainerEngine`은 독립 수명주기 어댑터로 구현했으며
+중앙 executor/접수 자동 해제에는 아직 연결하지 않았다.
 운영 container executor, sequence의 외부 DB 연결 모드, 종료 미확인 접수 자동 해제는 아직 구현하지 않았다.
 
 관찰 기반 `WorkerProcessTree`는 관찰 전에 부모와 분리된 프로세스와 controller 사망 후의
@@ -107,9 +109,59 @@ finally에서도 두 컨테이너 각각의 소유권을 대조해 정리하고 
 | 단위 | 완료 조건 | 상태 |
 | --- | --- | --- |
 | I1 | 비특권 경계·분리 프로세스·controller kill·새 회수 프로세스·비교 자원 보존 검증 | 검증 2개 통과 |
-| I2 | 생성 전 영속 의도·생성 후 ID 기록·불확실 요청 차단을 포함한 container lifecycle 어댑터 | 예정 |
+| I2 | 생성 전 영속 의도·생성 후 ID 기록·불확실 요청 차단을 포함한 container lifecycle 어댑터 | 구현, 별도 어댑터 검증 |
 | I3 | 실제 Java 21 protocol transport·artifact·종료/증거 저장과 중앙 executor 연결 | 예정 |
 | I4 | sequence의 DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증 | 예정 |
 | I5 | 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입 | 예정 |
 
 I1만으로 D4 전체 복구 또는 종료 미확인 실행의 자동 복구를 완료로 표시하지 않는다.
+
+## I2 수명주기 어댑터 계약
+
+서버가 관리하는 실행별 기존 디렉터리와 `Spec`(Run ID, 배포 SHA-256, 이미지 ID, 명령)을
+`WorkerContainerLifecycle`에 전달한다. 생성자는 `.lock` 파일의 배타 잠금을 종료까지
+유지하며 중복 controller와 링크 잠금 파일을 거부한다. HTTP 입력으로 생성하지 않는다.
+중앙 RunStore 잠금과 실행 슬롯 확보는 후속 executor의 책임이다.
+
+`create()`는 `intent.json`을 먼저 force하고 정지 상태의 컨테이너를 만든다. 실제 설정과
+이미지·이름·Run/배포/UUID 라벨을 검사하고 `created.json`에 전체 ID를 force한 후 반환한다.
+`start()`는 `starting.json`을 먼저 force하며 응답과 소유권 확인 후 `started.json`을 남긴다.
+기록은 append-only 단계별 파일이며 각각 최대 4 KiB, 최대 6개다. 모든 후속 기록은 최초
+intent 바이트의 SHA-256에 결합한다. 부분 쓰기·순서 오류·링크·다른 배포/명령·기록 초과는
+차단한다. 기존 파일을 덮어쓰거나 정리하면서 삭제하지 않는다. 디렉터리 fsync를 포함한
+호스트 전원 장애 내구성은 보장하지 않는다.
+
+| 재개방 상태 | 의미 / 동작 |
+| --- | --- |
+| EMPTY | Docker 변경 요청 전, 복구 불필요 |
+| CREATE_UNCONFIRMED | 생성 의도만 존재, 생성 재요청·자동 회수 금지 |
+| CREATED | 전체 ID가 확인된 정지 경계, 시작 또는 회수 가능 |
+| START_UNCONFIRMED | 시작 의도만 존재, 시작 재요청·자동 회수 금지 |
+| STARTED | 시작 응답과 소유권 확인 완료, 회수 가능 |
+| REMOVING | 회수 의도 저장 후 결과 미확인, 정확한 ID를 다시 조사해 회수 재개 |
+| REMOVED | 같은 엔진에서 부재 확인 완료, 재확인만 수행 |
+
+`reconcile()`는 엔진 ID를 전후로 확인하고 전체 ID의 이름·라벨·이미지·격리 설정을 검사한다.
+확인된 대상만 강제 삭제하며, 빈 결과는 성공한 같은 엔진 조회에서만 인정한다.
+삭제 후 응답 유실은 다음 재개방에서 부재를 확인할 수 있다. 생성/시작 미확인은 Docker를
+조회해 추정하지 않고 `REQUIRES_OPERATOR`를 반환한다. 중앙 marker, Run 결과와 증거를
+수정하거나 해제하는 API는 없다. 작업 재실행도 하지 않는다.
+
+`isolated-v1` 프로파일은 사용자 65534, read-only rootfs, cap-drop=ALL,
+no-new-privileges, 전용 PID/IPC, network=none, restart=no, memory=256 MiB, CPU 1개,
+PID 64개, 로그 저장 없음, 16 MiB `/tmp` tmpfs다. 명령은 최대 32개 인자·인자당 1024문자·
+총 2048문자이며 기록의 UTF-8 크기 상한도 적용한다. 이미지 ID만 허용하고 pull은 하지 않는다.
+이미지 entrypoint는 등록된 명령으로 대체하며 생성 후 실제 command도 대조한다.
+호스트 mount/소켓·공유 namespace·장치·추가 capability·포트 바인딩을 허용하지 않는다.
+이는 DB 연결 전 단계의 고정 프로파일이며 I4에서 전용 네트워크 계약을 별도로 추가해야 한다.
+
+Docker CLI는 응답당 최대 64 KiB·30초, 직접 프로세스/IO 종료 대기는 각각 2초다.
+파일 검사/force와 OS 호출 자체의 강제 중단 시간은 보장하지 않는다. CLI timeout은 Docker
+서버 요청의 취소 증거가 아니므로 생성·시작 상태를 확정하지 않는다. 응답 오류의 전체 출력은
+예외에 복사하지 않는다. Docker 환경은 controller가 신뢰하는 로컬 설정을 사용한다.
+
+`WorkerContainerLifecycleTest`는 Docker 대역으로 영속 기록 순서·응답 유실·동일 ID 삭제·
+변조/격리 오류·배타 잠금·재개방을 검증한다. `workerContainerIsolationTest` task에는
+`WorkerContainerLifecycleIntegrationTest`도 포함한다. 이 검증은 실제 어댑터로 만든
+정지/실행 컨테이너를 새 JVM이 영속 기록만으로 회수하고 반복 회수와 자원 부재를 확인한다.
+기존 I1의 비교 자원 보존 검증도 함께 실행한다.

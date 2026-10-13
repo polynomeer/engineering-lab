@@ -326,3 +326,12 @@ retains LOCAL_JVM compatibility. An isolated Docker fixture verifies reparented,
 processes surviving controller death and scoped reclamation by a fresh JVM. This is a boundary
 proof, not a production executor or authorization to clear legacy unconfirmed markers.
 See [the lifecycle, compatibility and staged implementation design](worker-container-isolation.md).
+
+
+The I2 container lifecycle adapter journals create/start intent before mutation and confirmed
+IDs/responses afterward. Six bounded append-only records share an intent hash and an exclusive
+file lock. Unconfirmed create/start requests require operator reconciliation; known-ID removal
+can resume after response loss. The CLI backend pins the image/command and enforces the fixed
+isolated-v1 profile before destructive actions. It retains all journal files and does not clear
+central admission or alter Run evidence. Protocol transport and module resource provisioning
+remain separate implementation units; see [I2 contract](worker-container-isolation.md#i2-수명주기-어댑터-계약).
