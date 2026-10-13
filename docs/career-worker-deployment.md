@@ -95,3 +95,7 @@ EOF/exit/증거 저장이 모두 확인되어야 성공 증거가 완료된다. 
 시작 시 복구는 `LAB_CAREER_SEQUENCE_RECOVER_ON_STARTUP=true`로 켠다. RunStore 배타 잠금과
 중단 Run 복원 이후 실행하므로 복구 중 sequence 접수는 열리지 않는다. 완료 기록 없는 강제 종료는
 자동 해제하지 않는다. [대상 조건·시간/출력 한도·결과 코드](sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구)를 따른다.
+
+Docker 통신 장애만 재현하려면 `./gradlew careerSequenceTest --tests '*SequenceRecoveryTransportTest'`를 사용한다.
+실제 배포물과 테스트 전용 Docker API를 연결하며 공유 엔진을 중단하지 않는다.
+[장애별 검증 범위](sequence-container-recovery.md#docker-통신-장애-회귀-검증)를 확인한다.

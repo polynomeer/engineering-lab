@@ -129,5 +129,6 @@ tasks.register('careerSequenceTest', Test) {
     inputs.file(manifest)
     inputs.files(fileTree('career-lab/mcp-platform/build/libs') { include '*-sequence-worker.jar' })
     systemProperty 'lab.sequence.manifest', manifest.absolutePath
+    systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
     outputs.upToDateWhen { false }
 }

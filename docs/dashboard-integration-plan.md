@@ -113,6 +113,7 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 살아 있는 controller가 관찰한 자손을 제한된 개수로 추적하고 정상 종료·timeout·인터럽트 시 정리한다.
 - [x] sequence 컨테이너 생성 전 소유권 기록·배타 잠금과 실행별 복구 명령을 제공한다.
 - [x] 종료 확인 기록이 있는 sequence의 opt-in 시작 시 재조정·접수 재개를 연결한다.
+- [x] 실제 복구 배포물의 Docker HTTP 장애·응답 유실·무응답과 새 프로세스 재시도 시 접수 차단을 검증한다.
 - [ ] 종료 미확인 강제 종료·daemon 장애 후 자동 재조정과 관찰 범위 밖 프로세스 격리·정리를 연결·검증한다.
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
@@ -169,6 +170,8 @@ sequence 소유권·복구 검증 (2026-10-13): `./scripts/career-lab.sh test :m
 종료 확인 기반 시작 시 복구 구현 (2026-10-13): controller가 EOF·worker 종료·증거 flush·관찰된 자손/IO 정리를 확인한 뒤 marker 소유권과 연결된 최대 4 KiB 완료 기록을 저장한다. `lab.career.sequence.recover-on-startup` 기본값 false를 유지하며, 활성화하면 RunStore 배타 소유권과 중단 Run 복원 이후 한 번 재조정한다. sequence의 정상 완료 또는 기대값 불일치만 자동 복구 후보로 허용하며, 같은 배포물의 bounded CLI가 소유권과 정리를 확인한 뒤 해당 marker만 해제한다. 원래 Run 결과·증거는 유지한다. 종료 확인 기록이 없는 강제 종료와 일반 준비/정리/통신 실패는 수동 확인을 유지한다. 공통 runtime은 복구 정책을 받으며 sequence 결과 사유 판단은 모듈 등록에 둔다. [구체적 조건과 제한](sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구)을 따른다.
 
 종료 확인 기반 시작 시 복구 검증 (2026-10-13): `./gradlew test careerSequenceTest` 성공. 루트 전체 222개와 실제 Docker 통합 2개를 재실행해 통과했다(실패·오류·건너뜀 0). 종료 확인 파일 유무에 따른 별도 프로세스 강제 종료·재개방, 손상/링크/소유권/배포 불일치, 불확실한 실패 차단, 복구 stdout 상한·잘못된 응답·비정상 종료·timeout 정리를 검증했다. 실제 Java 21 배포물을 사용해 종료 확인 직후의 영속 경계를 재현하고, 옵션 비활성 차단·동일 저장소 중복 기동 거절·옵션 활성 서버 재시작 복구·과거 Run 불변·후속 실행 성공·완료 기록 없는 실행 차단을 확인했다. 기존 세 variant API 회귀도 통과했다. 실제 Docker 엔진/호스트 장애 주입 검증은 아니며 Career 모듈 코드·빌드는 변경하지 않았다.
+
+Docker 통신 장애 검증 (2026-10-13): `SequenceRecoveryTransportTest`가 실제 Java 21 배포물과 별도 중앙 복구 프로세스를 루프백 Docker API에 연결한다. 조회 503·무응답·삭제 503·삭제 후 응답 유실·삭제 후 엔진 ID 변경을 주입했다. 모든 첫 복구가 접수 차단과 완료 기록을 보존하며, 정상 응답 복원 후 새 프로세스가 같은 저장소를 열어 재조정하고 원래 Run 실패 상태·사유와 journal을 유지하는 것을 검증했다. 이미 삭제된 자원은 다음 프로세스에서 재삭제하지 않는다. 소유권 토큰·조회 상한·정확한 ID 삭제와 Testcontainers 세션 한정 정리 요청을 검사한다. `./gradlew test careerSequenceTest` 성공: 신규 장애 5개와 기존 실제 Docker/API/서버 재시작 2개를 실행해 통과했고, 루트 222개는 기존 성공 결과를 재사용했다. 모두 실패·오류·건너뜀 0이다. 실제 공유 엔진을 중단하지 않았으며 엔진/호스트 재시작·OS 격리 검증은 여전히 후속 범위다. [재현 방법](sequence-container-recovery.md#docker-통신-장애-회귀-검증)을 따른다.
 
 ## D5. 다섯 모듈의 나머지 시나리오
 
