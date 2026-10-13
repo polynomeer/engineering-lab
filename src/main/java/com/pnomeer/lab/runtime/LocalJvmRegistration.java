@@ -36,7 +36,9 @@ public record LocalJvmRegistration(String id, WorkerManifest manifest, Path work
                     return new Outcome(RunStatus.FAILED, ExperimentSummary.empty(), "WORKER_RECOVERY_REQUIRED", false);
                 }
                 // Exceptions, interruption and controller death intentionally retain the marker.
-                var outcome = super.execute(experiment, scenario, output);
+                var outcome = super.executeWithCompletion(experiment, scenario, output, result ->
+                        ticket.recordCompletion(result.workspace(), result.outcome().path("status").asText(),
+                                result.outcome().path("reason").asText("")));
                 if (outcome.status() == RunStatus.SUCCEEDED && !outcome.interrupted()) {
                     try { ticket.confirmSuccess(); }
                     catch (IOException e) {

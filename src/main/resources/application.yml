@@ -28,6 +28,7 @@ lab:
   career:
     sequence:
       enabled: false
+      recover-on-startup: false
       manifest: ""
       java-executable: ""
   dashboard:

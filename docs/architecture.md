@@ -300,3 +300,13 @@ A separate bounded `--recover` process takes the same lock and validates the jou
 daemon, exact container name/image/labels and full ID before removal. It retains evidence and
 never clears controller admission. This is operator-invoked reconciliation, not automatic startup
 recovery or proof against late Docker requests. See [recovery contract](sequence-container-recovery.md).
+
+
+Opt-in `lab.career.sequence.recover-on-startup` now runs once during registration after exclusive
+RunStore ownership and interrupted-Run recovery. A separate controller receipt binds the exact
+admission marker to a returned transport result and workspace. Only SUCCEEDED or sequence
+EXPECTATION_NOT_MET outcomes qualify; uncertain preparation, cleanup, interruption and transport
+failures stay blocked. A verified same-artifact recovery subprocess must confirm scoped resource
+reconciliation before the matching receipt/marker can be released. Historical Run evidence is
+unchanged. Missing receipts and arbitrary crash recovery still require operator reconciliation
+and stronger isolation. See [startup contract](sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구).

@@ -39,12 +39,14 @@ class WorkerRecoveryGuardTest {
         assertThrows(java.io.IOException.class, ticket::confirmSuccess);
         assertEquals("preserve", Files.readString(target));
     }
-    @Test void killedControllerLeavesDurableMarkerForNextProcess() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans={false, true})
+    void killedControllerLeavesDurableMarkerForNextProcess(boolean completed) throws Exception {
         Path marker = root.resolve("active.properties");
         String classpath = Path.of(CrashFixture.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 + java.io.File.pathSeparator + Path.of(WorkerRecoveryGuard.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         Process child = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                "-cp", classpath, CrashFixture.class.getName(), marker.toString()).redirectError(ProcessBuilder.Redirect.INHERIT).start();
+                "-cp", classpath, CrashFixture.class.getName(), marker.toString(), Boolean.toString(completed)).redirectError(ProcessBuilder.Redirect.INHERIT).start();
         try {
             assertTimeoutPreemptively(Duration.ofSeconds(10), () -> assertEquals(1, child.getInputStream().read()));
             child.destroyForcibly();
@@ -53,11 +55,24 @@ class WorkerRecoveryGuardTest {
             assertTrue(restarted.pending());
             assertThrows(java.io.IOException.class, () -> restarted.begin("new-run", "a".repeat(64)));
             assertTrue(Files.readString(marker).contains("runId=crashed-run"));
+            if (completed) assertEquals("SUCCEEDED", restarted.completed("a".repeat(64)).status());
+            else assertThrows(java.io.IOException.class, () -> restarted.completed("a".repeat(64)));
         } finally { child.destroyForcibly(); child.waitFor(10, java.util.concurrent.TimeUnit.SECONDS); }
+    }
+    @Test void orphanReceiptBlocksReadinessAndNewTicket() throws Exception {
+        Path marker = root.resolve("active.properties");
+        var guard = new WorkerRecoveryGuard(marker);
+        guard.begin("run", "a".repeat(64)).recordCompletion(Files.createDirectory(root.resolve("worker-one")), "SUCCEEDED", "");
+        Files.delete(marker);
+        assertTrue(guard.pending());
+        assertThrows(java.io.IOException.class, () -> guard.begin("next", "a".repeat(64)));
     }
     public static class CrashFixture {
         public static void main(String[] args) throws Exception {
-            new WorkerRecoveryGuard(Path.of(args[0])).begin("crashed-run", "a".repeat(64));
+            Path marker = Path.of(args[0]);
+            var ticket = new WorkerRecoveryGuard(marker).begin("crashed-run", "a".repeat(64));
+            if (Boolean.parseBoolean(args[1])) ticket.recordCompletion(
+                    Files.createDirectory(marker.getParent().resolve("worker-crashed")), "SUCCEEDED", "");
             System.out.write(1); System.out.flush();
             Thread.sleep(60000);
         }

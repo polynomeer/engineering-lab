@@ -65,6 +65,10 @@ class LocalJvmRegistrationTest {
             }
             Path marker = LocalJvmRegistration.marker(root.resolve("workspaces"), "fixture-worker");
             byte[] original = Files.readAllBytes(marker);
+            var completed = new WorkerRecoveryGuard(marker).completed(manifest().artifactSha256());
+            assertEquals("failed-worker", completed.runId());
+            assertEquals("FAILED", completed.status());
+            assertTrue(Files.isDirectory(completed.workspace()));
             var restarted = registration(true);
             assertEquals("WORKER_ACTIVE_OR_RECOVERY_REQUIRED", restarted.readiness().get().reason());
             try (var runner = runner(store, restarted)) {
@@ -73,6 +77,16 @@ class LocalJvmRegistrationTest {
                 assertTrue(store.find("blocked").isEmpty());
                 assertArrayEquals(original, Files.readAllBytes(marker));
             }
+        }
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"malformed", "nonzero"})
+    void invalidTransportCannotCreateCompletionReceipt(String mode) throws Exception {
+        try (var store = new JdbcRunStore(root.resolve("db"), 20, 4); var runner = runner(store, registration(true, mode))) {
+            assertEquals(ExperimentStatus.FAILED, runner.run(experiment, () -> "scenario", "invalid-worker").status());
+            Path marker = LocalJvmRegistration.marker(root.resolve("workspaces"), "fixture-worker");
+            assertTrue(Files.exists(marker));
+            assertFalse(Files.exists(marker.resolveSibling(marker.getFileName() + ".completed")));
         }
     }
     @Test void readinessVerifiesJarAndSameJavaDeploymentProbe() throws Exception {

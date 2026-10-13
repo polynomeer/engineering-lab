@@ -51,9 +51,10 @@ public class SequenceRegistrationConfiguration {
             }
         }, (definition, input) -> new Scenario(definition, documents.hash(definition)));
     }
-    @Bean public LocalJvmRegistration sequenceWorker(StorageProperties storage,
+    @Bean public LocalJvmRegistration sequenceWorker(StorageProperties storage, com.pnomeer.lab.storage.JdbcRunStore store,
             @Value("${lab.career.sequence.manifest}") String manifestFile,
-            @Value("${lab.career.sequence.java-executable}") String javaExecutable) throws Exception {
+            @Value("${lab.career.sequence.java-executable}") String javaExecutable,
+            @Value("${lab.career.sequence.recover-on-startup:false}") boolean recoverOnStartup) throws Exception {
         Path descriptor = Path.of(manifestFile).toAbsolutePath().normalize();
         byte[] bytes;
         try (var input = Files.newInputStream(descriptor)) { bytes = input.readNBytes(16385); }
@@ -69,7 +70,7 @@ public class SequenceRegistrationConfiguration {
         var manifest = new WorkerManifest(Path.of(javaExecutable), descriptor.getParent().resolve(jarFile),
                 data.path("artifactSha256").asText(), "mcp-platform", Set.of(ID), 256);
         Path root = Path.of(storage.root()).toAbsolutePath();
-        return new LocalJvmRegistration("sequence-worker", manifest, Files.createDirectories(root.resolve("worker-workspaces")), root,
+        var binding = new LocalJvmRegistration("sequence-worker", manifest, Files.createDirectories(root.resolve("worker-workspaces")), root,
                 Set.of("sequence.elapsedNanos", "sequence.overlapPairs", "sequence.finalValue"), scenario -> {
                     var input = (Scenario) scenario;
                     var parameters = WireJson.object();
@@ -78,5 +79,16 @@ public class SequenceRegistrationConfiguration {
                     });
                     return new LocalJvmExecutor.Request(parameters, input.hash(), 0);
                 }, new WorkerReadiness(manifest, Duration.ofSeconds(60)), VARIANTS);
+        // Bean dependency ensures exclusive storage ownership and interrupted-Run recovery precede this action.
+        if (recoverOnStartup) {
+            // Only these sequence paths finish DB startup and context/container cleanup without cancellation.
+            var result = new WorkerStartupRecovery(outcome ->
+                    outcome.status().equals("SUCCEEDED") && outcome.reason().isEmpty()
+                    || outcome.status().equals("FAILED") && outcome.reason().equals("EXPECTATION_NOT_MET"))
+                    .recover(binding, store);
+            org.slf4j.LoggerFactory.getLogger(SequenceRegistrationConfiguration.class)
+                    .info("stage=worker_startup_recovery registration_id={} result={}", binding.id(), result);
+        }
+        return binding;
     }
 }

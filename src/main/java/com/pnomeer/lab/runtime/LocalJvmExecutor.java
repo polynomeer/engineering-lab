@@ -37,7 +37,13 @@ public class LocalJvmExecutor implements ExperimentExecutor {
                 "execution.workerArtifactSha256", manifest.artifactSha256(), "observation.jvm.mode", "OFF",
                 "observation.trace.mode", "OFF", "observation.jfr.mode", "OFF", "observation.logs.mode", "OFF");
     }
+    @FunctionalInterface
+    interface Completion { void accept(WorkerProcess.Result result) throws java.io.IOException; }
     public <C extends ExperimentScenario> Outcome execute(Experiment<C> experiment, C scenario, Output output) {
+        return executeWithCompletion(experiment, scenario, output, ignored -> {});
+    }
+    final <C extends ExperimentScenario> Outcome executeWithCompletion(Experiment<C> experiment, C scenario,
+            Output output, Completion completion) {
         RunStatus status = RunStatus.FAILED;
         ExperimentSummary summary = ExperimentSummary.empty();
         String failure = null;
@@ -84,6 +90,9 @@ public class LocalJvmExecutor implements ExperimentExecutor {
                 }
                 public void flush() { output.drainMetrics().run(); }
             });
+            // Only a returned transport result proves EOF, exit, evidence flush and observed-process/IO cleanup.
+            // Worker summary fields are never used as controller completion evidence.
+            completion.accept(result);
             status = RunStatus.valueOf(text(result.outcome(), "status"));
             var counters = new HashMap<String, Long>(); var gauges = new HashMap<String, Double>(); var details = new HashMap<String, String>();
             result.outcome().path("summary").fields().forEachRemaining(e -> {

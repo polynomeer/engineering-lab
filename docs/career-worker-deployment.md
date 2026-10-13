@@ -34,6 +34,7 @@ LAB_CAREER_SEQUENCE_JAVA_EXECUTABLE="/absolute/jdk21/bin/java" \
 
 | 설정 | 기본값 / 계약 |
 | --- | --- |
+| `lab.career.sequence.recover-on-startup` | `false`; true이면 종료 확인 기록이 있는 sequence만 시작 시 한 번 재조정하며, 성공 시 접수 차단 해제 |
 | `lab.career.sequence.enabled` | `false`; true일 때만 모듈·실험·실행기를 등록 |
 | `lab.career.sequence.manifest` | 빈 문자열; 활성화 시 관리자 소유 descriptor 파일 필요 |
 | `lab.career.sequence.java-executable` | 빈 문자열; 활성화 시 Java 21 절대 경로 필요 |
@@ -90,3 +91,7 @@ Run 저장소의 기존 재시작 복구는 중단된 Run을 실패로 처리하
 EOF/exit/증거 저장이 모두 확인되어야 성공 증거가 완료된다. 과거 Run 조회에는 worker 실행이 필요 없다.
 
 새 sequence worker는 컨테이너 생성 전에 소유권 기록과 배타 잠금을 만든다. controller 정지 후 같은 배포물의 `--recover <workspace> <runId>`로 해당 컨테이너를 회수할 수 있다. [복구 명령·검사·한계](sequence-container-recovery.md)를 따르며 접수 차단 해제는 별도 운영 절차다.
+
+시작 시 복구는 `LAB_CAREER_SEQUENCE_RECOVER_ON_STARTUP=true`로 켠다. RunStore 배타 잠금과
+중단 Run 복원 이후 실행하므로 복구 중 sequence 접수는 열리지 않는다. 완료 기록 없는 강제 종료는
+자동 해제하지 않는다. [대상 조건·시간/출력 한도·결과 코드](sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구)를 따른다.

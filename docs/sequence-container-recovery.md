@@ -1,7 +1,7 @@
 # Sequence 컨테이너 소유권과 복구 명령
 
 이 문서는 D4의 **실행별 컨테이너 회수 단위**다. 기존 [접수 차단 기록과 프로세스 복구](worker-recovery.md)를 유지한다.
-서버 시작 시 자동 복구·접수 재개는 아직 연결하지 않았다. 관리자가 controller를 정지하고
+종료 확인 기록이 있는 실행은 아래 opt-in 시작 시 복구를 사용할 수 있다. 그 외에는 관리자가 controller를 정지하고
 대상 workspace와 Run을 확인한 뒤 복구 명령을 실행하면, 해당 실행의 MySQL 컨테이너를 찾아 회수한다.
 
 ## 기록과 실행 경계
@@ -65,7 +65,7 @@ env -u JAVA_TOOL_OPTIONS -u JDK_JAVA_OPTIONS -u _JAVA_OPTIONS -u CLASSPATH \
 ## 성공 이후에도 필요한 확인
 
 `RECOVERED`는 조회 시점에 해당 토큰의 컨테이너가 없다는 뜻이다. 중앙 Run 성공이나 모든 자원
-정리 완료를 뜻하지 않는다. 서버 접수 차단 기록은 **자동 해제하지 않는다**. 남은 프로세스·관련 자원을
+정리 완료를 뜻하지 않는다. 이 수동 명령 자체는 서버 접수 차단 기록을 **해제하지 않는다**. 남은 프로세스·관련 자원을
 확인하고 [기존 운영자 해제 절차](worker-recovery.md#운영자-복구-절차)를 따라야 한다.
 
 worker 강제 종료 직전 Docker에 전달된 생성 요청이 뒤늦게 반영될 수 있다. daemon이 안정된 뒤
@@ -76,4 +76,40 @@ worker 강제 종료 직전 Docker에 전달된 생성 요청이 뒤늦게 반�
 
 기록이 없거나 불완전한 이전 실행, Docker 연결 확인 전에 실패한 실행은 기존 수동 절차를 따른다.
 기록의 디렉터리 fsync까지 포함한 전원 장애 내구성은 보장하지 않는다. 실제 Docker daemon 재시작·
-호스트 장애 주입, 서버 시작 시 재조정과 접수 재개, OS 수준 프로세스 격리는 후속 검증·구현 범위다.
+호스트 장애 주입, 종료 미확인 실행의 자동 접수 재개, OS 수준 프로세스 격리는 후속 검증·구현 범위다.
+
+## 종료 확인 기록이 있는 실행의 시작 시 복구
+
+`lab.career.sequence.recover-on-startup=true`로 명시적으로 켠 경우에만, 서버는 RunStore의
+배타 소유권을 얻고 중단 Run 상태를 복원한 뒤 등록 과정에서 한 번 복구를 시도한다.
+기본값은 `false`다. HTTP 준비 상태 조회나 실행 요청은 복구를 실행하지 않는다.
+
+controller는 worker의 RESULT 수신뿐 아니라 EOF·정상 종료 코드·증거 flush·관찰된 자손과
+입출력 스레드 정리가 끝난 뒤 `.active-sequence-worker.properties.completed`를 배타 생성한다.
+최대 4 KiB이며 접수 차단 기록 전체의 SHA-256, workspace 이름, worker 결과 상태·사유를 담는다.
+worker summary의 임의 값이나 PID를 종료 증거로 사용하지 않는다. 정상 성공에서는 두 파일을 제거하며,
+그 직전 controller가 중단되거나 실험이 실패하면 재시작 판단 자료로 남는다.
+
+자동 해제 조건은 모두 충족해야 한다.
+
+- 현재 배포 hash와 기존 marker가 같고, 완료 기록이 정확히 그 marker에 속한다.
+- workspace는 등록 경로 바로 아래의 실제 디렉터리이며 링크나 상위 경로 참조가 아니다.
+- RunStore에 해당 sequence Run의 종료 기록이 있다. 시작 시 INTERRUPTED로 복원된 Run도 포함한다.
+- worker 결과가 `SUCCEEDED`이거나 `FAILED / EXPECTATION_NOT_MET`이다. 후자는 실험 기대값 불일치이며
+  현재 sequence 배포 코드에서 DB 시작·측정·보고서 처리·context/container 정리가 반환된 경로다.
+  일반 준비 실패, 컨테이너 정리 실패, 취소, 통신 오류는 이 조건에 해당하지 않는다.
+- 검증한 같은 jar의 별도 `--recover`가 소유권·엔진·컨테이너 정리를 확인하고, 정확한 Run ID의
+  `RECOVERED` 응답과 종료 코드 0을 반환한다. stdout은 최대 4 KiB, 응답 대기는 최대 60초다.
+  제한 초과 시 직접 복구 프로세스를 강제 종료하고 프로세스/IO 종료를 각각 최대 2초 기다린다.
+- 복구 후에도 marker 소유권이 같고 controller 스레드가 중단되지 않았다.
+
+복구 성공 시 완료 기록을 먼저 제거하고 marker를 제거한다. 두 삭제 사이의 장애는 접수 차단을 유지한다.
+원래 Run의 성공/실패, CHECK, 보고서와 workspace 소유권 기록은 변경하지 않는다.
+새 실행은 기존 Docker readiness 검사도 통과해야 한다. 로그의 `stage=worker_startup_recovery`와
+`result=NOT_REQUIRED|RECOVERED|REQUIRES_OPERATOR|FAILED`로 시작 시 결과를 확인한다.
+
+완료 기록이 없는 강제 종료, 구버전 기록, 손상·불일치, 배포 교체, Docker 불가에서는 차단을 유지한다.
+자동 재시도하지 않으므로 원인을 조사한 뒤 재시작하거나 운영자 절차를 따른다.
+이 범위는 정상 종료가 확인된 실행의 재조정이다. 임의의 controller/worker 강제 종료 후 자동 해제,
+뒤늦은 Docker 생성 요청, 관찰 전 분리된 프로세스, 실제 daemon/호스트 장애와 전원 장애 내구성까지
+해결한 것으로 해석하지 않는다. 복구 CLI 자체는 현재 프로세스 생성이 없는 신뢰하는 배포물에 한정한다.
