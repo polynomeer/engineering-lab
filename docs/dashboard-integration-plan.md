@@ -116,7 +116,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 실제 복구 배포물의 Docker HTTP 장애·응답 유실·무응답과 새 프로세스 재시도 시 접수 차단을 검증한다.
 - [x] 시작 시 복구 명령에도 관찰된 자손 정리를 적용하고 정상 응답·시간 초과·인터럽트 회귀를 검증한다.
 - [x] 종료 확인 기록이 있는 실행의 전용 Docker 엔진 SIGKILL·재시작·소유 자원 회수와 테스트 자원 삭제를 검증한다.
-- [ ] 종료 미확인 강제 종료 후 자동 재조정과 관찰 범위 밖 프로세스 격리·정리를 연결·검증한다.
+- [x] 비특권 worker 컨테이너 경계에서 분리 프로세스·controller 강제 종료·새 회수 프로세스를 검증하고 설계를 확정한다(I1).
+- [ ] 영속 소유권·container transport·sequence DB 소유자 분리·종료 미확인 복구를 연결·검증한다(I2–I5).
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
@@ -180,6 +181,8 @@ Docker 통신 장애 검증 (2026-10-13): `SequenceRecoveryTransportTest`가 실
 
 복구 명령의 자손 정리 보강 (2026-10-13): `WorkerStartupRecovery`도 공용 `WorkerProcessTree`를 사용해 정상 응답·실패·timeout·인터럽트 이후 직접 프로세스와 관찰된 자손을 정리한다. 추적 상한 128개·관찰 간격 50ms·시작 시각 대조를 유지하며 관찰 종료/정상 종료/강제 종료에 각각 2초, IO 종료에 추가 2초를 적용한다. 정리 미확인은 복구 실패로 처리해 marker를 유지하고 호출 인터럽트는 복원한다. 실제 JVM 회귀 3개에서 정상 응답·timeout·인터럽트 시 종료 신호에 버티는 자손의 강제 종료와 무관한 프로세스 보존을 확인했다. `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공: Career 120개 중 mcp-platform 42개·worker-support 52개를 재실행하고 나머지 26개 성공 결과를 재사용했다. 이어 `./gradlew test careerSequenceTest`로 루트 225개와 실제 배포물 통합 7개를 재실행해 통과했다(모두 실패·오류·건너뜀 0). 완료 기록 없는 실행의 자동 복구와 OS 수준 격리는 여전히 후속 범위다.
 
+컨테이너 격리 기반 검증 (2026-10-13): [실행 경계 설계와 단계](worker-container-isolation.md)를 추가했다. controller가 Docker 자원을 소유하고 worker에는 Docker 접근을 주지 않는 별도 실행 경로를 선택했다. 기존 LOCAL_JVM/marker는 유지한다. `workerContainerIsolationTest`의 실제 Docker 검증 2개가 통과했다. PPID 1·독립 세션의 분리 프로세스가 controller kill 뒤에도 실행 중임을 확인하고, 새 JVM이 실행 중인 경계 또는 PID 공간 init을 SIGKILL한 경계를 소유권 검사 후 회수했다. 비교 컨테이너 보존·기존 미완료 marker 불변·시험 자원 삭제를 확인했다. 필수 `./gradlew test`는 루트 225개 성공 결과를 재사용했다. 실제 Java 21 transport·DB 소유자 분리·새 영속 기록/자동 해제는 아직 구현하지 않았고, 다음 단위는 I2 container lifecycle 어댑터다.
+
 ## D5. 다섯 모듈의 나머지 시나리오
 
 D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 시 기존 회귀 테스트도 실행한다.
@@ -220,4 +223,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4: daemon/재시작 장애 복구 보강**이다. 종료 확인 기록 기반 재조정과 전용 daemon 장애 주입 검증은 완료했다. 다음으로 종료 미확인 실행의 접수 재개 조건과 OS 수준 프로세스 격리를 구현·검증한다. [현재 컨테이너 회수 범위](sequence-container-recovery.md)를 따른다. [현재 보호 범위와 수동 복구](worker-recovery.md)를 따른다.
+다음 실행 작업은 **D4-I2: 컨테이너 수명주기와 영속 소유권 어댑터**다. [I1–I5 설계](worker-container-isolation.md)에 따라 생성 의도 기록 → 정지 상태 생성 → 전체 ID 검증·기록 → 시작 순서를 구현하고, 미확인 create/start 응답은 자동 해제하지 않는다. I1의 경계 검증과 기존 완료 기록 기반 재조정은 완료했으며 운영 container executor와 종료 미확인 자동 복구는 후속 단위다. [현재 컨테이너 회수 범위](sequence-container-recovery.md)를 따른다. [현재 보호 범위와 수동 복구](worker-recovery.md)를 따른다.

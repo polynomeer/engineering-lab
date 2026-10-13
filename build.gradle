@@ -125,11 +125,24 @@ tasks.register('careerSequenceTest', Test) {
     classpath = sourceSets.careerTest.runtimeClasspath
     useJUnitPlatform()
     exclude '**/SequenceDaemonRecoveryTest*'
+    exclude '**/WorkerContainerIsolationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
     inputs.files(fileTree('career-lab/mcp-platform/build/libs') { include '*-sequence-worker.jar' })
     systemProperty 'lab.sequence.manifest', manifest.absolutePath
+    systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
+    outputs.upToDateWhen { false }
+}
+
+// Separate containment proof: cached BusyBox only, no privileged engine or production registration.
+tasks.register('workerContainerIsolationTest', Test) {
+    group = 'verification'
+    description = 'Verify detached process containment and recovery after controller death (requires Docker).'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/WorkerContainerIsolationTest.class'
     systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
     outputs.upToDateWhen { false }
 }

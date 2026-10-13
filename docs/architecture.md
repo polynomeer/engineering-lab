@@ -318,3 +318,11 @@ process and IO must also finish cleanup before admission is released. The recove
 2-second observer/graceful/forced waits and a further 2-second IO wait; interruption restores
 the caller flag and fails recovery. This does not extend observation into OS containment or
 make missing completion receipts eligible for automatic recovery.
+
+
+The next containment path is a controller-owned, nonprivileged worker container with a
+private PID namespace. The design keeps Docker resource creation outside the worker and
+retains LOCAL_JVM compatibility. An isolated Docker fixture verifies reparented, separate-session
+processes surviving controller death and scoped reclamation by a fresh JVM. This is a boundary
+proof, not a production executor or authorization to clear legacy unconfirmed markers.
+See [the lifecycle, compatibility and staged implementation design](worker-container-isolation.md).

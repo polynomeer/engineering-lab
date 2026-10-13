@@ -119,3 +119,5 @@ sequence 컨테이너 소유권 기록·복구 명령은 Career `mcp-platform`�
 실제 private 엔진 재시작 fixture는 `SequenceDaemonRecoveryTest`와 별도 `careerDaemonRecoveryTest`다. 일반 suite에서는 제외한다. 2026-10-13 승인된 privileged 실행에서 강제 종료·재시작·소유 자원 회수·테스트 컨테이너와 익명 볼륨 삭제를 검증했다. [독립 엔진 절차](sequence-container-recovery.md#독립-docker-엔진-재시작-검증)의 명시적 승인과 옵션 없이 실행하지 않는다. 완료 기록 없는 실행과 OS 수준 격리는 미검증 범위다.
 
 시작 시 복구 명령의 프로세스 정리도 공개 `WorkerProcessTree`를 재사용한다. `WorkerStartupRecoveryTest`가 정상 응답·시간 초과·호출 인터럽트에서 실제 자손 강제 종료·무관한 프로세스 보존을 검증한다. 정리 대기는 단계별 2초이며 OS 격리나 완료 기록 없는 실행의 자동 복구로 해석하지 않는다.
+
+`./gradlew workerContainerIsolationTest`는 로컬 `busybox:1.37`로 비특권 PID 공간·분리 프로세스·controller 사망 후 새 JVM의 자원 회수를 검증한다. 일반 suite와 별도이며 이미지 자동 다운로드와 privileged 권한은 사용하지 않는다. 운영 실행 경로는 [I1–I5 계획](worker-container-isolation.md)에 따라 추가하며, 다음 작업은 I2 영속 소유권과 container lifecycle 어댑터다.
