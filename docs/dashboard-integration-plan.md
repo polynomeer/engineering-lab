@@ -118,7 +118,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 종료 확인 기록이 있는 실행의 전용 Docker 엔진 SIGKILL·재시작·소유 자원 회수와 테스트 자원 삭제를 검증한다.
 - [x] 비특권 worker 컨테이너 경계에서 분리 프로세스·controller 강제 종료·새 회수 프로세스를 검증하고 설계를 확정한다(I1).
 - [x] 영속 소유권과 컨테이너 생성·시작·회수 어댑터를 구현하고 미확인 요청 차단을 검증한다(I2).
-- [ ] container transport·sequence DB 소유자 분리·종료 미확인 복구를 연결·검증한다(I3–I5).
+- [x] Java 21 container transport와 중앙 protocol/metric/check/REPORT 저장을 연결한다(I3).
+- [ ] sequence DB 소유자 분리·종료 미확인 복구를 연결·검증한다(I4–I5).
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
@@ -186,6 +187,9 @@ Docker 통신 장애 검증 (2026-10-13): `SequenceRecoveryTransportTest`가 실
 
 컨테이너 수명주기 구현·검증 (2026-10-13): `WorkerContainerLifecycle`이 실행별 파일 잠금과 최대 6개/각 4 KiB 영속 기록으로 생성 의도·전체 ID·시작 의도/응답·회수 의도/완료를 관리한다. `DockerContainerEngine`은 고정 비특권 프로파일, 이미지 ID·명령·소유권 검증, bounded CLI를 제공한다. 생성/시작 응답 유실은 운영자 확인을 유지하고, 삭제 응답 유실은 같은 엔진·전체 ID의 부재를 확인해 재개한다. 기록을 새 JVM으로 재개방하며 과거 중앙 marker/Run을 변경하지 않는다. `./gradlew test workerContainerIsolationTest` 성공: 신규 상태/장애 단위 18개를 포함한 루트 243개와 실제 Docker 검증 4개(I1 2개, 어댑터의 정지/실행 경계 회수 2개)를 재실행해 통과했다. 실패·오류·건너뜀 0이며 최종 Docker 조회에서 시험 컨테이너가 없었다. Career 모듈 코드/빌드는 변경하지 않았다. I2를 완료하며 다음은 I3 protocol transport와 중앙 executor 연결이다.
 
+컨테이너 protocol·중앙 증거 연결 (2026-10-14): I3 `ContainerWorkerProcess`와 명시적 `ContainerWorkerExecutor`를 구현했다. 확인된 I2 경계 안에서 Java 21을 실행하고 기존 HELLO/PHASE/METRIC/CHECK/REPORT 저장 로직을 재사용한다. REPORT는 tmpfs를 읽을 수 있는 내부 tar 스트림으로 전달하며 regular file·크기·해시·총량을 검증한다. protocol EOF·exit·flush·CLI/IO 종료와 컨테이너 부재 확인 후에만 결과를 반환한다. `CONTAINER` worker 환경과 부분 증거를 저장하고 비교 API에서도 controller 환경으로 대체하지 않는다. 기본 catalog 등록, sequence DB 준비, 접수 자동 재개는 I4/I5로 남긴다. 시험 이미지의 늦은 삭제 응답은 정확한 임시 태그 부재 조회로 확인한다. 기존 LOCAL_JVM marker와 완료 기록 정책은 변경하지 않았다.
+검증 결과: 루트 `./gradlew test` 256개, `containerWorkerTest` 10개, `workerContainerIsolationTest` 4개가 통과했다. 기존 `careerSequenceTest`는 재시작/복구·장애 주입 6개가 통과했고 API 1개에서 `DOCKER_UNAVAILABLE`이 발생했다. 같은 배포물의 probe가 정상임을 확인한 후 `./gradlew test careerSequenceTest --tests '*CareerSequenceApiTest' workerContainerIsolationTest`를 실행해 API 1개와 격리 4개가 모두 통과했다. 첫 suite의 결과는 `build/verification/i3/career-sequence-first/`에 보존했다. 최종 루트 호출은 변경 없는 256개 성공 결과를 재사용했다. 최종 Docker 조회에서 시험 컨테이너·probe 자원·임시 이미지 태그가 없음을 확인했다. Career 모듈 코드와 독립 Gradle 빌드는 변경하지 않았다.
+
 ## D5. 다섯 모듈의 나머지 시나리오
 
 D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 시 기존 회귀 테스트도 실행한다.
@@ -226,4 +230,4 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4-I3: 실제 Java 21 protocol transport와 중앙 executor 연결**이다. [I1–I5 설계](worker-container-isolation.md)에 따라 container lifecycle 어댑터를 protocol/evidence 경계에 연결한다. I2는 영속 소유권·생성/시작 미확인 차단·정확한 ID 회수를 제공하지만 중앙 marker 해제와 Run 복구는 아직 담당하지 않는다. sequence DB 소유자 분리와 종료 미확인 자동 복구는 I4/I5에서 진행한다.
+다음 실행 작업은 **D4-I4: sequence DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증**이다. [I1–I5 설계](worker-container-isolation.md)에 따라 모듈 자원 어댑터가 DB와 전용 네트워크를 준비하고 컨테이너 worker에는 접속 정보만 전달하도록 연결한다. I3는 network=none fixture 실행과 중앙 증거 저장까지 제공한다. 기본 운영 등록과 종료 미확인 접수 자동 해제는 아직 활성화하지 않으며, 새 영속 기록 기반 Run 복구·접수 재개·장애 주입은 I5에서 진행한다.

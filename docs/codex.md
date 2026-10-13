@@ -122,4 +122,4 @@ sequence 컨테이너 소유권 기록·복구 명령은 Career `mcp-platform`�
 
 `./gradlew workerContainerIsolationTest`는 로컬 `busybox:1.37`로 비특권 PID 공간·분리 프로세스·controller 사망 후 새 JVM의 자원 회수를 검증한다. 일반 suite와 별도이며 이미지 자동 다운로드와 privileged 권한은 사용하지 않는다. 운영 실행 경로는 [I1–I5 계획](worker-container-isolation.md)에 따라 추가하며, I2 어댑터의 실제 Docker 검증도 이 task에 포함한다.
 
-I2 수명주기 구현은 `runtime/WorkerContainerLifecycle`(배타 잠금·단계별 영속 기록)과 `DockerContainerEngine`(bounded CLI·격리/소유권 확인)에 있다. `WorkerContainerLifecycleTest`와 `workerContainerIsolationTest`로 검증한다. 아직 중앙 executor/marker 해제에는 연결하지 않는다. 다음은 I3 실제 Java 21 protocol transport 연결이다.
+I2 수명주기 구현은 `runtime/WorkerContainerLifecycle`(배타 잠금·단계별 영속 기록)과 `DockerContainerEngine`(bounded CLI·격리/소유권 확인)에 있다. `WorkerContainerLifecycleTest`와 `workerContainerIsolationTest`로 검증한다. 중앙 marker 해제는 아직 담당하지 않는다. I3 `ContainerWorkerProcess`/`ContainerWorkerExecutor`가 protocol과 중앙 증거 저장을 연결한다. `./gradlew containerWorkerTest`는 캐시된 `eclipse-temurin:21-jre`에서 시험 이미지를 만들고 실제 Java 21 실행·REPORT·실패/중단 회수를 검사한다. 기본 catalog 등록은 없으며 다음은 I4 sequence DB 소유자 분리다. 자세한 이미지 요구사항과 제한은 [I3 계약](worker-container-isolation.md#i3-protocol-transport와-중앙-증거-연결)을 따른다.

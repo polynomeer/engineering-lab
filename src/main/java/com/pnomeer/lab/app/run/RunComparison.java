@@ -57,7 +57,7 @@ public record RunComparison(StoredRun baseline, StoredRun candidate, List<String
         return new RunComparison(a, b, List.copyOf(cautions), List.copyOf(conditions), base.values());
     }
     private static boolean external(RunExecution execution) {
-        return execution != null && execution.definition().kind() == RunExecution.Kind.LOCAL_JVM;
+        return execution != null && execution.definition().kind() != RunExecution.Kind.IN_PROCESS;
     }
     private static boolean unknownWorker(RunExecution execution) { return external(execution) && execution.worker() == null; }
     private static boolean dirtyWorker(RunExecution execution) {

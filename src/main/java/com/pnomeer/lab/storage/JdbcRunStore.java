@@ -125,7 +125,7 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
         transactions.executeWithoutResult(tx -> {
             lockActiveRun(id, true);
             var current = requireExecution(id);
-            if (current.definition().kind() != RunExecution.Kind.LOCAL_JVM) throw new IllegalStateException("Worker requires LOCAL_JVM execution");
+            if (current.definition().kind() == RunExecution.Kind.IN_PROCESS) throw new IllegalStateException("Worker requires external execution");
             if (current.worker() != null) {
                 if (!current.worker().equals(worker)) throw new IllegalStateException("Conflicting worker identity");
                 return;
@@ -202,7 +202,7 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
         return execution(id).orElseThrow(() -> new IllegalStateException("Execution is not registered"));
     }
     private static void requireWorkerIdentity(RunExecution execution) {
-        if (execution.definition().kind() == RunExecution.Kind.LOCAL_JVM && execution.worker() == null) {
+        if (execution.definition().kind() != RunExecution.Kind.IN_PROCESS && execution.worker() == null) {
             throw new IllegalStateException("Worker identity is unknown");
         }
     }

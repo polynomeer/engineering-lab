@@ -4,6 +4,8 @@ import com.pnomeer.lab.core.*;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.storage.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.json.JsonMapper;
@@ -22,8 +24,11 @@ class ExecutionEvidenceControllerTest {
         store.start(id);
     }
     private void external(JdbcRunStore store, String id, boolean known) {
+        external(store, id, known, RunExecution.Kind.LOCAL_JVM);
+    }
+    private void external(JdbcRunStore store, String id, boolean known, RunExecution.Kind kind) {
         create(store, id);
-        store.registerExecution(id, new RunExecution.Definition(RunExecution.Kind.LOCAL_JVM, "career.test", 1, RunExecution.MeasurementScope.WORKER_PROCESS));
+        store.registerExecution(id, new RunExecution.Definition(kind, "career.test", 1, RunExecution.MeasurementScope.WORKER_PROCESS));
         if (known) store.registerWorker(id, new RunExecution.Worker(
                 new RunEnvironment("21", "worker", "vm", "os", "version", "arch", 1, 1024),
                 new GitProvenance("worker", true, null), "a".repeat(64)));
@@ -68,9 +73,10 @@ class ExecutionEvidenceControllerTest {
             mvc.perform(get("/dashboard/v1/runs/active/export")).andExpect(status().isConflict());
         }
     }
-    @Test void oldComparisonShapeIncludesWorkerDifferencesWithoutSubstitutingControllerEnvironment() throws Exception {
+    @ParameterizedTest @EnumSource(value = RunExecution.Kind.class, names = {"LOCAL_JVM", "CONTAINER"})
+    void oldComparisonShapeIncludesWorkerDifferencesWithoutSubstitutingControllerEnvironment(RunExecution.Kind kind) throws Exception {
         try (var store = new JdbcRunStore(root, 2, 2)) {
-            external(store, "known", true); external(store, "unknown", false);
+            external(store, "known", true, kind); external(store, "unknown", false, kind);
             var mvc = MockMvcBuilders.standaloneSetup(new RunEvidenceController(store, properties())).build();
             String body = mvc.perform(get("/runs/compare?baseline=known&candidate=unknown")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
             var comparison = json.readValue(body, RunComparison.class);

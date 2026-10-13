@@ -335,3 +335,13 @@ can resume after response loss. The CLI backend pins the image/command and enfor
 isolated-v1 profile before destructive actions. It retains all journal files and does not clear
 central admission or alter Run evidence. Protocol transport and module resource provisioning
 remain separate implementation units; see [I2 contract](worker-container-isolation.md#i2-수명주기-어댑터-계약).
+
+
+I3 adds an explicitly wired container transport to the shared external-worker evidence mapper.
+A confirmed I2 boundary hosts a non-TTY Java 21 exec process; protocol EOF, exit, evidence flush
+and container removal are all required before returning a result. Bounded REPORT transfer
+accepts one regular file and delegates hash verification to the existing artifact importer.
+CONTAINER execution evidence has worker measurement scope, including unknown-worker handling
+in comparisons. Default catalog registration, sequence database provisioning and admission
+recovery remain pending I4/I5. Existing LOCAL_JVM recovery behavior is unchanged.
+See [the I3 image, transport and compatibility contract](worker-container-isolation.md#i3-protocol-transport와-중앙-증거-연결).

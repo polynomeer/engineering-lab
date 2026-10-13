@@ -5,9 +5,10 @@
 2026-10-13 D4의 다음 실행 경계로 **controller가 소유하는 비특권 worker 컨테이너**를 선택한다.
 기존 LOCAL_JVM과 완료 기록 기반 복구는 유지한다. 이 문서의 운영 경로는 설계이며,
 `WorkerContainerIsolationTest`는 PID 공간과 별도 복구 프로세스의 검증용 fixture다.
-I2의 `WorkerContainerLifecycle`과 `DockerContainerEngine`은 독립 수명주기 어댑터로 구현했으며
-중앙 executor/접수 자동 해제에는 아직 연결하지 않았다.
-운영 container executor, sequence의 외부 DB 연결 모드, 종료 미확인 접수 자동 해제는 아직 구현하지 않았다.
+I2의 `WorkerContainerLifecycle`과 `DockerContainerEngine`을 I3의 `ContainerWorkerProcess`와
+명시적 `ContainerWorkerExecutor`에 연결했다. 실제 Java 21 fixture로 중앙 증거 저장과
+회수를 검증하며 기본 운영 등록은 활성화하지 않는다. sequence의 외부 DB 연결 모드와
+종료 미확인 접수 자동 해제는 I4/I5 범위로 남아 있다.
 
 관찰 기반 `WorkerProcessTree`는 관찰 전에 부모와 분리된 프로세스와 controller 사망 후의
 프로세스를 포괄하지 못한다. PID가 없어졌거나 Docker 조회가 비었다는 사실만으로 이
@@ -41,7 +42,7 @@ worker에는 Docker 소켓·Docker 접속 자격·controller 저장소를 주지
 컨테이너 transport는 기존 protocol v1과 공통 evidence sink를 재사용한다. TTY를 사용하지
 않고 stdout protocol과 stderr를 구분하며 기존 frame/total/event/deadline 한도를 유지한다.
 worker의 Java/OS 정보는 HELLO에서 기록한다. controller 정보를 복사하지 않는다.
-execution kind와 capability는 실제 어댑터가 등록될 때만 추가하고, 준비 전 UI에서 노출하지 않는다.
+I3의 execution kind는 `CONTAINER`이며 capability와 UI 노출은 실제 운영 등록이 준비된 뒤 추가한다.
 
 ## 시작과 재시작의 영속 경계
 
@@ -71,7 +72,7 @@ worker는 non-root, capability 전체 제거, no-new-privileges, 읽기 전용 r
 전용 PID 공간과 제한된 임시 쓰기 영역을 사용한다. CPU·메모리·PID·실행 시간·출력·artifact
 한도를 서버에서 제한한다. HTTP 시나리오 입력으로 mount/이미지/명령/권한을 받지 않는다.
 DB가 필요한 실행에는 해당 Run 전용 네트워크와 접속 정보만 제공하고 별도 포트 공개는 하지 않는다.
-이 네트워크·artifact 인계·자원 소유권의 세부 계약은 후속 구현에서 함께 검증한다.
+artifact 인계는 아래 I3 계약을 따르며 네트워크·모듈 자원 소유권은 I4/I5에서 검증한다.
 
 ## 검증 fixture
 
@@ -110,7 +111,7 @@ finally에서도 두 컨테이너 각각의 소유권을 대조해 정리하고 
 | --- | --- | --- |
 | I1 | 비특권 경계·분리 프로세스·controller kill·새 회수 프로세스·비교 자원 보존 검증 | 검증 2개 통과 |
 | I2 | 생성 전 영속 의도·생성 후 ID 기록·불확실 요청 차단을 포함한 container lifecycle 어댑터 | 구현, 별도 어댑터 검증 |
-| I3 | 실제 Java 21 protocol transport·artifact·종료/증거 저장과 중앙 executor 연결 | 예정 |
+| I3 | 실제 Java 21 protocol transport·artifact·종료/증거 저장과 중앙 executor 연결 | 구현, 명시적 테스트 등록 |
 | I4 | sequence의 DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증 | 예정 |
 | I5 | 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입 | 예정 |
 
@@ -165,3 +166,66 @@ Docker CLI는 응답당 최대 64 KiB·30초, 직접 프로세스/IO 종료 대�
 `WorkerContainerLifecycleIntegrationTest`도 포함한다. 이 검증은 실제 어댑터로 만든
 정지/실행 컨테이너를 새 JVM이 영속 기록만으로 회수하고 반복 회수와 자원 부재를 확인한다.
 기존 I1의 비교 자원 보존 검증도 함께 실행한다.
+
+## I3 protocol transport와 중앙 증거 연결
+
+`ContainerWorkerManifest`는 서버가 관리하는 이미지 ID(`sha256:…`), jar SHA-256,
+module ID와 허용 experiment 집합을 받는다. `ContainerWorkerExecutor`는 기존
+`LocalJvmExecutor`의 HELLO/PHASE/METRIC/CHECK/REPORT 저장 로직을 재사용하며
+`ContainerWorkerProcess`만 교체한다. HTTP 요청에서 이미지·명령을 선택하는 API나
+Spring 기본 등록은 제공하지 않는다. DB 접근이 없는 fixture로 검증하는 단계다.
+
+실행별 호스트 workspace 아래 `container-lifecycle/`에 I2 기록을 남긴다. 먼저
+`sleep 900`을 PID 1로 하는 경계를 생성·시작하고 응답을 확인한 뒤, 같은 전체 ID에
+TTY 없는 `docker exec -i`로 Java 21을 실행한다. 이 순서로 protocol reader 연결 여부와
+I2 start 응답의 확정을 분리한다. exec 응답 유실이나 worker 자손의 분리는 컨테이너
+전체 회수로 처리한다. PID 1의 900초 종료는 안전장치이며 회수 완료의 대체 증거가 아니다.
+
+이미지는 `/opt/lab/worker.jar`, Java 21, `sh`, `env`, `sha256sum`, `mkdir`, `ln`, `sleep`, `tar`을
+포함해야 하며 VOLUME 선언·추가 mount가 없어야 한다. 고정 bootstrap이 jar 실제 해시를
+검사하고 `/tmp/worker`를 만든 다음 `java -Xmx128m -jar /opt/lab/worker.jar`를 실행한다.
+환경의 Java 옵션 4개를 제거하고 HELLO의 Java 버전·module·experiment·배포 해시를
+검증한다. 이미지의 PATH와 도구는 신뢰하는 배포 구성에 속한다. worker에 보내는 workspace는
+`/tmp/worker`이며 호스트 경로는 mount하지 않는다. I2의 256 MiB 메모리, CPU 1개,
+PID 64개, network=none, 16 MiB tmpfs 프로파일을 그대로 사용한다.
+
+stdin command, stdout protocol, stderr drain은 별도 bounded 작업으로 처리한다.
+`WorkerProcess.Limits`의 protocol/event/전체 바이트 상한, stderr 보존 상한과 deadline을
+재사용한다. stderr는 상한 이후에도 버리면서 계속 읽어 pipe 정체를 막고 전체 바이트 수를
+기록한다. 기본 timeout은 15분, stderr 보존은 1 MiB, IO 종료 대기는 30초다. lifecycle
+호출도 경과 시간에 포함하지만 진행 중인 I2 CLI 호출을 전체 deadline으로 강제 취소하지는
+않는다. 각 I2 호출의 30초 제한과 회수 시간은 별도로 필요하므로 엄격한 전체 wall-clock
+종료 상한을 보장하지 않는다.
+
+REPORT는 `docker exec <전체ID> tar -C /tmp/worker -cf - -- <파일명>`의 tar stream에서
+정확히 하나의 regular file만 읽는다. 테스트 환경의 `docker cp`는 worker tmpfs 파일을
+조회하지 못하므로 컨테이너 안에서 archive를 읽는다. shell 문자열로 파일명을 조합하지 않는다. 현재는 영숫자로 시작하는 최대 100자 basename만 지원하며 하위
+디렉터리, symlink/hardlink/sparse file과 추가 entry를 거부한다. 파일당 16 MiB, 실행당
+64 MiB/32개, archive 부가 바이트 64 KiB로 제한한다. 실제 worker 가용 공간은 16 MiB
+전체 tmpfs 상한의 영향도 받는다. 호스트 임시 파일을 만든 뒤 기존 `WorkerArtifactImporter`가
+크기·SHA-256을 다시 확인하고 저장소로 복사·등록한다. 파일 복사 실패는 실행 실패이며
+검증되지 않은 artifact를 등록하지 않는다. 실패 시 이미 저장된 부분 증거는 유지한다.
+
+RESULT만으로 완료하지 않는다. protocol EOF, exec 종료 코드 0, 증거 flush, 직접 CLI/IO
+종료 및 I2의 같은 엔진·정확한 ID 부재 확인을 모두 통과한 뒤 중앙 실행 결과를 반환한다.
+회수 미확인은 `CONTAINER_CLEANUP_UNCONFIRMED`로 실패하고 journal을 보존한다.
+생성·시작 미확인은 I2와 같이 운영자 판단을 요구한다. 이 단계에는 그 상태를 중앙 접수
+차단/자동 복구에 연결하는 I5 정책이 없으므로 운영 등록을 활성화하지 않는다.
+기존 LOCAL_JVM marker와 completion receipt는 변경하거나 해제하지 않는다.
+
+저장소 execution kind에 `CONTAINER`를 추가했다. 측정 범위는 `WORKER_PROCESS`이며
+HELLO 없는 성공 증거를 허용하지 않는다. 비교 API는 worker 환경을 사용하고 미확인 환경을
+controller 환경으로 대체하지 않는다. 기존 IN_PROCESS/LOCAL_JVM 기록과 export 형태는
+유지하지만 새 kind를 저장한 DB를 이전 바이너리로 읽는 downgrade 호환성은 보장하지 않는다.
+현재 catalog capability와 프론트엔드의 실행 선택에는 CONTAINER를 광고하지 않는다.
+
+검증 명령은 `./gradlew test containerWorkerTest`다. 별도 Docker suite는 캐시된
+`eclipse-temurin:21-jre`의 실제 이미지 ID에 UUID 임시 태그를 붙이고 Java 21 fixture jar만 추가한 UUID
+태그 이미지를 만든다. 자동 pull·네트워크 빌드·특권 실행은 하지 않는다. 정상 증거/REPORT,
+stderr 초과, 자손 프로세스, 부분 실패, 잘못된 해시, malformed protocol, nonzero exit,
+deadline과 중단을 검사하고, 각 실행의 removed 기록과 Docker 부재를 확인한다.
+시험 이미지와 base 임시 태그는 suite 종료 후 제거하며 기존 JRE 이미지는 유지한다.
+
+시험 이미지 정리는 삭제 CLI를 최대 20초 기다린 뒤 정확한 UUID 태그 부재를 별도 조회로
+확인한다. 응답이 늦어도 실제 부재가 확인되면 완료이며, 조회 실패·태그 잔존은 실패다.
+기존 이미지나 공유 build cache를 prune하지 않는다.

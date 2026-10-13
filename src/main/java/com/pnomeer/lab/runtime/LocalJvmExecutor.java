@@ -15,7 +15,12 @@ public class LocalJvmExecutor implements ExperimentExecutor {
         public Request { parameters = parameters.deepCopy(); }
     }
     private final WorkerArtifactImporter artifactImporter;
-    private final WorkerManifest manifest;
+    @FunctionalInterface
+    interface Transport {
+        WorkerProcess.Result execute(ObjectNode command, Path root, WorkerProcess.EvidenceSink sink) throws Exception;
+    }
+    private final String executionKind, moduleId, artifactSha256;
+    private final Transport transport;
     private final WorkerProcess.Limits limits;
     private final Path workspaceRoot;
     private final Set<String> metricKeys;
@@ -27,14 +32,21 @@ public class LocalJvmExecutor implements ExperimentExecutor {
     }
     LocalJvmExecutor(WorkerManifest manifest, WorkerProcess.Limits limits, Path workspaceRoot,
                      Set<String> metricKeys, Function<ExperimentScenario, Request> requests, WorkerArtifactImporter artifactImporter) {
-        this.artifactImporter = artifactImporter;
-        this.manifest = Objects.requireNonNull(manifest); this.limits = Objects.requireNonNull(limits);
+        this("LOCAL_JVM", manifest.moduleId(), manifest.artifactSha256(), limits, workspaceRoot, metricKeys, requests,
+                artifactImporter, (command, root, sink) -> new WorkerProcess(limits).execute(manifest, command, root, sink));
+    }
+    LocalJvmExecutor(String executionKind, String moduleId, String artifactSha256, WorkerProcess.Limits limits,
+                     Path workspaceRoot, Set<String> metricKeys, Function<ExperimentScenario, Request> requests,
+                     WorkerArtifactImporter artifactImporter, Transport transport) {
+        this.executionKind = executionKind; this.moduleId = moduleId; this.artifactSha256 = artifactSha256;
+        this.transport = Objects.requireNonNull(transport); this.artifactImporter = artifactImporter;
+        this.limits = Objects.requireNonNull(limits);
         this.workspaceRoot = Objects.requireNonNull(workspaceRoot); this.metricKeys = Set.copyOf(metricKeys);
         this.requests = Objects.requireNonNull(requests);
     }
     public Map<String, String> parameters() {
-        return Map.of("execution.kind", "LOCAL_JVM", "execution.moduleId", manifest.moduleId(),
-                "execution.workerArtifactSha256", manifest.artifactSha256(), "observation.jvm.mode", "OFF",
+        return Map.of("execution.kind", executionKind, "execution.moduleId", moduleId,
+                "execution.workerArtifactSha256", artifactSha256, "observation.jvm.mode", "OFF",
                 "observation.trace.mode", "OFF", "observation.jfr.mode", "OFF", "observation.logs.mode", "OFF");
     }
     @FunctionalInterface
@@ -56,7 +68,7 @@ public class LocalJvmExecutor implements ExperimentExecutor {
                     .put("seed", request.seed()).put("workspace", workspaceRoot.toString());
             command.set("parameters", request.parameters());
             var artifacts = artifactImporter == null ? null : artifactImporter.open(output.runId(), output.artifacts());
-            var result = new WorkerProcess(limits).execute(manifest, command, workspaceRoot, new WorkerProcess.EvidenceSink() {
+            var result = transport.execute(command, workspaceRoot, new WorkerProcess.EvidenceSink() {
                 long checkSequence;
                 public void persist(WorkerProtocol.Event event, Path workspace) throws Exception {
                     if (Thread.currentThread().isInterrupted()) throw new InterruptedException();

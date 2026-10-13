@@ -127,6 +127,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/SequenceDaemonRecoveryTest*'
     exclude '**/WorkerContainerIsolationTest*'
     exclude '**/WorkerContainerLifecycleIntegrationTest*'
+    exclude '**/ContainerWorkerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -170,4 +171,17 @@ tasks.register('careerDaemonRecoveryTest', Test) {
             throw new GradleException('Explicit consent required: -PlabAllowPrivilegedDaemonTest=true creates a privileged private Docker engine')
         }
     }
+}
+
+// Protocol/evidence integration in a disposable Java 21 image derived from a cached JRE.
+tasks.register('containerWorkerTest', Test) {
+    group = 'verification'
+    description = 'Verify container worker protocol and central evidence (requires Docker and cached eclipse-temurin:21-jre).'
+    dependsOn gradle.includedBuild('worker-support').task(':processFixtureJar')
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/ContainerWorkerIntegrationTest.class'
+    systemProperty 'lab.worker.fixture', file('career-lab/worker-support/build/libs/worker-support-0.1.0-process-fixture.jar').absolutePath
+    outputs.upToDateWhen { false }
 }
