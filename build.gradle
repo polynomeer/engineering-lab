@@ -124,6 +124,7 @@ tasks.register('careerSequenceTest', Test) {
     testClassesDirs = sourceSets.careerTest.output.classesDirs
     classpath = sourceSets.careerTest.runtimeClasspath
     useJUnitPlatform()
+    exclude '**/SequenceDaemonRecoveryTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -131,4 +132,27 @@ tasks.register('careerSequenceTest', Test) {
     systemProperty 'lab.sequence.manifest', manifest.absolutePath
     systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
     outputs.upToDateWhen { false }
+}
+
+// Explicit opt-in: privileged private engine; never part of the normal suites.
+tasks.register('careerDaemonRecoveryTest', Test) {
+    group = 'verification'
+    description = 'Crash/restart a private Docker-in-Docker engine; requires explicit privileged-test opt-in.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    systemProperty 'lab.daemon.privileged', providers.gradleProperty('labAllowPrivilegedDaemonTest').getOrElse('false')
+    include '**/SequenceDaemonRecoveryTest.class'
+    systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
+    def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/mcp-platform/build/libs') { include '*-sequence-worker.jar' })
+    systemProperty 'lab.sequence.manifest', manifest.absolutePath
+    systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
+    outputs.upToDateWhen { false }
+    doFirst {
+        if (providers.gradleProperty('labAllowPrivilegedDaemonTest').orNull != 'true') {
+            throw new GradleException('Explicit consent required: -PlabAllowPrivilegedDaemonTest=true creates a privileged private Docker engine')
+        }
+    }
 }

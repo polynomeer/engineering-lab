@@ -115,3 +115,5 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 등록 LOCAL_JVM의 비정상 종료 후 접수 보호는 `WorkerRecoveryGuard`와 `LocalJvmRegistration`에서 담당한다. `WorkerRecoveryGuardTest`, `LocalJvmRegistrationTest`로 강제 종료 기록 보존·실패 후 재접수 거절·정상 해제를 검증한다. [운영 복구 절차](worker-recovery.md)를 따르며 기본값은 자동 복구 비활성이다. `WorkerStartupRecovery`가 종료 확인 기록이 있는 sequence만 opt-in으로 시작 시 재조정하며, 나머지는 운영자 확인이 필요하다.
 
 sequence 컨테이너 소유권 기록·복구 명령은 Career `mcp-platform`의 `labRuntime` 내 `SequenceContainerRecovery`와 `SequenceWorker --recover`에 있다. 변경 시 `SequenceContainerRecoveryTest`, 실제 배포 CLI 통합 검증과 기존 lifecycle 회귀를 확인한다. 중앙 시작 시 복구는 `WorkerStartupRecoveryTest`와 별도 `careerSequenceTest`의 `SequenceStartupRecoveryTest`로 검증한다. `SequenceRecoveryTransportTest`는 실제 배포물의 Docker HTTP 장애를 루프백 서버로 주입하며, 실제 엔진 중단/재시작 검증과 구분한다. [운영 절차와 자동 복구 제한](sequence-container-recovery.md)을 따른다.
+
+실제 private 엔진 재시작 fixture는 `SequenceDaemonRecoveryTest`와 별도 `careerDaemonRecoveryTest`다. 일반 suite에서는 제외한다. privileged 실행은 아직 검증하지 않았으며, [독립 엔진 절차](sequence-container-recovery.md#독립-docker-엔진-재시작-검증-준비-실행-미검증)의 명시적 승인과 옵션 없이 실행하지 않는다.

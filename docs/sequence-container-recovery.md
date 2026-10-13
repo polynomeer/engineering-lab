@@ -146,3 +146,53 @@ Testcontainers의 종료 시 세션 라벨 조회·정리 요청은 해당 세�
 이 검증은 실제 클라이언트의 HTTP 오류·연결 유실·정지 처리에 대한 증거다. 실제 Docker
 엔진 재시작, 디스크 손상, 호스트 전원 장애, 지연된 생성 요청, OS 수준 프로세스 격리의
 검증은 아니다. 그 범위는 계속 후속 작업으로 남는다.
+
+## 독립 Docker 엔진 재시작 검증 준비 (실행 미검증)
+
+`SequenceDaemonRecoveryTest`와 `careerDaemonRecoveryTest`는 실제 엔진 강제 종료·재시작을
+검증하기 위한 별도 opt-in fixture다. **현재는 코드·컴파일 검증 단계이며 실제 실행 결과가 없다.**
+일반 `test`, `careerSequenceTest`에서는 실행하지 않는다. Gradle 옵션과 테스트 내부 플래그가
+모두 있어야 컨테이너 생성 단계에 진입할 수 있다.
+
+fixture는 `docker:27.5.1-dind` 컨테이너 하나 안에 독립 Docker 엔진을 만든다.
+호스트 디렉터리·Docker 소켓을 마운트하지 않으며 API 포트는 `127.0.0.1`의 임의 포트에만 공개한다.
+메모리 1 GiB, CPU 1개, PID 256개 제한을 요청한다. 하지만 `--privileged`는 넓은 호스트 권한을
+부여하므로 승인된 실험 환경에서만 실행해야 한다. Docker-in-Docker는 여기서 테스트 장치이며
+운영 worker의 보안 격리 방식으로 채택한 것이 아니다.
+
+예정한 검증 순서는 다음과 같다.
+
+1. 전용 엔진 안에 소유권 라벨을 가진 자원과 다른 토큰의 비교 자원을 만든다.
+2. 종료 확인 기록·RunStore·소유권 journal을 준비한다.
+3. 전용 엔진 컨테이너에 SIGKILL을 보내고, 복구 실패가 marker·완료 기록을 보존하는지 확인한다.
+4. 동일 컨테이너와 데이터로 엔진을 다시 시작해 엔진 ID와 컨테이너 metadata가 유지되는지 확인한다.
+5. 실제 Java 21 배포 복구 명령으로 소유 자원만 제거하고, 비교 자원과 원래 Run·journal을 보존하는지 확인한다.
+6. UUID 라벨과 전체 ID를 대조한 뒤 테스트 엔진과 그 익명 볼륨을 제거한다.
+
+작은 `busybox:1.37` 이미지를 전용 엔진 안에서만 `mysql:8.0.39` 이름으로 붙여 sleep 프로세스를
+실행한다. 따라서 이 검증은 실제 Docker 자원·metadata 복구를 대상으로 하며 MySQL 데이터
+복구 실험은 아니다. 기존 실제 MySQL 실행 검증은 `careerSequenceTest`를 사용한다.
+
+실행 승인을 받은 환경에서만 아래 명령을 사용한다. 테스트 자체는 이미지를 자동으로 받지 않는다.
+
+```bash
+docker pull docker:27.5.1-dind
+docker pull busybox:1.37
+./gradlew careerDaemonRecoveryTest -PlabAllowPrivilegedDaemonTest=true
+```
+
+기존 Career 배포 jar·manifest와 Java 21/25, Docker CLI가 필요하다. Docker 명령 응답은
+16 KiB·30초, 엔진 준비 대기는 90초, 중앙 복구 자식 프로세스 대기는 80초로 제한한다.
+개별 명령 정리 시간이 추가될 수 있다. 테스트 결과는 `build/reports/tests/careerDaemonRecoveryTest/`에 남는다.
+
+JVM/호스트 자체가 종료되면 finally 정리가 실행되지 않을 수 있다. 테스트 출력의
+`owner_token`과 `container_id`를 보관한다. 잔존 여부는 아래와 같이 **조회**하고, 해당 테스트의
+UUID·전체 ID·생성 시각을 대조한 뒤 승인된 대상 하나만 정리한다. 공유 엔진 전체의 prune이나
+라벨만으로 일괄 삭제하지 않는다.
+
+```bash
+docker ps -a --filter label=engineering-lab.daemon-test --format '{{.ID}} {{.Labels}} {{.Status}}'
+```
+
+실제 실행을 통과하더라도 완료 기록 없는 worker의 자동 접수 해제, 호스트 전원 장애,
+DB 일관성 복구, 관찰 전 분리된 프로세스의 OS 격리를 검증한 것으로 간주하지 않는다.

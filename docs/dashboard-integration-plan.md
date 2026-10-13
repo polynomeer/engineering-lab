@@ -173,6 +173,8 @@ sequence 소유권·복구 검증 (2026-10-13): `./scripts/career-lab.sh test :m
 
 Docker 통신 장애 검증 (2026-10-13): `SequenceRecoveryTransportTest`가 실제 Java 21 배포물과 별도 중앙 복구 프로세스를 루프백 Docker API에 연결한다. 조회 503·무응답·삭제 503·삭제 후 응답 유실·삭제 후 엔진 ID 변경을 주입했다. 모든 첫 복구가 접수 차단과 완료 기록을 보존하며, 정상 응답 복원 후 새 프로세스가 같은 저장소를 열어 재조정하고 원래 Run 실패 상태·사유와 journal을 유지하는 것을 검증했다. 이미 삭제된 자원은 다음 프로세스에서 재삭제하지 않는다. 소유권 토큰·조회 상한·정확한 ID 삭제와 Testcontainers 세션 한정 정리 요청을 검사한다. `./gradlew test careerSequenceTest` 성공: 신규 장애 5개와 기존 실제 Docker/API/서버 재시작 2개를 실행해 통과했고, 루트 222개는 기존 성공 결과를 재사용했다. 모두 실패·오류·건너뜀 0이다. 실제 공유 엔진을 중단하지 않았으며 엔진/호스트 재시작·OS 격리 검증은 여전히 후속 범위다. [재현 방법](sequence-container-recovery.md#docker-통신-장애-회귀-검증)을 따른다.
 
+독립 엔진 장애 검증 준비 (2026-10-13): 별도 opt-in `careerDaemonRecoveryTest`에 private Docker-in-Docker 생성·SIGKILL·동일 데이터 재시작·소유 자원 회수·비교 자원 보존 fixture를 작성했다. 일반 테스트에서는 제외하고 이중 실행 플래그를 요구한다. privileged 컨테이너 실행이 자동 승인 검토에서 거절되어 실제 엔진 장애 검증은 **미완료**다. `./gradlew test compileCareerTestJava`는 성공했고 루트 222개는 기존 성공 결과를 재사용했다. 새 fixture 컴파일만 확인했으며, 승인이 있기 전에는 실제 실행·복구 성공으로 보고하지 않는다. [실행 범위와 잔존 자원 확인](sequence-container-recovery.md#독립-docker-엔진-재시작-검증-준비-실행-미검증)을 따른다.
+
 ## D5. 다섯 모듈의 나머지 시나리오
 
 D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 시 기존 회귀 테스트도 실행한다.
