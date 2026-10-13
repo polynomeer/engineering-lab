@@ -21,25 +21,42 @@ class SequenceDaemonRecoveryTest {
     @Test void privateDaemonCrashPreservesAdmissionAndRestartReconcilesOnlyOwnedContainer() throws Exception {
         assertTrue(Boolean.getBoolean("lab.daemon.privileged"), "Explicit privileged daemon test consent is required");
         String token = UUID.randomUUID().toString(), container = null;
+        var volumes = new ArrayList<String>();
         System.out.println("stage=private_daemon_test owner_token=" + token);
         try {
             // Never download images implicitly or mount the host Docker socket/data into this engine.
             ok("docker", "image", "inspect", ENGINE_IMAGE, "--format", "{{.Id}}");
             long size = Long.parseLong(ok("docker", "image", "inspect", "busybox:1.37", "--format", "{{.Size}}").trim());
             assertTrue(size < 16 * 1024 * 1024, "Fixture image unexpectedly large");
+            // Keep engine data across restart, but discard stale containerd PID/socket files.
             container = ok("docker", "create", "--pull=never", "--privileged", "--memory=1g", "--cpus=1", "--pids-limit=256",
+                    "--tmpfs", "/run:rw,nosuid,nodev,size=16m",
                     "--label", OWNER + "=" + token, "--publish", "127.0.0.1::2375", "--env", "DOCKER_TLS_CERTDIR=",
                     ENGINE_IMAGE, "--tls=false", "--storage-driver=vfs").trim();
             assertTrue(container.matches("[a-f0-9]{64}"));
             System.out.println("stage=private_daemon_created container_id=" + container + " owner_token=" + token);
             verifyOwner(container, token);
+            var mounts = WireJson.parse(("{\"mounts\":" + ok("docker", "inspect", "--format", "{{json .Mounts}}", container) + "}")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8)).path("mounts");
+            assertTrue(mounts.isArray() && mounts.size() <= 8);
+            for (var mount : mounts) {
+                if ("tmpfs".equals(mount.path("Type").asText())) {
+                    assertEquals("/run", mount.path("Destination").asText());
+                    continue;
+                }
+                assertEquals("volume", mount.path("Type").asText(), "No host bind mounts are permitted");
+                String volume = mount.path("Name").asText();
+                assertTrue(volume.matches("[a-f0-9]{64}"), "Only anonymous fixture volumes are permitted");
+                volumes.add(volume);
+            }
+            System.out.println("stage=private_daemon_volumes volume_ids=" + volumes);
             ok("docker", "start", container);
             String engineId = awaitEngine(container), address = address(container);
             Path image = root.resolve("fixture-image.tar");
             ok("docker", "image", "save", "--output", image.toString(), "busybox:1.37");
             assertTrue(Files.size(image) < 32 * 1024 * 1024);
-            ok("docker", "cp", image.toString(), container + ":/tmp/fixture-image.tar");
-            inner(container, "image", "load", "--input", "/tmp/fixture-image.tar");
+            ok("docker", "cp", image.toString(), container + ":/fixture-image.tar");
+            inner(container, "image", "load", "--input", "/fixture-image.tar");
             // Only engine metadata/recovery is tested. This sleeping fixture is not a MySQL workload.
             inner(container, "image", "tag", "busybox:1.37", "mysql:8.0.39");
             var descriptor = WireJson.parse(Files.readAllBytes(Path.of(System.getProperty("lab.sequence.manifest"))));
@@ -93,6 +110,10 @@ class SequenceDaemonRecoveryTest {
             if (container != null) {
                 verifyOwner(container, token);
                 ok("docker", "rm", "--force", "--volumes", container);
+                assertEquals("", ok("docker", "ps", "-aq", "--filter", "id=" + container).trim());
+                for (String volume : volumes)
+                    assertEquals("", ok("docker", "volume", "ls", "-q", "--filter", "name=^" + volume + "$").trim());
+                System.out.println("stage=private_daemon_cleanup result=CONFIRMED container_id=" + container);
             }
         }
     }
@@ -125,7 +146,8 @@ class SequenceDaemonRecoveryTest {
         long deadline = System.nanoTime() + Duration.ofSeconds(90).toNanos();
         while (System.nanoTime() < deadline) {
             var result = command("docker", "exec", container, "docker", "--host", "unix:///var/run/docker.sock", "info", "--format", "{{.ID}}");
-            if (result.code == 0 && !result.output.isBlank()) return result.output.trim();
+            if (result.code == 0 && result.output.trim().matches("[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}"))
+                return result.output.trim();
             Thread.sleep(500);
         }
         throw new AssertionError("Private daemon did not become ready");

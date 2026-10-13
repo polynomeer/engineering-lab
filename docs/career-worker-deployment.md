@@ -99,3 +99,6 @@ EOF/exit/증거 저장이 모두 확인되어야 성공 증거가 완료된다. 
 Docker 통신 장애만 재현하려면 `./gradlew careerSequenceTest --tests '*SequenceRecoveryTransportTest'`를 사용한다.
 실제 배포물과 테스트 전용 Docker API를 연결하며 공유 엔진을 중단하지 않는다.
 [장애별 검증 범위](sequence-container-recovery.md#docker-통신-장애-회귀-검증)를 확인한다.
+
+실제 엔진 강제 종료·재시작은 승인된 환경에서 별도 `careerDaemonRecoveryTest`로 검증한다.
+[전용 privileged 엔진의 실행 옵션·검증 범위·정리 확인](sequence-container-recovery.md#독립-docker-엔진-재시작-검증)을 따른다.
