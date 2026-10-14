@@ -281,3 +281,18 @@ I2의 배타 잠금·6단계 기록을 재사용한다. network 생성 응답이
 실제 worker jar의 BEFORE/ATOMIC_UPDATE/SELECT_FOR_UPDATE 메트릭·CHECK·REPORT를
 중앙 저장하고 인증 실패 시 부분 증거와 자원 회수를 검증한다. 시험 이미지 태그와 실행별
 자원만 정리한다. 실패 workspace는 조사용으로 보존한다.
+
+### 시험 이미지의 로컬 조립
+
+`ContainerFixtureImage`는 캐시된 Java 21 base의 전체 이미지 ID를 조회하고
+`create --pull=never`로 실행하지 않을 컨테이너를 만든다. `/opt/lab/worker.jar`를 복사하고
+`commit`으로 시험 이미지를 저장한 뒤 생성용 컨테이너의 전체 ID·base·소유 토큰·created
+상태를 대조해 제거한다. 시험 이미지는 각 suite 종료 시 제거한다. 생성용 컨테이너는
+네트워크가 없으며 한 번도 시작하지 않는다.
+
+기존 임시 `FROM engineering-lab-worker-test:<UUID>-base` 방식은 `--pull=false`여도
+BuildKit이 해당 이름의 Docker Hub blob을 조회했다. 2026-10-14 실패 시각의 daemon 로그에
+원격 HEAD 요청이 60초 후 취소된 기록이 있어 이 경로를 제거했다. 새 조립은 registry와
+BuildKit을 사용하지 않으며 CLI 제한 시간과 실제 worker 실행·격리 검증은 유지한다.
+공통 suite의 실패 build/workspace는 보존하고 timeout 메시지에 로그 경로와 마지막 8 KiB를
+남긴다. daemon 자체의 조회·삭제 응답 지연은 별개의 실패로 계속 보고한다.

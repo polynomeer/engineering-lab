@@ -16,8 +16,8 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ContainerWorkerIntegrationTest {
-    @TempDir static Path imageContext;
-    @TempDir Path root;
+    @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.ON_SUCCESS) static Path imageContext;
+    @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.ON_SUCCESS) Path root;
     static String image, hash;
     static final String tag = "engineering-lab-worker-test:" + UUID.randomUUID();
     private final Experiment<ExperimentScenario> experiment = new Experiment<>() {
@@ -27,21 +27,12 @@ class ContainerWorkerIntegrationTest {
         }
     };
     @BeforeAll static void buildImage() throws Exception {
-        // Resolve a cached base to its immutable ID. No pulls and no changes to the base image.
-        String base = docker("image", "inspect", "eclipse-temurin:21-jre", "--format", "{{.Id}}").trim();
         Path jar = Path.of(System.getProperty("lab.worker.fixture"));
         hash = HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(jar)));
-        Files.copy(jar, imageContext.resolve("worker.jar"));
-        docker("image", "tag", base, tag + "-base");
-        Files.writeString(imageContext.resolve(".dockerignore"), "*\n!Dockerfile\n!worker.jar\n");
-        Files.writeString(imageContext.resolve("Dockerfile"), "FROM " + tag + "-base\nCOPY worker.jar /opt/lab/worker.jar\n");
-        docker("build", "--network=none", "--pull=false", "-t", tag, imageContext.toString());
-        image = docker("image", "inspect", tag, "--format", "{{.Id}}").trim();
+        image = ContainerFixtureImage.create(imageContext, jar, tag, ContainerWorkerIntegrationTest::docker);
     }
-    @AfterAll static void removeImage() throws Exception {
-        try { removeTag(tag); }
-        finally { removeTag(tag + "-base"); }
-    }
+    @AfterAll static void removeImage() throws Exception { removeTag(tag); }
+
     private static void removeTag(String reference) throws Exception {
         String[] lookup = {"image", "ls", "--filter", "reference=" + reference, "--format", "{{.Repository}}:{{.Tag}}"};
         if (docker(lookup).isBlank()) return;
@@ -157,8 +148,17 @@ class ContainerWorkerIntegrationTest {
         Path log = Files.createTempFile(imageContext, "docker-", ".log");
         Process process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile()).start();
         try {
-            assertTrue(process.waitFor(60, TimeUnit.SECONDS), "Docker command timed out");
+            assertTrue(process.waitFor(60, TimeUnit.SECONDS), () -> "Docker " + args[0] + " timed out; retained log: " + log + "\n" + logTail(log));
             String output = Files.readString(log); assertEquals(0, process.exitValue(), output); return output;
         } finally { if (process.isAlive()) { process.destroyForcibly(); assertTrue(process.waitFor(5, TimeUnit.SECONDS)); } }
     }
+    private static String logTail(Path log) {
+        try (var file = java.nio.channels.FileChannel.open(log, StandardOpenOption.READ)) {
+            file.position(Math.max(0, file.size() - 8192));
+            var tail = java.nio.ByteBuffer.allocate(8192);
+            while (tail.hasRemaining() && file.read(tail) > 0) { }
+            return new String(tail.array(), 0, tail.position(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) { return "Unable to read Docker diagnostic log"; }
+    }
+
 }

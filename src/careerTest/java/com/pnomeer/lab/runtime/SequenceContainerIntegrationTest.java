@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SequenceContainerIntegrationTest {
-    @TempDir static Path build;
+    @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.ON_SUCCESS) static Path build;
     @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.ON_SUCCESS) Path root;
     @BeforeEach void diagnosticWorkspace() { System.out.println("sequence_controller_test_workspace=" + root); }
     static final String tag = "engineering-lab-sequence-worker-test:" + UUID.randomUUID();
@@ -27,17 +27,10 @@ class SequenceContainerIntegrationTest {
         Path jar = Path.of(System.getProperty("lab.sequence.manifest")).getParent().resolve(descriptor.path("jarFile").asText());
         hash = descriptor.path("artifactSha256").asText();
         mysqlImage = docker("image", "inspect", "mysql:8.0.39", "--format", "{{.Id}}").trim();
-        String base = docker("image", "inspect", "eclipse-temurin:21-jre", "--format", "{{.Id}}").trim();
-        docker("image", "tag", base, tag + "-base");
-        Files.copy(jar, build.resolve("worker.jar"));
-        Files.writeString(build.resolve(".dockerignore"), "*\n!Dockerfile\n!worker.jar\n");
-        Files.writeString(build.resolve("Dockerfile"), "FROM " + tag + "-base\nCOPY worker.jar /opt/lab/worker.jar\n");
-        docker("build", "--pull=false", "--network=none", "-t", tag, build.toString());
-        image = docker("image", "inspect", tag, "--format", "{{.Id}}").trim();
+        image = ContainerFixtureImage.create(build, jar, tag, SequenceContainerIntegrationTest::docker);
     }
-    @AfterAll static void removeImages() throws Exception {
-        try { removeTag(tag); } finally { removeTag(tag + "-base"); }
-    }
+    @AfterAll static void removeImages() throws Exception { removeTag(tag); }
+
     private DurableExperimentRunner runner(RunStore store, String variant, boolean wrongPassword) throws Exception {
         ContainerWorkerResources resources = new SequenceContainerResources(mysqlImage);
         if (wrongPassword) {
