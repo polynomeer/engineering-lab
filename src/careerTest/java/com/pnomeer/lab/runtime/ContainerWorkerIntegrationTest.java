@@ -82,7 +82,7 @@ class ContainerWorkerIntegrationTest {
             }
         }
     }
-    @ParameterizedTest @ValueSource(strings={"evidence-failed", "bad-report", "malformed", "nonzero", "hang"})
+    @ParameterizedTest @ValueSource(strings={"evidence-failed", "bad-report", "malformed", "oversize", "missing", "missing-result", "sequence-gap", "phase-regression", "nonzero", "hang"})
     void failuresDoNotSealAndStillRemoveContainer(String mode) throws Exception {
         try (var store = new JdbcRunStore(root.resolve("db"), 20, 4); var runner = runner(store, mode)) {
             assertEquals(ExperimentStatus.FAILED, runner.run(experiment, () -> "container", "run").status());
@@ -91,9 +91,58 @@ class ContainerWorkerIntegrationTest {
             if (mode.equals("evidence-failed")) {
                 assertEquals(1, store.metrics("run", -1, 20).size()); assertEquals(1, store.checks("run", -1, 20).size());
             }
+            var protocolReason = Map.of("malformed", "MALFORMED_JSON", "oversize", "RECORD_LIMIT", "missing", "MISSING_RESULT",
+                    "missing-result", "MISSING_RESULT", "sequence-gap", "SEQUENCE", "phase-regression", "PHASE_ORDER", "nonzero", "NONZERO_EXIT").get(mode);
+            if (protocolReason != null) {
+                assertEquals(protocolReason, store.find("run").orElseThrow().failureMessage());
+                assertEquals(!Set.of("malformed", "oversize", "missing").contains(mode), store.execution("run").orElseThrow().worker() != null);
+            }
             if (mode.equals("bad-report")) assertTrue(store.artifacts("run").isEmpty());
             if (mode.equals("hang")) assertEquals("DEADLINE_EXCEEDED", store.find("run").orElseThrow().failureMessage());
         }
+        try (var reopened = new JdbcRunStore(root.resolve("db"), 20, 4)) {
+            assertEquals(RunStatus.FAILED, reopened.find("run").orElseThrow().status());
+            assertFalse(reopened.execution("run").orElseThrow().evidenceComplete());
+        }
+    }
+    @Test void databaseWriteFailureCannotSealContainerEvidenceAcrossReopen() throws Exception {
+        Path db = root.resolve("db");
+        try (var real = new JdbcRunStore(db, 20, 4)) {
+            var failing = org.mockito.Mockito.spy(real);
+            org.mockito.Mockito.doThrow(new IllegalStateException("injected metric write failure"))
+                    .when(failing).appendMetrics(org.mockito.ArgumentMatchers.eq("run"), org.mockito.ArgumentMatchers.anyList());
+            try (var runner = runner(failing, "evidence")) {
+                assertEquals(ExperimentStatus.FAILED, runner.run(experiment, () -> "container", "run").status());
+                org.mockito.Mockito.verify(failing, org.mockito.Mockito.atLeastOnce()).appendMetrics(org.mockito.ArgumentMatchers.eq("run"), org.mockito.ArgumentMatchers.anyList());
+                assertRemoved();
+            }
+        }
+        try (var store = new JdbcRunStore(db, 20, 4)) {
+            assertEquals(RunStatus.FAILED, store.find("run").orElseThrow().status());
+            assertFalse(store.execution("run").orElseThrow().evidenceComplete());
+            assertNotNull(store.execution("run").orElseThrow().worker());
+            assertTrue(store.metrics("run", -1, 20).isEmpty());
+        }
+    }
+    @Test void flushFailureAfterResultStillRemovesContainerWithoutReturningSuccess() throws Exception {
+        var manifest = new ContainerWorkerManifest(image, hash, "fixture-module", Set.of("fixture.sequence"));
+        var transport = new ContainerWorkerProcess(manifest, new WorkerProcess.Limits(Duration.ofSeconds(30), Duration.ofSeconds(3), 1024, ProtocolLimits.DEFAULT));
+        Path workspaces = Files.createDirectories(root.resolve("workspaces"));
+        var command = WireJson.object().put("protocolVersion", 1).put("runId", "run").put("experimentId", "fixture.sequence")
+                .put("definitionSha256", "a".repeat(64)).put("deadlineEpochMs", System.currentTimeMillis() + 30000)
+                .put("seed", 1).put("workspace", workspaces.toString());
+        command.set("parameters", WireJson.object().put("mode", "evidence"));
+        var resultSeen = new java.util.concurrent.atomic.AtomicBoolean();
+        var flushCalled = new java.util.concurrent.atomic.AtomicBoolean();
+        var failure = assertThrows(WorkerProcess.Failure.class, () -> transport.execute(command, workspaces, new WorkerProcess.EvidenceSink() {
+            public void persist(WorkerProtocol.Event event, Path workspace) { if (event.type().equals("RESULT")) resultSeen.set(true); }
+            public void flush() {
+                assertTrue(resultSeen.get()); flushCalled.set(true);
+                throw new IllegalStateException("injected final flush failure");
+            }
+        }));
+        assertEquals("CONTAINER_PIPE_OR_EVIDENCE_FAILED", failure.getMessage());
+        assertTrue(resultSeen.get()); assertTrue(flushCalled.get()); assertRemoved();
     }
     @Test void interruptionDuringEvidencePersistenceStillRemovesBoundary() throws Exception {
         var manifest = new ContainerWorkerManifest(image, hash, "fixture-module", Set.of("fixture.sequence"));

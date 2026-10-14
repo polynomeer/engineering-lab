@@ -125,7 +125,7 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
 - [x] 별도 JVM 정보·코드 hash가 서버 정보와 구분되어 표시되는지 확인한다.
-- [ ] 실패 주입: malformed/oversize/누락/역순, exit 0이나 RESULT 없음, exit nonzero, DB flush 실패, 강제 종료, pipe 포화, Docker 불가를 검증한다.
+- [x] 실패 주입: malformed/oversize/누락/역순, exit 0이나 RESULT 없음, exit nonzero, DB flush 실패, 강제 종료, pipe 포화, Docker 불가를 검증한다. [검증 수준과 재현 표](worker-fault-injection.md)를 따른다.
 
 완료 기준: before 충돌과 after 중복 방지를 원시 증거로 확인하며, 두 Run이 하나의 Dashboard에 표시된다. 프로세스 정상 종료만으로 SUCCEEDED가 되지 않고 유실된 증거가 성공으로 보이지 않는다.
 
@@ -231,7 +231,7 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4 실패 주입 검증 표의 최종 대조와 누락 통합 검증**이다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구는 구현·검증했다. protocol/저장 실패 검증을 최종 요구사항별로 대조한 뒤 D5-1(mcp-platform architecture/validation)로 진행한다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
+다음 실행 작업은 **D5-1: mcp-platform architecture/validation 연동**이다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를
@@ -287,3 +287,15 @@ create/cp/commit으로 원격 조회를 제거하고 실패 로그/workspace 보
 이미지 수정 전 재시도의 정리 지연 실패는 `build/verification/i5/transport-resume-first/`에
 보존했다. 최종 조회에서 worker·생성용 컨테이너·격리 fixture·sequence network·시험 이미지
 태그가 없음을 확인했고, 기존 MySQL은 보존했다. I5 최종 회귀 차단을 해소했다.
+
+D4 실패 주입 최종 대조 (2026-10-15): [검증 표](worker-fault-injection.md)에 codec·실제
+Java 21 자식·H2 저장 경계·Docker 실행·대역 장애 주입을 구분했다. 실제 wire의 순번 누락,
+phase 역순, HELLO/PHASE 뒤 RESULT 없이 exit 0을 추가하고, 양쪽 executor의 실패 사유와
+저장소 재개방 후 미완료 상태를 확인했다. 컨테이너 DB 쓰기 및 RESULT 이후 flush 실패에서도
+성공 반환·seal을 막고 경계를 제거하는 것을 검증했다. 운영 코드는 변경하지 않았다.
+
+`./gradlew test containerWorkerTest` 성공: 루트 295개와 컨테이너 17개를 실행해 모두 통과했다.
+Career 첫 전체 실행은 기존 MySQL 초기화 지연으로 1건 실패했으나 보고서를 보존하고 해당
+배포 3개를 재실행해 통과했다. worker-support 55개와 나머지 모듈 결과를 합쳐 Career 125개를
+확인했다. 구체적인 명령·실패 이력·검증 한계는 검증 표에 기록했다. 최종 조회에서 시험
+worker·생성용 컨테이너·임시 이미지가 없었고 기존 다른 세션의 MySQL은 보존했다.

@@ -140,4 +140,27 @@ class LocalJvmExecutorTest {
         }
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"malformed", "oversize", "sequence-gap", "phase-regression", "missing-result", "nonzero"})
+    void wireFailureSurvivesStoreReopenAndStopsActualWorker(String mode) throws Exception {
+        Path db = root.resolve("db");
+        try (var store = new JdbcRunStore(db, 20, 4); var runner = runner(store, mode, Set.of())) {
+            assertEquals(ExperimentStatus.FAILED, runner.run(experiment, scenario, "wire-failure").status());
+        }
+        try (var store = new JdbcRunStore(db, 20, 4)) {
+            assertEquals(RunStatus.FAILED, store.find("wire-failure").orElseThrow().status());
+            assertEquals(Map.of("malformed", "MALFORMED_JSON", "oversize", "RECORD_LIMIT", "sequence-gap", "SEQUENCE",
+                    "phase-regression", "PHASE_ORDER", "missing-result", "MISSING_RESULT", "nonzero", "NONZERO_EXIT").get(mode),
+                    store.find("wire-failure").orElseThrow().failureMessage());
+            assertFalse(store.execution("wire-failure").orElseThrow().evidenceComplete());
+            assertEquals(!Set.of("malformed", "oversize").contains(mode), store.execution("wire-failure").orElseThrow().worker() != null);
+            assertTrue(store.checks("wire-failure", -1, 20).isEmpty());
+        }
+        try (var paths = Files.list(root.resolve("workspaces"))) {
+            var workspaces = paths.toList(); assertEquals(1, workspaces.size());
+            long pid = Long.parseLong(Files.readString(workspaces.getFirst().resolve("pid")));
+            assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));
+        }
+    }
+
 }

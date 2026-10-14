@@ -58,6 +58,17 @@ public final class ProcessFixture {
                 .put("definitionSha256", identity.definitionSha256()).put("artifactSha256", sha);
         hello.set("environment", env); hello.set("git", WireJson.object().putNull("commit").putNull("dirty").put("error", "fixture"));
         writer.emit("HELLO", hello);
+        if (mode.equals("sequence-gap") || mode.equals("phase-regression")) {
+            // Bypass the validating writer deliberately; the receiving transport must reject this wire event.
+            if (mode.equals("phase-regression")) {
+                writer.emit("PHASE", WireJson.object().put("phase", "PREPARING"));
+                writer.emit("PHASE", WireJson.object().put("phase", "MEASURING"));
+            }
+            var invalid = WireJson.object().put("protocolVersion", 1).put("runId", identity.runId())
+                    .put("sequence", mode.equals("sequence-gap") ? 2 : 3).put("type", "PHASE");
+            invalid.set("payload", WireJson.object().put("phase", "PREPARING"));
+            System.out.write(WireJson.encode(invalid)); System.out.write('\n'); System.out.flush(); return;
+        }
         for (String phase : new String[]{"PREPARING", "MEASURING", "FINALIZING"}) {
             writer.emit("PHASE", WireJson.object().put("phase", phase));
             if (phase.equals("MEASURING") && (mode.equals("evidence") || mode.equals("evidence-failed"))) {
@@ -75,6 +86,7 @@ public final class ProcessFixture {
         }
         if (mode.equals("artifact")) writer.emit("ARTIFACT", WireJson.object().put("path", "unverified.json")
                 .put("sizeBytes", 0).put("sha256", "c".repeat(64)).put("kind", "REPORT"));
+        if (mode.equals("missing-result")) return;
         writer.result((mode.equals("failed") || mode.equals("evidence-failed")) ? "FAILED" : "SUCCEEDED", "", WireJson.object());
         if (mode.equals("nonzero")) System.exit(7);
     }

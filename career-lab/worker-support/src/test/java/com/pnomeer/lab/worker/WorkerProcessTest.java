@@ -50,7 +50,7 @@ class WorkerProcessTest {
     @Test void reportedFailureIsNeverRewrittenAsSuccess() throws Exception {
         assertEquals("FAILED", runner(10).execute(manifest(), command("failed"), root, sink()).outcome().path("status").textValue());
     }
-    @ParameterizedTest @ValueSource(strings={"missing", "malformed", "oversize", "nonzero", "hang", "stubborn"})
+    @ParameterizedTest @ValueSource(strings={"missing", "malformed", "oversize", "sequence-gap", "phase-regression", "missing-result", "nonzero", "hang", "stubborn"})
     void brokenOrTimedOutChildCannotPassAndIsStopped(String mode) throws Exception {
         var failure = assertThrows(WorkerProcess.Failure.class, () -> runner((mode.equals("hang") || mode.equals("stubborn")) ? 2 : 10).execute(manifest(), command(mode), root, sink()));
         assertNotNull(failure.workspace()); assertDead(failure.workspace()); assertFalse(flushed.get());

@@ -141,3 +141,8 @@ RunStore 확인 후 복구는 `ContainerWorkerRegistration.recover`에 있다. �
 `sequenceContainerTest`는 실제 controller SIGKILL 후 같은 저장소 재시작·접수 재개까지
 검증한다. frontend의 `career.spec.ts`는 LOCAL_JVM/CONTAINER 표시와 준비 차단을 함께 검사한다.
 기존 LOCAL_JVM v1 완료 기록 없는 실행을 v2 복구로 해제해서는 안 된다.
+
+D4 실패 주입 요구사항과 검증 수준은 [실패 주입 검증 표](worker-fault-injection.md)를 따른다.
+실제 wire 오류는 Career `ProcessFixture`, 중앙 저장/재개방은 `LocalJvmExecutorTest`,
+컨테이너 경계 제거와 최종 flush는 `ContainerWorkerIntegrationTest`에서 검증한다.
+fixture 수정 시 Career 전체 테스트 후 루트 `test containerWorkerTest`를 순차 실행한다.
