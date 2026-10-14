@@ -14,7 +14,7 @@ import java.util.*;
 @RequestMapping("/dashboard/v1")
 public class DashboardCatalogController {
     private final ExperimentCatalog catalog;
-    private final Map<String, LocalJvmRegistration> workers;
+    private final Map<String, WorkerRegistration> workers;
     private final Map<String, Boolean> features;
     private final Map<String, Integer> limits;
     public DashboardCatalogController(ExperimentCatalog catalog, StorageProperties storage,
@@ -24,16 +24,16 @@ public class DashboardCatalogController {
     @org.springframework.beans.factory.annotation.Autowired
     public DashboardCatalogController(ExperimentCatalog catalog, StorageProperties storage,
             ObservationProperties observation, TraceProperties trace, JfrProperties jfr, RunLogProperties logs,
-            List<LocalJvmRegistration> registrations) {
-        var workers = new HashMap<String, LocalJvmRegistration>();
-        registrations.forEach(worker -> worker.manifest().experiments().forEach(id -> {
+            List<WorkerRegistration> registrations) {
+        var workers = new HashMap<String, WorkerRegistration>();
+        registrations.forEach(worker -> worker.experiments().forEach(id -> {
             if (workers.putIfAbsent(id, worker) != null) throw new IllegalArgumentException("Duplicate worker binding");
         }));
         this.workers = Map.copyOf(workers);
         this.catalog = catalog;
         this.features = Map.ofEntries(Map.entry("executionEvidence", true), Map.entry("checksRead", true),
                 Map.entry("extendedExport", true), Map.entry("executionComparison", true),
-                Map.entry("localJvm", !workers.isEmpty()), Map.entry("cancellation", false),
+                Map.entry("localJvm", workers.values().stream().anyMatch(w -> w.kind().name().equals("LOCAL_JVM"))), Map.entry("container", workers.values().stream().anyMatch(w -> w.kind().name().equals("CONTAINER"))), Map.entry("cancellation", false),
                 Map.entry("jvmObservation", observation.jvmEnabled()), Map.entry("trace", trace.enabled()),
                 Map.entry("jfr", jfr.enabled()), Map.entry("runLogs", logs.enabled()));
         this.limits = Map.of("checkPageSize", Math.min(RunCheck.MAX_PAGE, storage.pageLimit()),
@@ -49,7 +49,7 @@ public class DashboardCatalogController {
 
     @GetMapping("/capabilities")
     public Capabilities capabilities() {
-        return new Capabilities(1, workers.isEmpty() ? List.of("IN_PROCESS") : List.of("IN_PROCESS", "LOCAL_JVM"),
+        return new Capabilities(1, java.util.stream.Stream.concat(java.util.stream.Stream.of("IN_PROCESS"), workers.values().stream().map(w -> w.kind().name()).distinct().sorted()).toList(),
                 workers.isEmpty() ? List.of() : List.of(1), features, limits);
     }
     @GetMapping("/modules")
@@ -68,14 +68,15 @@ public class DashboardCatalogController {
                 if (descriptor.id().equals(id)) {
                     var supported = new HashMap<>(features);
                     var worker = workers.get(id);
-                    supported.put("localJvm", worker != null);
+                    supported.put("localJvm", worker != null && worker.kind().name().equals("LOCAL_JVM"));
+                    supported.put("container", worker != null && worker.kind().name().equals("CONTAINER"));
                     supported.put("checksProduced", worker != null);
                     if (worker != null) {
                         for (String key : List.of("jvmObservation", "trace", "jfr", "runLogs")) supported.put(key, false);
                     }
                     supported.put("fileUpload", "XLSX_UPLOAD".equals(descriptor.input()));
                     return new ExperimentView(id, entry.module().id(), "/experiments/" + id,
-                            worker == null ? "READY" : worker.readiness().get().state(), worker == null ? "IN_PROCESS" : "LOCAL_JVM",
+                            worker == null ? "READY" : worker.readiness().get().state(), worker == null ? "IN_PROCESS" : worker.kind().name(),
                             worker == null ? List.of() : worker.variants(), worker == null ? List.of("SUMMARY", "METRICS", "EXECUTION")
                                     : List.of("SUMMARY", "METRICS", "EXECUTION", "CHECK_RESULTS"), Map.copyOf(supported));
                 }

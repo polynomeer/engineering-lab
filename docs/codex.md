@@ -110,7 +110,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 새 Codex 작업도 루트 `AGENTS.md`를 기준으로 진행한다. 이 구조는 모델·개인 전역 설정을 고정하지 않는 저장소 지침 방식이며, [공식 OpenAI 안내](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)의 간결한 지침과 필요한 문서만 참조하는 원칙을 따른다.
 
-루트 `settings.gradle`은 `career-lab/worker-support`만 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM capability는 기본 false이며 sequence 등록을 활성화하면 true다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
+루트 `settings.gradle`은 `career-lab/worker-support`만 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM/CONTAINER capability는 기본 false이며 sequence를 활성화하면 선택한 실행 방식만 true다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
 
 등록 LOCAL_JVM의 비정상 종료 후 접수 보호는 `WorkerRecoveryGuard`와 `LocalJvmRegistration`에서 담당한다. `WorkerRecoveryGuardTest`, `LocalJvmRegistrationTest`로 강제 종료 기록 보존·실패 후 재접수 거절·정상 해제를 검증한다. [운영 복구 절차](worker-recovery.md)를 따르며 기본값은 자동 복구 비활성이다. `WorkerStartupRecovery`가 종료 확인 기록이 있는 sequence만 opt-in으로 시작 시 재조정하며, 나머지는 운영자 확인이 필요하다.
 
@@ -122,7 +122,7 @@ sequence 컨테이너 소유권 기록·복구 명령은 Career `mcp-platform`�
 
 `./gradlew workerContainerIsolationTest`는 로컬 `busybox:1.37`로 비특권 PID 공간·분리 프로세스·controller 사망 후 새 JVM의 자원 회수를 검증한다. 일반 suite와 별도이며 이미지 자동 다운로드와 privileged 권한은 사용하지 않는다. 운영 실행 경로는 [I1–I5 계획](worker-container-isolation.md)에 따라 추가하며, I2 어댑터의 실제 Docker 검증도 이 task에 포함한다.
 
-I2 수명주기 구현은 `runtime/WorkerContainerLifecycle`(배타 잠금·단계별 영속 기록)과 `DockerContainerEngine`(bounded CLI·격리/소유권 확인)에 있다. `WorkerContainerLifecycleTest`와 `workerContainerIsolationTest`로 검증한다. 중앙 marker 해제는 아직 담당하지 않는다. I3 `ContainerWorkerProcess`/`ContainerWorkerExecutor`가 protocol과 중앙 증거 저장을 연결한다. `./gradlew containerWorkerTest`는 캐시된 `eclipse-temurin:21-jre`에서 시험 이미지를 만들고 실제 Java 21 실행·REPORT·실패/중단 회수를 검사한다. 기본 catalog 등록은 없으며 I4 sequence DB 소유자 분리까지 구현했다. 다음은 I5 재시작 복구·접수 재개다. 자세한 이미지 요구사항과 제한은 [I3 계약](worker-container-isolation.md#i3-protocol-transport와-중앙-증거-연결)을 따른다.
+I2 수명주기 구현은 `runtime/WorkerContainerLifecycle`(배타 잠금·단계별 영속 기록)과 `DockerContainerEngine`(bounded CLI·격리/소유권 확인)에 있다. `WorkerContainerLifecycleTest`와 `workerContainerIsolationTest`로 검증한다. 중앙 marker 해제는 아직 담당하지 않는다. I3 `ContainerWorkerProcess`/`ContainerWorkerExecutor`가 protocol과 중앙 증거 저장을 연결한다. `./gradlew containerWorkerTest`는 캐시된 `eclipse-temurin:21-jre`에서 시험 이미지를 만들고 실제 Java 21 실행·REPORT·실패/중단 회수를 검사한다. 기본 catalog 등록은 없으며 I4 sequence DB 소유자 분리까지 구현했다. I5 재시작 복구·접수 재개를 명시적 CONTAINER 등록에 연결했다. 자세한 이미지 요구사항과 제한은 [I3 계약](worker-container-isolation.md#i3-protocol-transport와-중앙-증거-연결)을 따른다.
 
 
 I4 자원 SPI는 `runtime/ContainerWorkerResources`, 모듈 어댑터는
@@ -131,4 +131,13 @@ I4 자원 SPI는 `runtime/ContainerWorkerResources`, 모듈 어댑터는
 후 `./gradlew test sequenceContainerTest`를 순차 실행한다. 실제 Docker suite는
 세 채번 방식의 중앙 증거와 DB 인증 실패 회수를 검증한다. 기존 LOCAL_JVM 회귀는
 `careerSequenceTest`, 일반 컨테이너 회귀는 `containerWorkerTest workerContainerIsolationTest`다.
-기본 catalog는 아직 LOCAL_JVM이며 I5 전에는 컨테이너 운영 접수 자동 해제를 활성화하지 않는다.
+기본값은 LOCAL_JVM이다. `lab.career.sequence.execution-kind=CONTAINER`와 고정 이미지/hash를 설정하면 CONTAINER를 등록한다. `recover-on-startup=true`는 v2 기록에 대한 시작 시 복구를 활성화한다.
+
+
+I5의 공통 등록은 `WorkerRegistration`, v2 접수 기록/배타 잠금은 `ContainerRecoveryGuard`,
+RunStore 확인 후 복구는 `ContainerWorkerRegistration.recover`에 있다. 모듈 자원은
+`ContainerWorkerResources.recovery`를 제공한다. `ContainerStartupRecoveryTest`와
+`SequenceResourceRecoveryTest`가 기록 손상·미확인 요청·엔진/삭제 실패를 주입한다.
+`sequenceContainerTest`는 실제 controller SIGKILL 후 같은 저장소 재시작·접수 재개까지
+검증한다. frontend의 `career.spec.ts`는 LOCAL_JVM/CONTAINER 표시와 준비 차단을 함께 검사한다.
+기존 LOCAL_JVM v1 완료 기록 없는 실행을 v2 복구로 해제해서는 안 된다.

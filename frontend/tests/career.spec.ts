@@ -10,7 +10,7 @@ test.use({ actionTimeout: 15000 });
 const experiment = 'career.mcp-platform.sequence';
 const path = '/app/experiments/' + experiment;
 
-async function fixtureCatalog(page: Page) {
+async function fixtureCatalog(page: Page, kind = 'LOCAL_JVM') {
   await page.route('**/api/runs/ui/options', route => route.fulfill({ json: { pageSize: 20, artifactDownloadMaxBytes: 1048576 } }));
   const descriptor = {
     id: experiment,
@@ -34,7 +34,8 @@ async function fixtureCatalog(page: Page) {
       json: {
         schemaVersion: 1,
         features: {
-          localJvm: true,
+          localJvm: kind === 'LOCAL_JVM',
+          container: kind === 'CONTAINER',
           executionEvidence: true,
           checksRead: true,
           extendedExport: true,
@@ -44,11 +45,12 @@ async function fixtureCatalog(page: Page) {
   );
 }
 
-test('readiness blocks execution and retry preserves draft', async ({ page }) => {
-  await fixtureCatalog(page);
+for (const kind of ['LOCAL_JVM', 'CONTAINER']) {
+test(kind + ' readiness blocks execution and retry preserves draft', async ({ page }) => {
+  await fixtureCatalog(page, kind);
   let state = 'DOCKER_UNAVAILABLE';
   await page.route('**/api/dashboard/v1/experiments/' + experiment, (route) =>
-    route.fulfill({ json: { readiness: state, executionKind: 'LOCAL_JVM' } }),
+    route.fulfill({ json: { readiness: state, executionKind: kind } }),
   );
   await page.goto(path);
   const submit = page.getByRole('button', { name: '실험 실행', exact: true });
@@ -63,8 +65,11 @@ test('readiness blocks execution and retry preserves draft', async ({ page }) =>
   await expect(page.getByLabel('시나리오 ID')).toHaveValue('keep-my-draft');
 });
 
-test('partial evidence, unknown worker, check cursor and request failure', async ({ page }) => {
-  await fixtureCatalog(page);
+}
+
+for (const kind of ['LOCAL_JVM', 'CONTAINER']) {
+test(kind + ' partial evidence, unknown worker, check cursor and request failure', async ({ page }) => {
+  await fixtureCatalog(page, kind);
   const id = evidence.run.runId;
   let status = 'FAILED';
   let checkRequests = 0;
@@ -85,7 +90,7 @@ test('partial evidence, unknown worker, check cursor and request failure', async
         available: true,
         execution: {
           definition: {
-            kind: 'LOCAL_JVM',
+            kind,
             moduleId: 'mcp-platform',
             measurementScope: 'WORKER_PROCESS',
           },
@@ -152,6 +157,8 @@ test('partial evidence, unknown worker, check cursor and request failure', async
   await expect(page.getByText('기존 API 호환 모드', { exact: false })).toBeVisible();
   await expect(page.getByRole('region', { name: '실행 및 검증 증거' })).toHaveCount(0);
 });
+
+}
 
 test('real Career browser execution, comparison and evidence export', async ({
   page,

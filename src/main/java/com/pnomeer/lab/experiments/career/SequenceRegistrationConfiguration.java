@@ -47,11 +47,13 @@ public class SequenceRegistrationConfiguration {
         return new ExperimentRegistration<>(DESCRIPTOR, ignored -> new Experiment<>() {
             public String type() { return ID; }
             public ExperimentSummary execute(Scenario scenario, Consumer<MetricPoint> sink) {
-                throw new IllegalStateException("Sequence requires its registered LOCAL_JVM executor");
+                throw new IllegalStateException("Sequence requires its registered worker executor");
             }
         }, (definition, input) -> new Scenario(definition, documents.hash(definition)));
     }
-    @Bean public LocalJvmRegistration sequenceWorker(StorageProperties storage, com.pnomeer.lab.storage.JdbcRunStore store,
+    @Bean
+    @ConditionalOnProperty(name="lab.career.sequence.execution-kind", havingValue="LOCAL_JVM", matchIfMissing=true)
+    public LocalJvmRegistration sequenceWorker(StorageProperties storage, com.pnomeer.lab.storage.JdbcRunStore store,
             @Value("${lab.career.sequence.manifest}") String manifestFile,
             @Value("${lab.career.sequence.java-executable}") String javaExecutable,
             @Value("${lab.career.sequence.recover-on-startup:false}") boolean recoverOnStartup) throws Exception {
@@ -91,4 +93,40 @@ public class SequenceRegistrationConfiguration {
         }
         return binding;
     }
+    public enum ExecutionMode { LOCAL_JVM, CONTAINER }
+    @Bean public ExecutionMode sequenceExecutionMode(@Value("${lab.career.sequence.execution-kind:LOCAL_JVM}") ExecutionMode mode) { return mode; }
+    @Bean
+    @ConditionalOnProperty(name="lab.career.sequence.execution-kind", havingValue="CONTAINER")
+    public ContainerWorkerRegistration sequenceContainerWorker(StorageProperties storage, com.pnomeer.lab.storage.JdbcRunStore store,
+            @Value("${lab.career.sequence.container.image-id}") String imageId,
+            @Value("${lab.career.sequence.container.artifact-sha256}") String artifactSha256,
+            @Value("${lab.career.sequence.container.mysql-image-id}") String mysqlImageId,
+            @Value("${lab.career.sequence.recover-on-startup:false}") boolean recoverOnStartup) throws Exception {
+        Path root = Path.of(storage.root()).toAbsolutePath();
+        var manifest = new ContainerWorkerManifest(imageId, artifactSha256, "mcp-platform", Set.of(ID));
+        var binding = new ContainerWorkerRegistration("sequence-worker", manifest, Files.createDirectories(root.resolve("worker-workspaces")), root,
+                Set.of("sequence.elapsedNanos", "sequence.overlapPairs", "sequence.finalValue"), scenario -> {
+                    var input = (Scenario)scenario;
+                    var parameters = WireJson.object();
+                    input.definition().parameters().forEach((key, value) -> {
+                        if (value instanceof Number number) parameters.put(key, number.intValue()); else parameters.put(key, value.toString());
+                    });
+                    return new LocalJvmExecutor.Request(parameters, input.hash(), 0);
+                }, new SequenceContainerResources(mysqlImageId), () -> {
+                    try {
+                        for (String image : List.of(imageId, mysqlImageId))
+                            if (!image.equals(DockerContainerEngine.command("image", "inspect", image, "--format", "{{.Id}}").trim()))
+                                return new LocalJvmRegistration.Readiness("INCOMPATIBLE", "CONTAINER_IMAGE_MISMATCH");
+                        return new LocalJvmRegistration.Readiness("READY", null);
+                    } catch (Exception e) {
+                        if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+                        return new LocalJvmRegistration.Readiness("UNAVAILABLE", "CONTAINER_ENGINE_OR_IMAGE_UNAVAILABLE");
+                    }
+                }, VARIANTS);
+        // JdbcRunStore has already acquired its owner lock and marked interrupted Runs before recovery.
+        if (recoverOnStartup) org.slf4j.LoggerFactory.getLogger(SequenceRegistrationConfiguration.class)
+                .info("stage=container_startup_recovery registration_id={} result={}", binding.id(), binding.recover(store));
+        return binding;
+    }
+
 }

@@ -195,6 +195,8 @@ Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata�
 | `pipeline.backpressure.offer-timeout-ms` | 200 | timed offer 대기 |
 | `pipeline.error-preview-limit` | 100 | 메모리에 보유할 오류 행 미리보기 |
 | `pipeline.shutdown-timeout-ms` | 30000 | drain 및 별도 executor 종료 대기 |
+| `lab.career.sequence.execution-kind` | `LOCAL_JVM` | 선택적 Career 실행 방식 (`CONTAINER` 지원) |
+| `lab.career.sequence.recover-on-startup` | `false` | 선택한 실행 방식의 기록을 검증해 시작 시 복구 |
 | `lab.storage.root` | `.lab` | 실행 증거 디렉터리 |
 | `lab.storage.max-active-runs` | 8 | 동시 실행 상한 |
 | `lab.storage.preview-limit` | 200 | 최근 metric preview |
@@ -292,3 +294,9 @@ Spring 진입점과 작은 XLSX 생성기는 `com.pnomeer.pipeline`에 남아 �
 | [관측](docs/observability.md) | JVM·Trace·JFR·로그 계약 |
 | [설계](docs/experiment-platform-design.md) / [계획](docs/implementation-plan.md) | 구현 방향·완료 범위·후속 확장 |
 | [Findings](docs/findings/README.md) | 측정 결과와 해석, 작성 템플릿 |
+
+
+Career sequence의 CONTAINER 배포는 고정 worker/MySQL 이미지 ID와 jar SHA-256이 필요합니다.
+controller가 worker·DB·전용 네트워크를 회수하고, opt-in 재시작 복구가 확인된 경우에만
+접수를 재개합니다. 중단 Run의 부분 증거는 유지합니다.
+[설정과 복구 범위](docs/career-worker-deployment.md#container-실행과-시작-시-복구-i5)를 따르세요.

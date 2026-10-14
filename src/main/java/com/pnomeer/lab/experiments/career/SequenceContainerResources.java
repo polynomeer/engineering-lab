@@ -13,10 +13,91 @@ import java.util.*;
 
 /** Controller-only sequence provisioning. No resource choice or credentials from scenario input. */
 public final class SequenceContainerResources implements ContainerWorkerResources {
+    @FunctionalInterface interface Commands { String run(String... arguments) throws Exception; }
+    private final Commands docker;
     private final String mysqlImage;
-    public SequenceContainerResources(String mysqlImage) {
+    public SequenceContainerResources(String mysqlImage) { this(mysqlImage, DockerContainerEngine::command); }
+    SequenceContainerResources(String mysqlImage, Commands docker) {
         if (mysqlImage == null || !mysqlImage.matches("sha256:[a-f0-9]{64}")) throw new IllegalArgumentException("Pinned MySQL image required");
-        this.mysqlImage = mysqlImage;
+        this.mysqlImage = mysqlImage; this.docker = Objects.requireNonNull(docker);
+    }
+    @Override public String profile() { return "sequence-v1:" + mysqlImage; }
+    @Override public Recovery recovery(Path workspace, String runId, String artifactSha256) throws Exception {
+        Path directory = workspace.resolve("sequence-resources");
+        if (Files.notExists(directory, LinkOption.NOFOLLOW_LINKS)) return ContainerWorkerResources.NONE.recovery(workspace, runId, artifactSha256);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Invalid resource directory");
+        Path intentPath = directory.resolve("intent.json");
+        if (Files.notExists(intentPath, LinkOption.NOFOLLOW_LINKS)) {
+            try (var files = Files.list(directory)) { if (files.findAny().isPresent()) throw new IOException("Orphan resource records"); }
+            return ContainerWorkerResources.NONE.recovery(workspace, runId, artifactSha256);
+        }
+        byte[] bytes = ContainerJournal.read(intentPath);
+        var intent = WireJson.parse(bytes);
+        String token = intent.path("token").asText(), engine = intent.path("engineId").asText();
+        if (intent.size() != 8 || intent.path("version").asInt() != 1 || !"sequence-network-v1".equals(intent.path("profile").asText())
+                || !mysqlImage.equals(intent.path("mysqlImage").asText()) || !runId.equals(intent.path("runId").asText())
+                || !artifactSha256.equals(intent.path("artifactSha256").asText()) || !token.matches("[a-f0-9-]{36}")
+                || !engine.matches("[a-zA-Z0-9:-]{1,200}") || !("engineering-lab-sequence-net-" + token).equals(intent.path("name").asText()))
+            throw new IOException("Invalid network intent");
+        String intentHash = ContainerJournal.hash(bytes);
+        var created = ContainerJournal.json(directory.resolve("created.json")); // Missing/partial response is never eligible.
+        String networkId = created.path("id").asText();
+        if (created.size() != 2 || !intentHash.equals(created.path("intentSha256").asText()) || !networkId.matches("[a-f0-9]{64}"))
+            throw new IOException("Invalid network receipt");
+        boolean removing = !Files.notExists(directory.resolve("removing.json"), LinkOption.NOFOLLOW_LINKS);
+        boolean removed = !Files.notExists(directory.resolve("removed.json"), LinkOption.NOFOLLOW_LINKS);
+        if (removed && !removing) throw new IOException("Invalid network record order");
+        for (String step : List.of("removing", "removed")) {
+            Path path = directory.resolve(step + ".json");
+            if (!Files.notExists(path, LinkOption.NOFOLLOW_LINKS)) {
+                var value = ContainerJournal.json(path);
+                if (value.size() != 1 || !intentHash.equals(value.path("intentSha256").asText())) throw new IOException("Invalid network receipt");
+            }
+        }
+        return new Recovery() {
+            public String networkId() { return networkId; }
+            public void finish() throws Exception {
+                Path mysql = directory.resolve("mysql");
+                if (!Files.notExists(mysql, LinkOption.NOFOLLOW_LINKS)) {
+                    String credentialHash = "0".repeat(64);
+                    if (!Files.notExists(mysql.resolve("intent.json"), LinkOption.NOFOLLOW_LINKS)) {
+                        String profile = ContainerJournal.json(mysql.resolve("intent.json")).path("profile").asText();
+                        String prefix = "sequence-mysql-v1:" + networkId + ":";
+                        if (!profile.startsWith(prefix) || !profile.substring(prefix.length()).matches("[a-f0-9]{64}")) throw new IOException("Invalid DB profile");
+                        credentialHash = profile.substring(prefix.length());
+                    }
+                    try (var db = new WorkerContainerLifecycle(mysql, databaseSpec(runId, artifactSha256), new MysqlEngine(networkId, credentialHash))) {
+                        if (db.reconcile() == WorkerContainerLifecycle.Recovery.REQUIRES_OPERATOR) throw new IOException("Database request unconfirmed");
+                    }
+                }
+                sameEngine();
+                String found = docker.run("network", "ls", "--no-trunc", "--quiet", "--filter", "id=" + networkId).trim();
+                if (!found.isEmpty()) {
+                    if (!found.equals(networkId) || removed) throw new IOException("Network identity changed");
+                    var value = WireJson.parse(docker.run("network", "inspect", "--format", "{{json .}}", networkId).getBytes(StandardCharsets.UTF_8));
+                    if (!networkId.equals(value.path("Id").asText()) || !intent.path("name").asText().equals(value.path("Name").asText())
+                            || !value.path("Internal").asBoolean() || value.path("Attachable").asBoolean() || !"bridge".equals(value.path("Driver").asText())
+                            || !token.equals(value.path("Labels").path(DockerContainerEngine.OWNER).asText())
+                            || !runId.equals(value.path("Labels").path(DockerContainerEngine.RUN).asText())
+                            || !"sequence-network".equals(value.path("Labels").path("engineering-lab.resource").asText())
+                            || !value.path("Containers").isObject() || !value.path("Containers").isEmpty()) throw new IOException("Network ownership or endpoints changed");
+                }
+                if (!removing) ContainerJournal.write(directory.resolve("removing.json"), WireJson.object().put("intentSha256", intentHash));
+                sameEngine();
+                if (!found.isEmpty()) docker.run("network", "rm", networkId);
+                sameEngine();
+                if (!docker.run("network", "ls", "--no-trunc", "--quiet", "--filter", "id=" + networkId).isBlank()) throw new IOException("Network removal unconfirmed");
+                sameEngine();
+                if (!removed) ContainerJournal.write(directory.resolve("removed.json"), WireJson.object().put("intentSha256", intentHash));
+            }
+            private void sameEngine() throws Exception {
+                if (!engine.equals(docker.run("info", "--format", "{{.ID}}").trim())) throw new IOException("Docker engine changed");
+            }
+        };
+    }
+    private WorkerContainerLifecycle.Spec databaseSpec(String runId, String artifactSha256) {
+        return new WorkerContainerLifecycle.Spec(runId, artifactSha256, mysqlImage,
+                List.of("/usr/local/bin/docker-entrypoint.sh", "mysqld", "--skip-log-bin", "--innodb-buffer-pool-size=64M", "--performance-schema=OFF"));
     }
     @Override public Session open(ObjectNode command, Path workspace, String artifactSha256) throws Exception {
         if (!command.path("experimentId").asText().equals("career.mcp-platform.sequence")) throw new IllegalArgumentException("Sequence resources only");
@@ -36,28 +117,27 @@ public final class SequenceContainerResources implements ContainerWorkerResource
         Resources(ObjectNode command, Path directory, String artifactSha256) { this.command = command.deepCopy(); this.directory = directory; this.artifactSha256 = artifactSha256; }
         public void prepare() throws Exception {
             if (attempted || finished) throw new IOException("Resource session cannot be reused");
-            engineId = new DockerContainerEngine().identity();
+            engineId = docker.run("info", "--format", "{{.ID}}").trim();
             if (!engineId.matches("[a-zA-Z0-9:-]{1,200}")) throw new IOException("Invalid Docker engine identity");
             var intent = WireJson.object().put("version", 1).put("profile", "sequence-network-v1")
                     .put("engineId", engineId).put("token", token).put("name", name).put("mysqlImage", mysqlImage)
                     .put("runId", command.path("runId").asText()).put("artifactSha256", artifactSha256);
             byte[] bytes = WireJson.encode(intent); write("intent", bytes); intentHash = hash(bytes); attempted = true;
             sameEngine();
-            networkId = DockerContainerEngine.command("network", "create", "--driver", "bridge", "--internal",
+            networkId = docker.run("network", "create", "--driver", "bridge", "--internal",
                     "--label", DockerContainerEngine.OWNER + "=" + token, "--label", DockerContainerEngine.RUN + "=" + command.path("runId").asText(),
                     "--label", "engineering-lab.resource=sequence-network", name).trim();
             if (!networkId.matches("[a-f0-9]{64}")) { networkId = null; throw new IOException("Network create unconfirmed"); }
             verifyNetwork(); write("created", receipt().put("id", networkId));
             var mysql = new MysqlEngine(networkId, password, rootPassword);
-            var spec = new WorkerContainerLifecycle.Spec(command.path("runId").asText(), artifactSha256, mysqlImage,
-                    List.of("/usr/local/bin/docker-entrypoint.sh", "mysqld", "--skip-log-bin", "--innodb-buffer-pool-size=64M", "--performance-schema=OFF"));
+            var spec = databaseSpec(command.path("runId").asText(), artifactSha256);
             database = new WorkerContainerLifecycle(Files.createDirectory(directory.resolve("mysql")), spec, mysql);
             String id = database.create(); database.start();
             long deadline = Math.min(command.path("deadlineEpochMs").asLong(), System.currentTimeMillis() + 120000);
             while (true) {
                 if (System.currentTimeMillis() >= deadline) throw new IOException("Sequence database readiness deadline");
                 try {
-                    String result = DockerContainerEngine.command("exec", "--env", "MYSQL_PWD=" + password, id,
+                    String result = docker.run("exec", "--env", "MYSQL_PWD=" + password, id,
                             "mysql", "--user=lab", "--database=sequence_lab", "--batch", "--skip-column-names", "--execute=SELECT 1");
                     if (result.trim().equals("1")) break;
                 } catch (IOException ignored) { /* Read-only readiness retries; never repeat create/start. */ }
@@ -82,18 +162,18 @@ public final class SequenceContainerResources implements ContainerWorkerResource
                 var network = network();
                 if (!network.path("Containers").isObject() || !network.path("Containers").isEmpty()) throw new IOException("Network still has endpoints");
                 write("removing", receipt());
-                DockerContainerEngine.command("network", "rm", networkId);
+                docker.run("network", "rm", networkId);
                 sameEngine();
-                if (!DockerContainerEngine.command("network", "ls", "--no-trunc", "--quiet", "--filter", "id=" + networkId).isBlank())
+                if (!docker.run("network", "ls", "--no-trunc", "--quiet", "--filter", "id=" + networkId).isBlank())
                     throw new IOException("Network removal unconfirmed");
                 sameEngine(); write("removed", receipt());
             } finally { if (database != null) database.close(); }
         }
         private void sameEngine() throws Exception {
-            if (!Objects.equals(engineId, new DockerContainerEngine().identity())) throw new IOException("Docker engine changed");
+            if (!Objects.equals(engineId, docker.run("info", "--format", "{{.ID}}").trim())) throw new IOException("Docker engine changed");
         }
         private ObjectNode network() throws Exception {
-            return WireJson.parse(DockerContainerEngine.command("network", "inspect", "--format", "{{json .}}", networkId).getBytes(StandardCharsets.UTF_8));
+            return WireJson.parse(docker.run("network", "inspect", "--format", "{{json .}}", networkId).getBytes(StandardCharsets.UTF_8));
         }
         private void verifyNetwork() throws Exception {
             sameEngine(); var value = network();
@@ -120,10 +200,12 @@ public final class SequenceContainerResources implements ContainerWorkerResource
         catch (Exception e) { throw new IllegalStateException(e); }
     }
     private static final class MysqlEngine extends DockerContainerEngine {
-        private final String network, password, rootPassword;
-        MysqlEngine(String network, String password, String rootPassword) { this.network = network; this.password = password; this.rootPassword = rootPassword; }
-        @Override public String profile() { return "sequence-mysql-v1:" + network + ":" + hash((password + rootPassword).getBytes(StandardCharsets.UTF_8)); }
+        private final String network, password, rootPassword, credentialHash;
+        MysqlEngine(String network, String password, String rootPassword) { this.network = network; this.password = password; this.rootPassword = rootPassword; this.credentialHash = hash((password + rootPassword).getBytes(StandardCharsets.UTF_8)); }
+        MysqlEngine(String network, String credentialHash) { this.network = network; this.credentialHash = credentialHash; this.password = null; this.rootPassword = null; }
+        @Override public String profile() { return "sequence-mysql-v1:" + network + ":" + credentialHash; }
         @Override public String create(WorkerContainerLifecycle.Spec spec, WorkerContainerLifecycle.Owner owner) throws Exception {
+            if (password == null) throw new IOException("Recovery engine cannot create");
             var args = new ArrayList<>(List.of("create", "--pull=never", "--name", owner.name(),
                     "--label", OWNER + "=" + owner.token(), "--label", RUN + "=" + spec.runId(), "--label", ARTIFACT + "=" + spec.artifactSha256(),
                     "--user=999:999", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--network", network, "--network-alias=sequence-db",
@@ -140,11 +222,18 @@ public final class SequenceContainerResources implements ContainerWorkerResource
             var copy = value.deepCopy(); var config = (ObjectNode)copy.path("Config"); var host = (ObjectNode)copy.path("HostConfig");
             if (!"999:999".equals(config.path("User").asText()) || !network.equals(host.path("NetworkMode").asText())
                     || host.path("Memory").asLong() != 512L * 1024 * 1024 || host.path("PidsLimit").asInt() != 128) return false;
-            Set<String> env = new HashSet<>(); config.path("Env").forEach(v -> env.add(v.asText()));
-            if (!env.containsAll(Set.of("MYSQL_DATABASE=sequence_lab", "MYSQL_USER=lab", "MYSQL_PASSWORD=" + password, "MYSQL_ROOT_PASSWORD=" + rootPassword))) return false;
+            Map<String,String> env = new HashMap<>();
+            for (var entry : config.path("Env")) {
+                String[] pair = entry.asText().split("=", 2);
+                if (pair.length != 2 || env.putIfAbsent(pair[0], pair[1]) != null) return false;
+            }
+            if (!"sequence_lab".equals(env.get("MYSQL_DATABASE")) || !"lab".equals(env.get("MYSQL_USER"))
+                    || !env.getOrDefault("MYSQL_PASSWORD", "").matches("[a-f0-9]{64}") || !env.getOrDefault("MYSQL_ROOT_PASSWORD", "").matches("[a-f0-9]{64}")
+                    || !credentialHash.equals(hash((env.get("MYSQL_PASSWORD") + env.get("MYSQL_ROOT_PASSWORD")).getBytes(StandardCharsets.UTF_8)))) return false;
             var tmpfs = host.path("Tmpfs");
             if (tmpfs.size() != 3 || !"rw,nosuid,nodev,noexec,size=256m,uid=999,gid=999".equals(tmpfs.path("/var/lib/mysql").asText())
                     || !"rw,nosuid,nodev,noexec,size=1m,uid=999,gid=999".equals(tmpfs.path("/var/run/mysqld").asText())) return false;
+            if (!copy.path("Mounts").isArray()) return false;
             for (var mount : copy.path("Mounts")) if (!"tmpfs".equals(mount.path("Type").asText())
                     || !Set.of("/tmp", "/var/lib/mysql", "/var/run/mysqld").contains(mount.path("Destination").asText())) return false;
             config.put("User", "65534:65534"); host.put("NetworkMode", "none").put("Memory", 256L * 1024 * 1024).put("PidsLimit", 64);

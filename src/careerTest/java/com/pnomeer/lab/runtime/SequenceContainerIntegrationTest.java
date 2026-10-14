@@ -96,6 +96,105 @@ class SequenceContainerIntegrationTest {
             assertTrue(docker("network","ls","--no-trunc","--quiet","--filter","id=" + id).isBlank());
         }
     }
+
+    private static org.springframework.context.ConfigurableApplicationContext start(Path storage, boolean recover) {
+        return new org.springframework.boot.builder.SpringApplicationBuilder(com.pnomeer.pipeline.ExcelPipelineApplication.class)
+                .web(org.springframework.boot.WebApplicationType.NONE).run("--lab.storage.root=" + storage,
+                        "--spring.main.banner-mode=off", "--logging.level.root=WARN", "--lab.career.sequence.enabled=true",
+                        "--lab.career.sequence.execution-kind=CONTAINER", "--lab.career.sequence.recover-on-startup=" + recover,
+                        "--lab.career.sequence.container.image-id=" + image, "--lab.career.sequence.container.artifact-sha256=" + hash,
+                        "--lab.career.sequence.container.mysql-image-id=" + mysqlImage);
+    }
+    private static com.pnomeer.lab.experiments.career.SequenceRegistrationConfiguration.Scenario scenario() {
+        return new com.pnomeer.lab.experiments.career.SequenceRegistrationConfiguration.Scenario(
+                new com.pnomeer.lab.scenario.ScenarioDefinition(1,"career.mcp-platform.sequence",
+                        new com.pnomeer.lab.scenario.ScenarioDefinition.Scenario("restart","Atomic allocation"),
+                        Map.of("variant","ATOMIC_UPDATE","workers",2,"blockSize",10),
+                        new com.pnomeer.lab.scenario.ScenarioDefinition.Measurement("SINGLE_PASS"),null),"a".repeat(64));
+    }
+    @Test void killedControllerRecoversSameStoreAndAdmitsNextRunWithoutSealingPartialEvidence() throws Exception {
+        Path storage = root.resolve("restart-storage"); Files.createDirectories(storage);
+        var launch = new ProcessBuilder(Path.of(System.getProperty("java.home"),"bin","java").toString(),"-Xmx256m",
+                "-cp",System.getProperty("lab.controller.classpath"),CrashController.class.getName(),storage.toString(),image,mysqlImage,hash)
+                .redirectErrorStream(true).redirectOutput(root.resolve("controller.log").toFile());
+        for(String key:List.of("JAVA_TOOL_OPTIONS","JDK_JAVA_OPTIONS","_JAVA_OPTIONS","CLASSPATH")) launch.environment().remove(key);
+        Process child=launch.start();
+        try {
+            long deadline=System.nanoTime()+Duration.ofMinutes(3).toNanos();
+            while(!Files.exists(storage.resolve("ready-to-kill")) && child.isAlive() && System.nanoTime()<deadline) Thread.sleep(50);
+            assertTrue(Files.exists(storage.resolve("ready-to-kill")), () -> "Controller did not reach persisted HELLO: " + root.resolve("controller.log"));
+            assertThrows(IllegalStateException.class,()->new JdbcRunStore(storage,20,4));
+            child.destroyForcibly(); assertTrue(child.waitFor(10,TimeUnit.SECONDS));
+            StoredRun original;
+            RunExecution evidence;
+            Path workspace;
+            try(var app=start(storage,false)) {
+                var binding=app.getBean(ContainerWorkerRegistration.class);
+                assertFalse(binding.readiness().get().ready());
+                var store=app.getBean(RunStore.class);
+                original=store.find("crash-run").orElseThrow(); evidence=store.execution("crash-run").orElseThrow();
+                assertEquals(RunStatus.INTERRUPTED,original.status()); assertNotNull(evidence.worker()); assertFalse(evidence.evidenceComplete());
+                var active=ContainerJournal.json(ContainerRecoveryGuard.marker(binding.workspaces(),binding.id()));
+                workspace=binding.workspaces().resolve(active.path("workspace").asText());
+                String workerId=ContainerJournal.json(workspace.resolve("container-lifecycle/created.json")).path("id").asText();
+                assertTrue(new DockerContainerEngine().inspect(workerId).isPresent());
+                assertThrows(LocalJvmRegistration.WorkerUnavailableException.class,()->app.getBean(DurableExperimentRunner.class).run(experiment,scenario(),"blocked-run"));
+                assertTrue(store.find("blocked-run").isEmpty());
+                assertThrows(Exception.class,()->{try(var second=start(storage,true)) { fail("Shared store must reject"); }});
+            }
+            try(var app=start(storage,true)) {
+                var binding=app.getBean(ContainerWorkerRegistration.class);
+                assertFalse(new ContainerRecoveryGuard(binding.workspaces(),binding.id()).pending());
+                assertTrue(binding.readiness().get().ready());
+                var store=app.getBean(RunStore.class);
+                assertEquals(original,store.find("crash-run").orElseThrow()); assertEquals(evidence,store.execution("crash-run").orElseThrow());
+                for(String path:List.of("container-lifecycle","sequence-resources/mysql","sequence-resources"))
+                    assertTrue(Files.isRegularFile(workspace.resolve(path).resolve("removed.json")),path);
+                var catalog=app.getBean(com.pnomeer.lab.app.run.DashboardCatalogController.class);
+                assertEquals("CONTAINER",catalog.experiment("career.mcp-platform.sequence").executionKind());
+                assertTrue(catalog.capabilities().executionKinds().contains("CONTAINER"));
+                assertFalse(catalog.capabilities().features().get("localJvm"));
+                assertEquals(ExperimentStatus.SUCCEEDED,app.getBean(DurableExperimentRunner.class).run(experiment,scenario(),"after-restart").status());
+                assertTrue(store.execution("after-restart").orElseThrow().evidenceComplete());
+                assertEquals(2,store.checks("after-restart",-1,20).size());
+            }
+        } finally {
+            if(child.isAlive()){child.destroyForcibly();assertTrue(child.waitFor(10,TimeUnit.SECONDS));}
+            // Scoped production reconciliation; never remove resources by names or global labels.
+            try(var app=start(storage,true)) {
+                assertFalse(new ContainerRecoveryGuard(storage.resolve("worker-workspaces"),"sequence-worker").pending());
+            }
+        }
+    }
+    public static class CrashController {
+        public static void main(String[] args) throws Exception {
+            Path storage=Path.of(args[0]); image=args[1];mysqlImage=args[2];hash=args[3];
+            try(var app=start(storage,false)) {
+                var store=app.getBean(RunStore.class);
+                RunStore paused=(RunStore)java.lang.reflect.Proxy.newProxyInstance(RunStore.class.getClassLoader(),new Class<?>[]{RunStore.class},(proxy,method,values)->{
+                    Object result;
+                    try { result=method.invoke(store,values); }
+                    catch(java.lang.reflect.InvocationTargetException e){throw e.getCause();}
+                    if(method.getName().equals("registerWorker")) {
+                        Thread.sleep(1000); // Let H2's committed page flush finish before external SIGKILL.
+                        Files.writeString(storage.resolve("ready-to-kill"),"HELLO persisted; resources remain owned");
+                        Thread.sleep(Long.MAX_VALUE);
+                    }
+                    return result;
+                });
+                var binding=app.getBean(ContainerWorkerRegistration.class);
+                try(var runner=new DurableExperimentRunner(paused,()->GitProvenance.unknown("crash fixture"),new MetricWriterOptions(8,4,20,2,1,2000),
+                        new ExperimentExecutors("CONTAINER",Map.of("CONTAINER",new ExperimentExecutors.Registration(binding.executor(),1)),Map.of()),5,2,
+                        Map.of("career.mcp-platform.sequence",new RunExecution.Definition(RunExecution.Kind.CONTAINER,"mcp-platform",1,RunExecution.MeasurementScope.WORKER_PROCESS)))) {
+                    runner.run(new Experiment<ExperimentScenario>() {
+                        public String type(){return "career.mcp-platform.sequence";}
+                        public ExperimentSummary execute(ExperimentScenario s,Consumer<MetricPoint> out){throw new AssertionError();}
+                    },scenario(),"crash-run");
+                    throw new IllegalStateException("Expected controller kill");
+                }
+            }
+        }
+    }
     private static void removeTag(String reference) throws Exception {
         String[] lookup = {"image","ls","--filter","reference="+reference,"--format","{{.Repository}}:{{.Tag}}"};
         if (docker(lookup).isBlank()) return;

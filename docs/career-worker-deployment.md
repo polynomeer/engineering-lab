@@ -102,3 +102,41 @@ Docker 통신 장애만 재현하려면 `./gradlew careerSequenceTest --tests '*
 
 실제 엔진 강제 종료·재시작은 승인된 환경에서 별도 `careerDaemonRecoveryTest`로 검증한다.
 [전용 privileged 엔진의 실행 옵션·검증 범위·정리 확인](sequence-container-recovery.md#독립-docker-엔진-재시작-검증)을 따른다.
+
+
+## CONTAINER 실행과 시작 시 복구 (I5)
+
+기본값은 `lab.career.sequence.enabled=false`, 활성화했을 때의 실행 방식은 `LOCAL_JVM`,
+`recover-on-startup=false`다. 명시적으로 `execution-kind=CONTAINER`를 선택하면 controller가
+worker·MySQL·internal network를 소유한다. UI/API의 실행 종류도 CONTAINER가 되며
+worker 환경·부분 증거·준비 상태 차단은 기존 대시보드에서 표시한다. 시나리오 입력으로
+실행 방식·이미지·네트워크·접속 정보를 바꾸지 못한다.
+
+먼저 Career sequence manifest/jar를 만든 뒤 Java 21 JRE, `sh`, `sha256sum`, `tar`, `sleep`을
+포함하고 `/opt/lab/worker.jar`에 그 jar가 들어 있는 신뢰한 이미지를 준비한다. 이미지 내부 jar의
+SHA-256은 manifest의 `artifactSha256`과 일치해야 한다. MySQL 8.0.39 이미지를 로컬에
+준비하고 각 `docker image inspect <이미지> --format '{{.Id}}'`의 전체 ID를 아래 값에 사용한다.
+자동 pull은 하지 않는다. 이미지 tag가 아닌 `sha256:` 전체 ID가 필수다.
+
+```bash
+./gradlew bootRun --args='--lab.career.sequence.enabled=true --lab.career.sequence.execution-kind=CONTAINER --lab.career.sequence.container.image-id=sha256:<worker-image-id-64hex> --lab.career.sequence.container.artifact-sha256=<jar-sha256-64hex> --lab.career.sequence.container.mysql-image-id=sha256:<mysql-image-id-64hex> --lab.career.sequence.recover-on-startup=true'
+```
+
+예시의 placeholder를 실제 값으로 교체한다. 세 container 설정의 기본값은 빈 문자열이며
+CONTAINER 선택 시 유효한 값이 없으면 시작을 거절한다. LOCAL_JVM의 manifest/java-executable
+설정은 그대로 유지하고 CONTAINER 모드에서는 사용하지 않는다. readiness는 고정 이미지의
+로컬 존재/엔진 응답을 확인하며 실제 jar hash·Java 버전·DB 접속 검증은 실행 경계 안에서 한다.
+
+같은 storage root와 `worker-workspaces`를 유지해 재시작한다. opt-out이면 미복구 v2 marker가
+접수를 막고, opt-in이면 중단 Run 복원 후 worker→DB→network를 검증·회수한다. 모두 확인된
+v2 실행만 접수를 재개하며 이전 Run을 성공 처리하거나 재실행하지 않는다. v1 LOCAL_JVM
+기록을 v2로 바꾸지 않는다. Docker 불가·기록 손상·배포 변경·생성/시작 미확인은 접수 차단을
+유지한다. 기존 배포 설정과 기록을 보존해 조사하고 [I5 복구 계약](worker-container-isolation.md#i5-같은-저장소에서-시작-시-복구와-접수-재개)을 따른다.
+
+```bash
+./scripts/career-lab.sh :mcp-platform:sequenceWorkerManifest
+./gradlew test sequenceContainerTest containerWorkerTest workerContainerIsolationTest careerSequenceTest
+```
+
+두 Gradle wrapper는 순차 실행한다. Docker 검증은 공유 daemon을 재시작하지 않으며
+privileged 권한을 사용하지 않는다.

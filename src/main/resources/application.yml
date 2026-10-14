@@ -27,6 +27,11 @@ pipeline:
 lab:
   career:
     sequence:
+      execution-kind: LOCAL_JVM
+      container:
+        image-id: ""
+        artifact-sha256: ""
+        mysql-image-id: ""
       enabled: false
       recover-on-startup: false
       manifest: ""

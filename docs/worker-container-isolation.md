@@ -8,7 +8,7 @@
 I2의 `WorkerContainerLifecycle`과 `DockerContainerEngine`을 I3의 `ContainerWorkerProcess`와
 명시적 `ContainerWorkerExecutor`에 연결했다. 실제 Java 21 fixture로 중앙 증거 저장과
 회수를 검증하며 기본 운영 등록은 활성화하지 않는다. I4에서 실제 sequence의 controller 소유 DB 연결도 검증했다.
-기본 등록과 종료 미확인 접수 자동 해제는 I5 범위로 남아 있다.
+I5에서 CONTAINER 선택 등록과 새 기록 기반 시작 시 복구를 구현했다. 기본값은 LOCAL_JVM이며 복구는 opt-in이다.
 
 관찰 기반 `WorkerProcessTree`는 관찰 전에 부모와 분리된 프로세스와 controller 사망 후의
 프로세스를 포괄하지 못한다. PID가 없어졌거나 Docker 조회가 비었다는 사실만으로 이
@@ -113,7 +113,7 @@ finally에서도 두 컨테이너 각각의 소유권을 대조해 정리하고 
 | I2 | 생성 전 영속 의도·생성 후 ID 기록·불확실 요청 차단을 포함한 container lifecycle 어댑터 | 구현, 별도 어댑터 검증 |
 | I3 | 실제 Java 21 protocol transport·artifact·종료/증거 저장과 중앙 executor 연결 | 구현, 명시적 테스트 등록 |
 | I4 | sequence의 DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증 | 구현 |
-| I5 | 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입 | 예정 |
+| I5 | 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입 | 구현·검증 완료 |
 
 I1만으로 D4 전체 복구 또는 종료 미확인 실행의 자동 복구를 완료로 표시하지 않는다.
 
@@ -210,14 +210,14 @@ RESULT만으로 완료하지 않는다. protocol EOF, exec 종료 코드 0, 증�
 종료 및 I2의 같은 엔진·정확한 ID 부재 확인을 모두 통과한 뒤 중앙 실행 결과를 반환한다.
 회수 미확인은 `CONTAINER_CLEANUP_UNCONFIRMED`로 실패하고 journal을 보존한다.
 생성·시작 미확인은 I2와 같이 운영자 판단을 요구한다. 이 단계에는 그 상태를 중앙 접수
-차단/자동 복구에 연결하는 I5 정책이 없으므로 운영 등록을 활성화하지 않는다.
+차단/자동 복구는 아래 I5의 별도 v2 정책으로 연결한다.
 기존 LOCAL_JVM marker와 completion receipt는 변경하거나 해제하지 않는다.
 
 저장소 execution kind에 `CONTAINER`를 추가했다. 측정 범위는 `WORKER_PROCESS`이며
 HELLO 없는 성공 증거를 허용하지 않는다. 비교 API는 worker 환경을 사용하고 미확인 환경을
 controller 환경으로 대체하지 않는다. 기존 IN_PROCESS/LOCAL_JVM 기록과 export 형태는
 유지하지만 새 kind를 저장한 DB를 이전 바이너리로 읽는 downgrade 호환성은 보장하지 않는다.
-현재 catalog capability와 프론트엔드의 실행 선택에는 CONTAINER를 광고하지 않는다.
+I5에서 CONTAINER 등록을 명시적으로 선택한 경우에만 catalog capability가 CONTAINER를 광고한다.
 
 검증 명령은 `./gradlew test containerWorkerTest`다. 별도 Docker suite는 캐시된
 `eclipse-temurin:21-jre`의 실제 이미지 ID에 UUID 임시 태그를 붙이고 Java 21 fixture jar만 추가한 UUID
@@ -267,7 +267,7 @@ host workspace의 `sequence-resources/`에는 각 4 KiB 이하인 append-only
 force하고, 확인된 network ID와 intent hash를 created에 기록한다. DB는 하위 `mysql/`에서
 I2의 배타 잠금·6단계 기록을 재사용한다. network 생성 응답이 불확실하면 생성 재시도나
 이름 기반 삭제를 하지 않는다. 이 단계는 새 세션의 수명주기만 제공한다. controller 재시작 시
-네트워크 기록 재개, admission marker 해제 및 장애 주입은 I5에서 구현할 대상이다.
+네트워크 기록 재개, admission marker 해제 및 장애 주입은 아래 I5 계약으로 연결했다.
 기존 LOCAL_JVM 완료 기록과 `--recover`의 의미는 바뀌지 않는다.
 
 검증 순서(두 Gradle wrapper는 병렬 실행하지 않는다):
@@ -281,6 +281,54 @@ I2의 배타 잠금·6단계 기록을 재사용한다. network 생성 응답이
 실제 worker jar의 BEFORE/ATOMIC_UPDATE/SELECT_FOR_UPDATE 메트릭·CHECK·REPORT를
 중앙 저장하고 인증 실패 시 부분 증거와 자원 회수를 검증한다. 시험 이미지 태그와 실행별
 자원만 정리한다. 실패 workspace는 조사용으로 보존한다.
+
+## I5: 같은 저장소에서 시작 시 복구와 접수 재개
+
+`WorkerRegistration`은 LOCAL_JVM과 CONTAINER의 routing/capability 계약만 공통화한다.
+기존 v1 marker·completion receipt·LOCAL_JVM 복구 정책은 그대로다. CONTAINER 등록은
+`ContainerWorkerRegistration`이 담당하며 RunStore의 배타 소유권과 중단 Run 복원이 끝난
+뒤에만 `recover`를 호출한다. 새 Run을 자동 재실행하거나 중단 Run의 증거를 완료로 바꾸지 않는다.
+
+`ContainerRecoveryGuard`는 등록별 잠금 `.container-<id>.lock`을 실행/복구 동안 유지한다.
+Docker 요청 전에 `.container-active-<id>.json`을 CREATE_NEW/force로 기록한다. v2 기록은
+등록 ID, Run ID, experiment ID, worker image ID·artifact hash·module ID, resource profile,
+UUID workspace 이름에 결합되며 4 KiB 이하다. workspace 생성 전에 기록하므로 그 사이의
+컨트롤러 사망도 추적할 수 있다. workspace와 모든 자원 기록은 별도 보관하고 marker만
+완료 후 삭제한다. 같은 ID의 v1 또는 v2 기록이 남으면 실행 방식 변경으로도 우회하지 못한다.
+
+정상 실행은 protocol EOF·exit·증거 flush와 worker/DB/network 정리까지 반환된 경우 marker를
+해제한다. 실패/중단으로 transport가 반환하지 못하면 기록을 남긴다. 시작 시 복구는 다음을 따른다.
+
+1. 등록 잠금을 획득하고 v2 기록의 크기·형식·배포·경로를 검증한다. symlink와 경로 이탈은 거절한다.
+2. 같은 RunStore의 terminal Run, experiment, CONTAINER execution/module을 확인한다.
+3. sequence 자원 기록을 읽어 전용 network ID를 복원한다. worker journal의 I2 소유권과
+   격리 설정을 재검증하고 확인된 컨테이너 경계를 제거한다.
+4. DB journal을 재검증해 DB를 제거한다. DB credential hash는 기존 profile에서 복원하고
+   실제 inspect 환경의 일회성 credentials와 대조한다. 평문 비밀번호를 host journal에 추가하지 않는다.
+5. 동일 엔진·network ID·name·label·internal bridge·빈 endpoint를 확인해 네트워크를 제거한다.
+   이미 제거된 경우에도 동일 엔진의 성공한 정확한 ID 조회와 기록 결합을 검증한다.
+6. 마지막까지 marker 바이트가 같고 interruption이 없을 때만 해당 v2 marker를 삭제한다.
+   원래 Run 상태·실패 이유·worker 정보·부분 CHECK/metric/artifact는 바꾸지 않는다.
+
+worker/DB의 create 또는 start 응답이 미확인이면 I2가 `REQUIRES_OPERATOR`를 반환하며
+후속 자원 회수와 접수 해제를 하지 않는다. network create 응답이 미확인인 경우도 마찬가지다.
+삭제 응답 유실은 `removing` 기록과 다음 시작의 확인된 부재로 재개할 수 있다. 엔진 변경,
+Docker 조회 실패, 다른 소유자/배포/endpoint, 손상/부분/초과 기록은 차단을 유지한다.
+복구는 시작마다 한 번 수행하고 background retry나 prune을 하지 않는다. 미확인 요청의
+지연 완료를 배제할 수 없다면 기록을 수동으로 지우지 말고 기존 운영자 조정 절차를 따른다.
+
+선택 설정은 [배포 가이드](career-worker-deployment.md#container-실행과-시작-시-복구-i5)에 있다.
+`recover-on-startup=false`가 기본이며 이를 켜도 v1 완료 기록 없는 LOCAL_JVM 실행은 자동 해제하지 않는다.
+개별 Docker CLI의 출력 64 KiB/30초 상한과 I2 기록 한도를 유지한다. 전체 복구에는 여러 CLI
+호출이 순차로 필요하다. 디렉터리 fsync를 포함한 전원 장애 내구성과 공유 daemon 자체 재시작은
+이 I5 회귀 suite의 보장 범위가 아니다.
+
+검증은 `ContainerStartupRecoveryTest`, `SequenceResourceRecoveryTest`의 create/start/delete
+응답 유실·Docker 불가·엔진/소유권 변경·손상 기록 주입과 `sequenceContainerTest`의 실제
+컨트롤러 JVM 강제 종료→같은 저장소 opt-out 차단→opt-in 자원 회수→다음 Run 성공을 포함한다.
+실제 테스트는 HELLO를 저장한 뒤 컨트롤러를 SIGKILL하고 새 앱 인스턴스로 복원하며,
+소유 중인 RunStore를 다른 앱이 열면 복구 전에 거절하는지도 확인한다. 모든 시험 자원은
+소유 기록을 통해서만 정리한다.
 
 ### 시험 이미지의 로컬 조립
 

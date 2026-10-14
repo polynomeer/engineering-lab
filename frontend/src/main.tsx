@@ -294,7 +294,7 @@ function App() {
             <ExecutionPage
               catalog={catalog}
               experiment={route.query.get('experiment')}
-              checkReadiness={features.localJvm === true}
+              checkReadiness={features.localJvm === true || features.container === true}
             />
           )}
           {route.kind === 'missing' && <a href="/app/runs">실행 기록으로 돌아가기</a>}

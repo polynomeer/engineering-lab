@@ -21,6 +21,11 @@ final class ContainerWorkerProcess {
         if (!manifest.experiments().contains(command.path("experimentId").asText())) throw new ProtocolException("EXPERIMENT_NOT_ALLOWED");
         if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) throw new ProtocolException("WORKSPACE_ROOT");
         Path workspace = Files.createTempDirectory(root.toRealPath(), "worker-");
+        return executeWorkspace(command, workspace, sink);
+    }
+    WorkerProcess.Result executeWorkspace(ObjectNode command, Path workspace, WorkerProcess.EvidenceSink sink) throws Exception {
+        WorkerProtocol.writeCommand(OutputStream.nullOutputStream(), command, limits.protocol());
+        if (!manifest.experiments().contains(command.path("experimentId").asText())) throw new ProtocolException("EXPERIMENT_NOT_ALLOWED");
         Path journal = Files.createDirectory(workspace.resolve("container-lifecycle"));
         var session = resources.open(command, workspace, manifest.artifactSha256());
         boolean workerRemoved = true;

@@ -95,3 +95,13 @@ Docker에 접근할 수 없거나 소유 자원 정리를 확인하지 못했다
 구현·검증되기 전에는 현재 LOCAL_JVM의 수동 확인 정책을 유지한다.
 
 비특권 컨테이너 경계의 첫 검증과 운영 실행 경로의 후속 단위는 [컨테이너 격리 설계](worker-container-isolation.md)를 따른다. 분리 프로세스의 시험은 통과했지만 기존 LOCAL_JVM의 미확인 marker 자동 해제에는 적용하지 않는다.
+
+
+## CONTAINER v2 기록과의 구분
+
+`execution-kind=CONTAINER`로 선택한 등록은 `.container-active-<id>.json`과 등록별 잠금을
+사용한다. `recover-on-startup=true`이면 같은 RunStore의 중단 Run을 복원한 뒤 확인된
+worker·DB·network를 순서대로 회수하고 해당 v2 기록만 해제한다.
+[CONTAINER I5 계약](worker-container-isolation.md#i5-같은-저장소에서-시작-시-복구와-접수-재개)을 따른다.
+이 문서의 LOCAL_JVM v1 marker·completion receipt 정책은 바뀌지 않는다. 실행 방식을 바꿔도
+같은 등록 ID의 다른 형식 미복구 기록이 있으면 접수를 거절한다.

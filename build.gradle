@@ -197,5 +197,6 @@ tasks.register('sequenceContainerTest', Test) {
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
     systemProperty 'lab.sequence.manifest', manifest.absolutePath
+    systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
     outputs.upToDateWhen { false }
 }

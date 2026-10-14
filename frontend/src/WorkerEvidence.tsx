@@ -182,7 +182,7 @@ export function WorkerEvidence({
               ],
             ]}
           />
-          {evidence.definition.kind === 'LOCAL_JVM' &&
+          {['LOCAL_JVM', 'CONTAINER'].includes(evidence.definition.kind) &&
             (evidence.worker ? (
               <>
                 <Raw label="Worker JVM / 운영체제 / Git" value={evidence.worker} />

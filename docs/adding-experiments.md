@@ -11,9 +11,9 @@
 | experiment | 안정된 ID·입력 schema·실행 코드 | pipeline.excel-ingestion |
 | scenario | 특정 입력·가설·파라미터 조합 | small-batch.yaml |
 | run | 한 번 실행한 결과와 영속 증거 | UUID |
-| executor | 실행 환경; 그룹과 독립 | 현재 in-process, 계획된 Java 21 worker |
+| executor | 실행 환경; 그룹과 독립 | IN_PROCESS, LOCAL_JVM, CONTAINER |
 
-Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 앞으로 engineering 실험도 다른 JDK/외부 인프라가 필요하면 worker 실행을 선택할 수 있도록 설계한다. 현재 worker 실행은 아직 구현 전이다.
+Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 앞으로 engineering 실험도 다른 JDK/외부 인프라가 필요하면 worker 실행을 선택할 수 있도록 설계한다. 현재 sequence는 서버 설정으로 LOCAL_JVM 또는 CONTAINER worker를 등록할 수 있다. 다른 Career 시나리오에는 별도의 driver와 등록이 필요하다.
 
 ## 현재 구현: 내장 실험 추가
 
@@ -37,7 +37,7 @@ Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 
 
 `ExperimentCatalog`는 Java ServiceLoader로 metadata provider를 수집하고 module/experiment ID와 metric 중복을 검사한다. Spring은 `ExperimentRegistration<?>` bean들을 수집한다. 서버 시작 시 catalog와 실행 registration의 ID 집합·descriptor 일치 여부를 확인해 누락이나 다른 schema로 실행되는 것을 차단한다.
 
-`GET /modules`는 `[{module:{id,title,collection},experiments:[...]}]`를 반환한다. 현재 실행 가능한 내장 모듈만 포함하며 아직 worker가 없는 Career Lab을 실행 가능한 것으로 표시하지 않는다. 기존 `/experiments` 응답 형태와 세 실험 ID는 유지한다. 기존 `/runs/ui`는 catalog의 새 실험과 공통 Run summary를 조회할 수 있다.
+`GET /modules`는 `[{module:{id,title,collection},experiments:[...]}]`를 반환한다. 현재 등록된 내장 모듈과 활성화한 sequence 모듈을 포함하며 아직 worker 등록이 없는 Career 시나리오를 실행 가능한 것으로 표시하지 않는다. 기존 `/experiments` 응답 형태와 세 실험 ID는 유지한다. 기존 `/runs/ui`는 catalog의 새 실험과 공통 Run summary를 조회할 수 있다.
 
 CLI `validate`/`run`의 로컬 검증도 같은 provider를 사용한다. CLI 배포물에 없는 실험은 unknown으로 거부하므로 서버와 같은 module metadata를 포함한 배포물을 사용한다. 런타임에 임의 서버의 schema를 받아 신뢰하는 기능은 아직 없다.
 
@@ -79,7 +79,19 @@ python3 scripts/verify-career-modules.py
 
 위 `payment-settlement`는 설명용이며 저장소에 생성되어 있지 않다. 검증 스크립트는 임시 프로젝트를 만들어 실제 Gradle에서 새 모듈 발견·미선언 폴더 제외·ID/version/build 오류를 확인한 뒤 삭제한다. JDK 선택은 `scripts/career-lab.sh`와 동일하다.
 
-빌드 자동 포함과 공통 대시보드 실행 등록은 다른 단계다. 현재 Career 코드가 자동으로 Run registry에 올라가지는 않는다. 후속 worker 구현에서는 이 module ID/collection을 유지하고, protocol manifest에 experiment descriptor·배포물 hash·executor capability를 추가한다. 실험별 driver와 테스트를 제공하면 같은 실행·조회 화면에 연결되게 한다. 지원 라이브러리 모듈은 실험 module과 구분하는 별도 빌드 구성이 필요하다.
+빌드 자동 포함과 공통 대시보드 실행 등록은 다른 단계다. 현재 Career 코드가 자동으로 Run registry에 올라가지는 않는다. worker 연동 시 이 module ID/collection을 유지하고, catalog descriptor와 배포 manifest의 실험 ID·배포물 hash를 일치시킨다. 실험별 driver와 테스트를 제공하면 같은 실행·조회 화면에 연결되게 한다. 지원 라이브러리 모듈은 실험 module과 구분하는 별도 빌드 구성이 필요하다.
+
+## 현재 구현: worker 실행 등록
+
+1. 공통 catalog와 `ExperimentRegistration`에 실험 ID·입력 schema를 등록하고, Java 21 worker에서 [worker v1](../contracts/worker/v1/README.md) protocol을 구현한다.
+2. 서버의 모듈 configuration에서 `WorkerRegistration` bean을 제공한다. `LocalJvmRegistration`은 Java 실행 파일과 jar manifest를, `ContainerWorkerRegistration`은 고정 이미지 ID와 jar hash를 사용한다. 실행 방식·이미지·명령은 사용자 scenario 입력으로 받지 않는다.
+3. 요청 변환, 허용 metric, variant와 readiness를 등록한다. runner와 dashboard는 공통 등록을 수집하므로 모듈 이름별 분기를 추가하지 않는다.
+4. 컨테이너 외부 자원이 필요하면 `ContainerWorkerResources`의 준비·정리와 `profile`/`recovery`를 함께 구현한다. 자원이 없으면 `NONE`을 사용한다. controller가 자원을 소유하고 worker에는 제한된 접속 정보만 전달한다.
+5. 정상 실행·부분 실패·실제 프로세스 중단·같은 저장소 재시작·접수 재개를 검증한다. 생성/시작 미확인과 소유권 불일치에서 차단이 유지되어야 한다. 기존 Run 증거와 LOCAL_JVM v1 기록을 새 복구 정책으로 해제하지 않는다.
+
+참조 구현은 `SequenceRegistrationConfiguration`과 `SequenceContainerResources`다.
+[배포 가이드](career-worker-deployment.md)와 [컨테이너 복구 계약](worker-container-isolation.md#i5-같은-저장소에서-시작-시-복구와-접수-재개)을 따른다.
+등록 추가만으로 다른 모듈의 자원 복구 정책이나 worker 관측 기능이 자동 구현되지는 않는다.
 
 ## 확장 완료 판단
 

@@ -73,7 +73,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     public static DurableExperimentRunner configured(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
             long interval, int samples, boolean traceEnabled, int spans, JfrRecorder jfr, RunLogRecorder logs,
-            Map<String, String> modules, List<LocalJvmRegistration> workers) {
+            Map<String, String> modules, List<? extends WorkerRegistration> workers) {
         var registrations = new HashMap<String, ExperimentExecutors.Registration>();
         var bindings = new HashMap<String, ExperimentExecutors.Binding>();
         var definitions = new HashMap<String, RunExecution.Definition>();
@@ -84,12 +84,12 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         for (var worker : workers) {
             if (registrations.putIfAbsent(worker.id(), new ExperimentExecutors.Registration(worker.executor(), 1)) != null)
                 throw new IllegalArgumentException("Duplicate worker registration");
-            for (String id : worker.manifest().experiments()) {
-                if (!worker.manifest().moduleId().equals(modules.get(id)) || bindings.putIfAbsent(id,
+            for (String id : worker.experiments()) {
+                if (!worker.moduleId().equals(modules.get(id)) || bindings.putIfAbsent(id,
                         new ExperimentExecutors.Binding(worker.id(), true)) != null)
                     throw new IllegalArgumentException("Worker catalog ownership mismatch");
-                definitions.put(id, new RunExecution.Definition(RunExecution.Kind.LOCAL_JVM,
-                        worker.manifest().moduleId(), 1, RunExecution.MeasurementScope.WORKER_PROCESS));
+                definitions.put(id, new RunExecution.Definition(worker.kind(),
+                        worker.moduleId(), 1, RunExecution.MeasurementScope.WORKER_PROCESS));
             }
         }
         return new DurableExperimentRunner(store, provenance, options, new ExperimentExecutors("IN_PROCESS",

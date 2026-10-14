@@ -120,7 +120,7 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 영속 소유권과 컨테이너 생성·시작·회수 어댑터를 구현하고 미확인 요청 차단을 검증한다(I2).
 - [x] Java 21 container transport와 중앙 protocol/metric/check/REPORT 저장을 연결한다(I3).
 - [x] sequence DB 소유자를 controller로 분리하고 LOCAL_JVM 호환을 검증한다(I4).
-- [ ] 종료 미확인 복구·동일 저장소 재시작·접수 재개를 연결·검증한다(I5).
+- [x] 종료 미확인 복구·동일 저장소 재시작·접수 재개를 연결·검증한다(I5).
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
@@ -231,7 +231,7 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4-I5: 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입**이다. I4는 controller 소유 DB·전용 internal 네트워크와 실제 sequence 컨테이너 실행을 제공한다. I5에서는 worker/DB/network 기록을 함께 재검증하고, 모든 자원 종료가 확인된 경우에만 새 CONTAINER 실행의 접수 차단을 해제한다. 기존 LOCAL_JVM marker와 완료 기록 정책은 유지한다.
+다음 실행 작업은 **D4 실패 주입 검증 표의 최종 대조와 누락 통합 검증**이다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구는 구현·검증했다. protocol/저장 실패 검증을 최종 요구사항별로 대조한 뒤 D5-1(mcp-platform architecture/validation)로 진행한다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를
@@ -245,3 +245,45 @@ sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceC
 containerWorkerTest workerContainerIsolationTest careerSequenceTest`는 각각 260/4/10/4/7개가
 모두 통과했다. 최종 Docker 조회에서 시험 worker·DB·네트워크·격리 fixture와 임시 이미지
 태그가 없음을 확인했다. 기존 다른 세션의 MySQL 컨테이너는 보존했다.
+
+
+I5 구현 (2026-10-14): `WorkerRegistration` 공통 등록 계약과 CONTAINER 전용 v2 접수 기록을
+추가했다. marker는 Docker 요청 전에 배포·실험·자원 profile·workspace에 결합되어 저장된다.
+시작 시 terminal Run과 execution을 확인한 뒤 worker→DB→network를 회수하고 동일 marker만
+해제한다. 생성/시작 미확인·엔진 변경·손상 기록은 차단하며, v1 LOCAL_JVM 기록과 중단 증거는
+바꾸지 않는다. 설정으로 CONTAINER를 선택할 수 있고 frontend도 해당 준비 상태/worker 정보를
+표시한다. 기본값 LOCAL_JVM과 recover-on-startup=false는 유지한다.
+
+I5 초기 검증 기록 (2026-10-14, 당시 최종 회귀 미완료): 필수 `./gradlew test` 루트 289개,
+`sequenceContainerTest` 5개(실제 controller SIGKILL·동일 저장소 재시작·후속 실행 포함),
+`workerContainerIsolationTest` 4개와 기존 `careerSequenceTest` 7개가 통과했다.
+frontend typecheck·unit 17개·build와 LOCAL_JVM/CONTAINER 브라우저 회귀 4개도 통과했다.
+Career 모듈 코드와 독립 Gradle 빌드는 변경하지 않았다.
+
+`containerWorkerTest`는 시험 이미지의 `docker build`가 기존 60초 제한을 초과해
+초기화 단계에서 실패했다. 기본 builder 두 번과 `DOCKER_BUILDKIT=0` 한 번 모두 같은
+위치에서 실패했으며 실제 테스트 10개는 실행되지 않았다. 제한 시간을 늘리거나 검증을
+생략하지 않았다. 실패 XML은 `build/verification/i5/transport-first/`, `transport-second/`,
+`transport-legacy-builder/`에 보존했다. 초기 sequence 실행에서도 Docker 조회/삭제 지연에
+따른 실패가 있었으며 `build/verification/i5/container-first/`에 보존한 뒤 최종 5개를 통과했다.
+
+최종 Docker 조회에서 시험 worker·DB·sequence network와 두 종류의 시험 이미지 태그가
+없음을 확인했다. 초기 실패 자원은 영속 기록·전체 ID·소유권을 대조해 범위를 한정하여
+정리했으며, 기존 다른 세션의 `jolly_babbage` MySQL은 보존했다. 실패 workspace와 기록은
+조사용으로 유지한다. 공유 Docker 재시작·prune·privileged 실행은 하지 않았다.
+이미지 빌드 장애를 해소하고 `./gradlew test containerWorkerTest` 통과 후 diff 검토·커밋을
+완료해야 I5를 완료로 표시한다. 당시 변경은 커밋하지 않았으며 이후 해결 결과는 아래에 기록한다.
+
+I5 최종 검증 (2026-10-14): daemon 로그에서 임시 FROM 태그의 Docker Hub blob HEAD
+요청이 timeout 시점에 취소된 것을 확인했다. `ContainerFixtureImage`의 로컬
+create/cp/commit으로 원격 조회를 제거하고 실패 로그/workspace 보존을 보강했다
+(`9f2f29a fix(build): assemble test images without remote resolution`).
+시간 제한이나 검증 조건은 완화하지 않았다. 원인 확인 로그는
+`build/verification/i5/build-timeout-diagnosis.log`에 보존했다.
+
+최종 `./gradlew test containerWorkerTest sequenceContainerTest` 성공: 루트 289개는
+변경 없는 성공 결과를 재사용했고 공통 컨테이너 10개·sequence 5개를 재실행해 통과했다.
+앞선 격리 4개·LOCAL_JVM 7개와 frontend typecheck/unit 17개/build/browser 4개도 통과했다.
+이미지 수정 전 재시도의 정리 지연 실패는 `build/verification/i5/transport-resume-first/`에
+보존했다. 최종 조회에서 worker·생성용 컨테이너·격리 fixture·sequence network·시험 이미지
+태그가 없음을 확인했고, 기존 MySQL은 보존했다. I5 최종 회귀 차단을 해소했다.
