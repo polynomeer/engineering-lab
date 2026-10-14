@@ -127,3 +127,7 @@ Excel 캡처는 저장소의 생성기로 만든 20행 합성 XLSX를 두 모드
 ![Career 실행 환경과 검증 결과](images/17-career-evidence.png)
 
 캡처는 임시 저장소와 격리 MySQL에서 실제 실행한 결과입니다. BEFORE의 인위적 50ms 지연 때문에 실행 시간 차이를 업무 성능 개선율로 해석하지 않습니다. 보고서는 중앙에 보관된 참조를 표시하며 다운로드 화면은 후속 범위입니다. Docker/호스트 장애 후 잔여 자원 복구는 아직 보장하지 않습니다.
+
+## MCP architecture / validation
+
+[checks worker](mcp-checks-worker.md)를 켜면 MCP 모듈에서 두 실험을 선택한다. architecture의 `VIOLATION`은 고의 위반을 FAIL로 기록하며, validation의 입력 거절은 기대값과 일치하면 PASS다. `not executed`는 후속 단계 미실행을 뜻한다. 측정값이 없는 실험은 검증 표와 확장 NDJSON export로 확인한다. `checks-report.json`은 중앙에 보관하며 화면에서는 참조만 제공한다(REPORT 다운로드는 D6 범위).

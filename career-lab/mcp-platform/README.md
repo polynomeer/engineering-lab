@@ -69,7 +69,7 @@ facts "4. 시퀀스 구조 개선 > 다중 인스턴스에서의 범위 충돌 �
 - `MainCodeArchitectureTest` — 실제 프로덕션 코드(`com.portfolio.mcplab.contract`)에
   대해 검증 → 통과.
 - `ArchitectureViolationDemoTest` — 일부러 규칙을 위반하도록 만든
-  `badexample` 패키지(테스트 전용, 실제 애플리케이션에서 쓰이지 않음)에 대해
+  `badexample` 패키지(JUnit/checks worker 전용, 실제 애플리케이션에서 쓰이지 않음)에 대해
   같은 규칙을 검증 → `AssertionError`가 던져짐을 `assertThrows`로 확인.
 
 무작정 실패하는 테스트를 커밋해두면 빌드가 항상 깨지므로, "위반 시 예외가
@@ -276,3 +276,7 @@ worker는 workspace 배타 잠금을 유지하고 MySQL 생성 전 Run·배포 h
 루트에서 `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest`를 실행한 뒤
 `./gradlew test sequenceContainerTest careerSequenceTest`로 두 실행 경로를 검증한다.
 [자원 제한·소유권·회수 순서와 I5 경계](../../docs/worker-container-isolation.md#i4-controller-소유-sequence-자원)를 따른다.
+
+## 공통 대시보드 architecture / validation (D5-1)
+
+두 시나리오도 전용 Java 21 checks worker로 공통 Run API·검증 표·보고서·export에 연결했다. 공유 규칙과 합성 위반 fixture는 `src/checkRuntime`에 있으며 일반 앱과 sequence 배포물에는 포함되지 않는다. [설정·variant 의미·실행·검증](../../docs/mcp-checks-worker.md)을 따른다.

@@ -1,7 +1,7 @@
 package com.portfolio.mcplab.badexample.infrastructure;
 
 /**
- * [NEW-DESIGN] {@link com.portfolio.mcplab.archrule.ArchitectureViolationDemoTest}
+ * [NEW-DESIGN] {@code ArchitectureViolationDemoTest}와 checks worker
  * 전용 더미 클래스. 실제로 아무 것도 하지 않는다 — 오직 "infrastructure 패키지에
  * 존재하는 클래스"라는 사실만 필요하다. 프로덕션 코드가 아니며 어디서도 실제로
  * 사용되지 않는다.

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mcp-platform.validation",
+  "scenario": {
+    "id": "validation-domain-rejection",
+    "hypothesis": "Synthetic guardrail and validation checks"
+  },
+  "parameters": {
+    "variant": "DOMAIN_REJECTION"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

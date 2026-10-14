@@ -140,3 +140,7 @@ v2 실행만 접수를 재개하며 이전 Run을 성공 처리하거나 재실�
 
 두 Gradle wrapper는 순차 실행한다. Docker 검증은 공유 daemon을 재시작하지 않으며
 privileged 권한을 사용하지 않는다.
+
+## Architecture / validation 추가 배포
+
+sequence 설정과 독립적인 `lab.career.checks.enabled`로 DB 없는 전용 worker를 등록한다. [MCP checks worker 가이드](mcp-checks-worker.md)에 이미지/hash 설정, 결과 해석과 검증 명령을 정리했다.

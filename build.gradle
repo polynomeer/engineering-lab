@@ -129,6 +129,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/WorkerContainerLifecycleIntegrationTest*'
     exclude '**/ContainerWorkerIntegrationTest*'
     exclude '**/SequenceContainerIntegrationTest*'
+    exclude '**/ChecksContainerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -198,5 +199,21 @@ tasks.register('sequenceContainerTest', Test) {
     inputs.file(manifest)
     systemProperty 'lab.sequence.manifest', manifest.absolutePath
     systemProperty 'lab.controller.classpath', sourceSets.careerTest.runtimeClasspath.asPath
+    outputs.upToDateWhen { false }
+}
+
+// Actual DB-free checks deployment, schema/API/evidence and storage reopen gate.
+tasks.register('checksContainerTest', Test) {
+    group = 'verification'
+    description = 'Verify architecture and validation workers in actual isolated Java 21 containers.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/ChecksContainerIntegrationTest.class'
+    def manifest = file('career-lab/mcp-platform/build/libs/checks-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/mcp-platform/build/libs') { include '*-checks-worker.jar' })
+    systemProperty 'lab.checks.manifest', manifest.absolutePath
+    systemProperty 'lab.checks.evidence', file('build/verification/d5-1').absolutePath
     outputs.upToDateWhen { false }
 }

@@ -29,20 +29,6 @@ public class SequenceRegistrationConfiguration {
             var map = new HashMap<String,String>(); definition.parameters().forEach((k,v) -> map.put(k,v.toString())); return Map.copyOf(map);
         }
     }
-    @Bean public ExperimentModule sequenceModule() {
-        return new ExperimentModule() {
-            public ModuleDescriptor module() { return new ModuleDescriptor("mcp-platform", "MCP platform", "career"); }
-            public List<ExperimentDescriptor> experiments() { return List.of(DESCRIPTOR); }
-            public List<com.pnomeer.lab.metrics.MetricCatalog.Definition> metrics() {
-                return List.of(metric("sequence.elapsedNanos", "ns", "Harness duration; excludes startup; BEFORE includes a synthetic 50ms delay"),
-                        metric("sequence.overlapPairs", "pairs", "Overlapping allocation pairs; BEFORE expects an anomaly"),
-                        metric("sequence.finalValue", "codes", "Final database sequence value"));
-            }
-            private com.pnomeer.lab.metrics.MetricCatalog.Definition metric(String name, String unit, String meaning) {
-                return new com.pnomeer.lab.metrics.MetricCatalog.Definition(name, unit, "worker-run", "RUN_FINAL", meaning + "; use the final value, never sum snapshots");
-            }
-        };
-    }
     @Bean public ExperimentRegistration<Scenario> sequenceRegistration(ScenarioDocuments documents) {
         return new ExperimentRegistration<>(DESCRIPTOR, ignored -> new Experiment<>() {
             public String type() { return ID; }

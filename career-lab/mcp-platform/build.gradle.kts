@@ -100,3 +100,49 @@ tasks.register("sequenceWorkerManifest") {
         ))) + "\n")
     }
 }
+
+// Shared by JUnit and the isolated checks deployment; never on the application classpath.
+val checkRuntime by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+configurations[checkRuntime.implementationConfigurationName].extendsFrom(configurations.implementation.get())
+dependencies {
+    add(checkRuntime.implementationConfigurationName, project(":worker-support"))
+    add(checkRuntime.implementationConfigurationName, "com.tngtech.archunit:archunit:1.3.0")
+}
+val checksWorkerJar by tasks.registering(org.springframework.boot.gradle.tasks.bundling.BootJar::class) {
+    dependsOn(tasks.named(checkRuntime.classesTaskName))
+    archiveClassifier.set("checks-worker")
+    targetJavaVersion.set(JavaVersion.VERSION_21)
+    mainClass.set("com.portfolio.mcplab.worker.ChecksWorker")
+    classpath = checkRuntime.runtimeClasspath
+}
+sourceSets.test.get().compileClasspath += checkRuntime.output
+tasks.test {
+    dependsOn(checksWorkerJar)
+    inputs.file(checksWorkerJar.flatMap { it.archiveFile })
+    systemProperty("checks.worker.jar", checksWorkerJar.get().archiveFile.get().asFile.absolutePath)
+    classpath += checkRuntime.output + configurations[checkRuntime.runtimeClasspathConfigurationName]
+}
+tasks.register("checksWorkerManifest") {
+    dependsOn(checksWorkerJar)
+    val jar = checksWorkerJar.flatMap { it.archiveFile }
+    val descriptor = layout.buildDirectory.file("libs/checks-worker-manifest.json")
+    inputs.file(jar)
+    outputs.file(descriptor)
+    doLast {
+        val artifact = jar.get().asFile
+        val digest = MessageDigest.getInstance("SHA-256")
+        artifact.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            while (true) { val n = input.read(buffer); if (n == -1) break; digest.update(buffer, 0, n) }
+        }
+        descriptor.get().asFile.writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(mapOf(
+            "schemaVersion" to 1, "protocolVersion" to 1, "moduleId" to "mcp-platform",
+            "experimentIds" to listOf("career.mcp-platform.architecture", "career.mcp-platform.validation"),
+            "javaMajor" to 21, "jarFile" to artifact.name,
+            "artifactSha256" to HexFormat.of().formatHex(digest.digest()), "requiresDocker" to false
+        ))) + "\n")
+    }
+}

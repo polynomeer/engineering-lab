@@ -22,6 +22,7 @@ public record ContainerWorkerRegistration(String id, ContainerWorkerManifest man
         readiness = () -> guard.pending() || legacy.pending()
                 ? new LocalJvmRegistration.Readiness("INCOMPATIBLE", "WORKER_ACTIVE_OR_RECOVERY_REQUIRED") : delegate.get();
     }
+    public boolean producesMetrics() { return !metricKeys.isEmpty(); }
     public String moduleId() { return manifest.moduleId(); }
     public Set<String> experiments() { return manifest.experiments(); }
     public RunExecution.Kind kind() { return RunExecution.Kind.CONTAINER; }

@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class DashboardWorkerCatalogTest {
     @Test void exposesReadinessAndOnlyWorkerSupportedObservations() throws Exception {
         var state = new AtomicReference<>(new LocalJvmRegistration.Readiness("DOCKER_UNAVAILABLE", "WORKER_DOCKER_NOT_READY"));
-        var provider = new SequenceRegistrationConfiguration().sequenceModule();
+        var provider = new com.pnomeer.lab.experiments.career.McpModuleConfiguration().mcpModule(true, false);
         var catalog = new ExperimentCatalog(List.of(provider));
         Path path = Path.of(".").toAbsolutePath();
         var manifest = new WorkerManifest(path.resolve("java"), path.resolve("worker.jar"), "a".repeat(64),

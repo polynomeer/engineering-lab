@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mcp-platform.validation",
+  "scenario": {
+    "id": "validation-blank-name",
+    "hypothesis": "Synthetic guardrail and validation checks"
+  },
+  "parameters": {
+    "variant": "BLANK_NAME"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

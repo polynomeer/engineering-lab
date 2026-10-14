@@ -8,7 +8,7 @@ import com.portfolio.mcplab.badexample.infrastructure.BadContractRepository;
  * 그대로 재현한다 — api(Controller)가 application(Service)을 거치지 않고
  * infrastructure(Repository)를 직접 호출한다.
  *
- * <p>{@link com.portfolio.mcplab.archrule.ArchitectureViolationDemoTest}에서만
+ * <p>{@code ArchitectureViolationDemoTest}와 checks worker에서
  * 사용되며, 실제 애플리케이션 컨텍스트에는 절대 등록되지 않는다(Spring 스테레오타입
  * 어노테이션이 없다).</p>
  */

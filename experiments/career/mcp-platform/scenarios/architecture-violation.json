@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mcp-platform.architecture",
+  "scenario": {
+    "id": "architecture-violation",
+    "hypothesis": "Synthetic guardrail and validation checks"
+  },
+  "parameters": {
+    "variant": "VIOLATION"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

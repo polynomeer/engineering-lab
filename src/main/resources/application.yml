@@ -26,6 +26,12 @@ pipeline:
 
 lab:
   career:
+    checks:
+      enabled: false
+      recover-on-startup: false
+      container:
+        image-id: ""
+        artifact-sha256: ""
     sequence:
       execution-kind: LOCAL_JVM
       container:

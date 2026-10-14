@@ -78,7 +78,8 @@ public class DashboardCatalogController {
                     return new ExperimentView(id, entry.module().id(), "/experiments/" + id,
                             worker == null ? "READY" : worker.readiness().get().state(), worker == null ? "IN_PROCESS" : worker.kind().name(),
                             worker == null ? List.of() : worker.variants(), worker == null ? List.of("SUMMARY", "METRICS", "EXECUTION")
-                                    : List.of("SUMMARY", "METRICS", "EXECUTION", "CHECK_RESULTS"), Map.copyOf(supported));
+                                    : worker.producesMetrics() ? List.of("SUMMARY", "METRICS", "EXECUTION", "CHECK_RESULTS")
+                                    : List.of("SUMMARY", "EXECUTION", "CHECK_RESULTS"), Map.copyOf(supported));
                 }
             }
         }

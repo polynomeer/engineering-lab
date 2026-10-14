@@ -39,7 +39,7 @@
 
 ## 다음 구조 변경
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 기본 앱은 IN_PROCESS만 등록하고 설정으로 Career sequence LOCAL_JVM을 추가한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, 앱의 자동 기록과 execution/check 조회·확장 export·비교도 연결했다. capabilities/catalog extension과 구형/신형 화면·API 세 가지 호환 조합은 검증했다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다. D4 첫 단위의 JSON Schema·fixture·Java 21 worker-support codec도 구현했다. manifest 기반 별도 JVM transport·deadline·직접 자식 종료·증거 저장 callback도 구현했다. 중앙 RunStore 어댑터를 실제 Java 21 fixture와 H2로 검증했다. REPORT 파일의 경로·크기·hash 검증과 중앙 사본/참조 보존도 구현했다. 첫 Career sequence 배포 jar·공용 하네스·격리 MySQL 실행/정상 정리를 구현했다. 실제 sequence worker의 중단 상태 보존·부모 EOF/deadline/강제 종료·보고서 실패·Ryuk 정리 검증도 추가했다. sequence 선택적 중앙 catalog/API 등록과 실제 배포물의 Docker readiness probe도 연결했다. [배포·검증 명령](career-worker-deployment.md)을 따른다. 독립 대시보드의 준비 상태·실행/check 패널과 worker/controller 환경 구분도 연결했다. 다음은 daemon/재시작 장애 복구 보강이다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 기본 앱은 IN_PROCESS만 등록하고 설정으로 Career sequence LOCAL_JVM/CONTAINER 또는 architecture/validation CONTAINER를 추가한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, 앱의 자동 기록과 execution/check 조회·확장 export·비교도 연결했다. capabilities/catalog extension과 구형/신형 화면·API 세 가지 호환 조합은 검증했다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다. D4 첫 단위의 JSON Schema·fixture·Java 21 worker-support codec도 구현했다. manifest 기반 별도 JVM transport·deadline·직접 자식 종료·증거 저장 callback도 구현했다. 중앙 RunStore 어댑터를 실제 Java 21 fixture와 H2로 검증했다. REPORT 파일의 경로·크기·hash 검증과 중앙 사본/참조 보존도 구현했다. 첫 Career sequence 배포 jar·공용 하네스·격리 MySQL 실행/정상 정리를 구현했다. 실제 sequence worker의 중단 상태 보존·부모 EOF/deadline/강제 종료·보고서 실패·Ryuk 정리 검증도 추가했다. sequence 선택적 중앙 catalog/API 등록과 실제 배포물의 Docker readiness probe도 연결했다. [배포·검증 명령](career-worker-deployment.md)을 따른다. 독립 대시보드의 준비 상태·실행/check 패널과 worker/controller 환경 구분도 연결했다. I1–I5와 D4 실패 주입 검증, D5-1 MCP checks 연동을 마쳤으며 다음은 D5-2 equity-system 연동이다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
 
 통신 계약은 [worker v1](../contracts/worker/v1/README.md), Java 21 코드와 검증은 [worker-support](../career-lab/worker-support/README.md)를 따른다. 루트 통합 테스트에서 라이브러리를 실행하지만 Career sequence를 설정으로 등록했을 때만 capability의 외부 worker 지원을 켠다.
 
@@ -110,7 +110,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 새 Codex 작업도 루트 `AGENTS.md`를 기준으로 진행한다. 이 구조는 모델·개인 전역 설정을 고정하지 않는 저장소 지침 방식이며, [공식 OpenAI 안내](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)의 간결한 지침과 필요한 문서만 참조하는 원칙을 따른다.
 
-루트 `settings.gradle`은 `career-lab/worker-support`만 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM/CONTAINER capability는 기본 false이며 sequence를 활성화하면 선택한 실행 방식만 true다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
+루트 `settings.gradle`은 `career-lab/worker-support`만 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM/CONTAINER capability는 기본 false이며 활성화한 sequence 실행 방식과 checks CONTAINER 등록을 반영한다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
 
 등록 LOCAL_JVM의 비정상 종료 후 접수 보호는 `WorkerRecoveryGuard`와 `LocalJvmRegistration`에서 담당한다. `WorkerRecoveryGuardTest`, `LocalJvmRegistrationTest`로 강제 종료 기록 보존·실패 후 재접수 거절·정상 해제를 검증한다. [운영 복구 절차](worker-recovery.md)를 따르며 기본값은 자동 복구 비활성이다. `WorkerStartupRecovery`가 종료 확인 기록이 있는 sequence만 opt-in으로 시작 시 재조정하며, 나머지는 운영자 확인이 필요하다.
 
@@ -146,3 +146,5 @@ D4 실패 주입 요구사항과 검증 수준은 [실패 주입 검증 표](wor
 실제 wire 오류는 Career `ProcessFixture`, 중앙 저장/재개방은 `LocalJvmExecutorTest`,
 컨테이너 경계 제거와 최종 flush는 `ContainerWorkerIntegrationTest`에서 검증한다.
 fixture 수정 시 Career 전체 테스트 후 루트 `test containerWorkerTest`를 순차 실행한다.
+
+D5-1 architecture/validation 전용 배포는 [MCP checks worker](mcp-checks-worker.md)를 따른다. 공유 규칙/fixture는 Career `mcp-platform/src/checkRuntime`, 중앙 등록은 `ChecksRegistrationConfiguration`, 모듈 병합은 `McpModuleConfiguration`이다. `checksContainerTest`와 frontend `mcp-checks.spec.ts`로 검증한다.

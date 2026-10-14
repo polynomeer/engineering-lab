@@ -363,3 +363,7 @@ unchanged v2 marker. Sequence network recovery resumes confirmed deletion, never
 create/start. Both execution modes block when either marker format remains. Interrupted evidence
 is preserved; no recovery path seals or reruns it. The default remains LOCAL_JVM and startup
 recovery is disabled unless explicitly enabled. See the [I5 contract](worker-container-isolation.md#i5-같은-저장소에서-시작-시-복구와-접수-재개).
+
+## MCP check scenarios
+
+D5-1 adds a separate DB-free Java 21 checks deployment. ArchUnit rules and deliberate violation fixtures live in `checkRuntime`, shared with JUnit but excluded from the ordinary application and sequence jar. The controller registers architecture and validation independently using container resources NONE and separate admission guards. `McpModuleConfiguration` advertises one module containing only enabled scenarios. Check-only registrations omit METRICS presentation; protocol v1 and sequence settings remain compatible. See [checks deployment and semantics](mcp-checks-worker.md).

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mcp-platform.validation",
+  "scenario": {
+    "id": "validation-valid",
+    "hypothesis": "Synthetic guardrail and validation checks"
+  },
+  "parameters": {
+    "variant": "VALID"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

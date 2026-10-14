@@ -197,13 +197,28 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 
 | 순서 | 범위 | 완료 기준 |
 | --- | --- | --- |
-| D5-1 | mcp-platform: architecture, validation | 정상/고의 위반, 단계별 검증을 CHECK_RESULTS로 표시; 모듈 3개 시나리오 완료 |
+| D5-1 완료 | mcp-platform: architecture, validation | 정상/고의 위반, 단계별 검증을 CHECK_RESULTS로 표시; 모듈 3개 시나리오 완료 |
 | D5-2 | equity-system: deletion, redis-lock, registration | 거래 점유 시간과 전체 시간 구분, 락 기대 결과, 등록 집계·측정값; 3개 완료 |
 | D5-3 | batch-excel: batch-memory, excel-memory | 새 JVM별 variant 측정, sampled heap 표기, seed/측정 구간·heap 한도 기록; 2개 완료 |
 | D5-4 | mds-distribution: settlement-guard, idempotency | TTL·중복 이벤트·실패 재시도 check, 격리 DB 정리; 2개 완료 |
 | D5-5 | creator-studio: session-rotation, mapping-integrity, post-commit | token/매핑/commit 경계 check, 외부 연동 stub 유지; 3개 완료 |
 
 각 모듈의 gate: schema validation → 실제 컨테이너 실행 → partial failure → raw/export → 브라우저 표시 → 재시작 조회. metric이 없는 시나리오에 빈 차트 대신 check 표를 제공한다. FACT/NEW-DESIGN 구분을 유지한다.
+
+D5-1 구현·검증 (2026-10-15): DB 없는 `checkRuntime` 배포물에 기존 ArchUnit 규칙과
+DTO/도메인 검증을 연결했다. checks와 sequence의 opt-in 설정은 독립적이며 활성화한
+실험을 하나의 MCP 모듈로 등록한다. architecture 두 variant와 validation 네 variant의
+실제 Java 21 jar 및 컨테이너 실행, schema 거절, 실패 check의 보존·원시 export,
+REPORT hash/사본, 같은 저장소 재개방과 컨테이너 제거를 검증했다. 고의 위반은
+FAIL/FAILED이며 예상한 validation 거절과 후속 단계 미실행은 expected/observed로
+구분한다. 기본값은 비활성이며 REPORT 다운로드는 D6에 남긴다.
+
+검증: Career 전체 131건(새 배포 검증 6건 포함, 기존 미변경 결과 일부 재사용),
+루트 297건, `checksContainerTest` 6건 통과. 기존 `CareerSequenceApiTest`의 세 variant 중앙 API 실행·저장소 재개방 회귀 1건도 통과했다. frontend 타입 검사·빌드·단위 17건,
+실제 응답 스냅샷 6종 + preset 2종 + 기존 Career 화면 4종의 브라우저 검증 12건 통과.
+데스크톱/모바일 캡처를 확인해 긴 관측 원문은 접이식 스크롤 영역으로 표시했다.
+브라우저 스냅샷 검증은 실제 실행/API/reopen 통합 검증과 별도로 기록한 응답을 사용한다.
+[설정·의미·재현 명령](mcp-checks-worker.md)을 따른다.
 
 ## D6. 관측·artifact 확장과 운영 마무리
 
@@ -231,7 +246,7 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D5-1: mcp-platform architecture/validation 연동**이다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
+다음 실행 작업은 **D5-2: equity-system deletion/redis-lock/registration 연동**이다. D5-1의 MCP architecture/validation 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를

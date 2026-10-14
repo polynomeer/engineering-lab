@@ -5,6 +5,16 @@ export type Draft = {
   parameters: Record<string, string | number | boolean>;
 };
 export const presets: Record<string, Draft[]> = {
+  'career.mcp-platform.architecture': ['COMPLIANT', 'VIOLATION'].map(variant => ({
+    id: 'architecture-' + variant.toLowerCase(),
+    hypothesis: variant === 'COMPLIANT' ? '실제 계약 코드가 레이어 규칙을 지킨다' : '고의 위반 코드에서 규칙별 FAIL을 확인한다',
+    parameters: { variant },
+  })),
+  'career.mcp-platform.validation': ['VALID', 'BLANK_NAME', 'PAST_EXPIRY', 'DOMAIN_REJECTION'].map(variant => ({
+    id: 'validation-' + variant.toLowerCase().replaceAll('_', '-'),
+    hypothesis: '형식과 도메인 규칙을 각각의 단계에서 검증한다',
+    parameters: { variant },
+  })),
   'career.mcp-platform.sequence': ['ATOMIC_UPDATE', 'BEFORE', 'SELECT_FOR_UPDATE'].map(
     (variant) => ({
       id: 'sequence-' + variant.toLowerCase().replaceAll('_', '-'),

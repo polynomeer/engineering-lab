@@ -12,9 +12,9 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * 위해 ArchUnit으로 레이어 의존성 규칙을 테스트 코드로 명문화했다는 Decision을
  * design/mcp-platform-revamp.md 5.5절 수준까지 구체화한 것.
  *
- * <p>규칙을 한 곳에 모아두고, {@link com.portfolio.mcplab.archrule.MainCodeArchitectureTest}
+ * <p>규칙을 한 곳에 모아두고, {@code MainCodeArchitectureTest}
  * (실제 프로덕션 코드 — 통과해야 함)와
- * {@link com.portfolio.mcplab.archrule.ArchitectureViolationDemoTest}
+ * {@code ArchitectureViolationDemoTest}
  * (일부러 위반하도록 만든 {@code badexample} 패키지 — 실패해야 함) 양쪽에서 똑같은
  * {@link ArchRule} 인스턴스를 재사용한다. 같은 규칙이 한쪽에서는 통과하고 다른 쪽에서는
  * 실패한다는 것을 보여주는 것이 이 시나리오의 핵심이다.</p>

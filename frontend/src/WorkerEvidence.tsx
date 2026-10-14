@@ -206,6 +206,7 @@ export function WorkerEvidence({
                   PASS는 기록된 기대값 충족을 뜻합니다. 의도한 이상 현상을 재현한 경우에도 PASS일 수
                   있습니다.
                 </p>
+                <div className="worker-checks">
                 <Table
                   label="기대값과 관측값"
                   headers={['검증 / 설명', '판정', '기대값', '관측값']}
@@ -216,9 +217,12 @@ export function WorkerEvidence({
                     </>,
                     c.status,
                     c.expected,
-                    c.observed,
+                    c.observed.length > 240 || c.observed.includes('\n')
+                      ? <Raw label="관측 상세 보기" value={c.observed} />
+                      : c.observed,
                   ])}
                 />
+                </div>
                 {!checks.checks.length && (
                   <p>이 페이지에 검증 결과가 없습니다. 빈 결과를 통과로 해석하지 않습니다.</p>
                 )}

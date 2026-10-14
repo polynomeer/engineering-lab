@@ -367,18 +367,20 @@ function App() {
                 />
               )}
               <h2>결과 요약</h2>
-              <Table
-                label="원본 metric 이름과 값"
-                headers={['측정값', '종류', '값']}
-                rows={[
-                  ...Object.entries(run.summary.counters).map(([k, v]) => [
-                    k,
-                    'counter',
-                    format(v),
-                  ]),
-                  ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
-                ]}
-              />
+              {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length > 0 && (
+                <Table
+                  label="원본 metric 이름과 값"
+                  headers={['측정값', '종류', '값']}
+                  rows={[
+                    ...Object.entries(run.summary.counters).map(([k, v]) => [
+                      k,
+                      'counter',
+                      format(v),
+                    ]),
+                    ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
+                  ]}
+                />
+              )}
               <Raw label="결과 상세" value={run.summary.details} />
               <h2>입력과 실행 환경</h2>
               <Raw label="파라미터와 시나리오 정의" value={run.runMetadata.parameters} />
@@ -390,27 +392,33 @@ function App() {
                 }}
               />
               <h2>관측 기록</h2>
-              <Table
-                label="원본 관측 · 한 페이지씩 조회"
-                headers={['순서 / 시각', '관측값']}
-                rows={metrics.metrics.map((m) => [
-                  <>
-                    {m.sequence}
-                    <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
-                  </>,
-                  <pre>{format(m.point)}</pre>,
-                ])}
-              />
-              <div className="actions">
-                <button onClick={() => setAfter(-1)} disabled={loading}>
-                  첫 관측
-                </button>
-                {metrics.nextAfter !== null && (
-                  <button disabled={loading} onClick={() => setAfter(metrics.nextAfter!)}>
-                    다음 관측
-                  </button>
-                )}
-              </div>
+              {metrics.metrics.length === 0 && after === -1 && metrics.nextAfter === null ? (
+                <p>이 페이지에 측정값이 없습니다. 검증 실험은 위의 검증 결과와 실행·검증 내보내기를 확인하세요.</p>
+              ) : (
+                <>
+                  <Table
+                    label="원본 관측 · 한 페이지씩 조회"
+                    headers={['순서 / 시각', '관측값']}
+                    rows={metrics.metrics.map((m) => [
+                      <>
+                        {m.sequence}
+                        <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
+                      </>,
+                      <pre>{format(m.point)}</pre>,
+                    ])}
+                  />
+                  <div className="actions">
+                    <button onClick={() => setAfter(-1)} disabled={loading}>
+                      첫 관측
+                    </button>
+                    {metrics.nextAfter !== null && (
+                      <button disabled={loading} onClick={() => setAfter(metrics.nextAfter!)}>
+                        다음 관측
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
               <h2>첨부 증거</h2>
               <p className="note">
                 다운로드 시 서버가 크기와 SHA-256을 검증합니다. 오류는 새 탭에 표시됩니다.
