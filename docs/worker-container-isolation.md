@@ -7,8 +7,8 @@
 `WorkerContainerIsolationTest`는 PID 공간과 별도 복구 프로세스의 검증용 fixture다.
 I2의 `WorkerContainerLifecycle`과 `DockerContainerEngine`을 I3의 `ContainerWorkerProcess`와
 명시적 `ContainerWorkerExecutor`에 연결했다. 실제 Java 21 fixture로 중앙 증거 저장과
-회수를 검증하며 기본 운영 등록은 활성화하지 않는다. sequence의 외부 DB 연결 모드와
-종료 미확인 접수 자동 해제는 I4/I5 범위로 남아 있다.
+회수를 검증하며 기본 운영 등록은 활성화하지 않는다. I4에서 실제 sequence의 controller 소유 DB 연결도 검증했다.
+기본 등록과 종료 미확인 접수 자동 해제는 I5 범위로 남아 있다.
 
 관찰 기반 `WorkerProcessTree`는 관찰 전에 부모와 분리된 프로세스와 controller 사망 후의
 프로세스를 포괄하지 못한다. PID가 없어졌거나 Docker 조회가 비었다는 사실만으로 이
@@ -34,8 +34,8 @@ Docker는 실행별 PID 공간과 사용자·capability·읽기 전용 파일 �
 | 모듈별 자원 어댑터 | 실행별 MySQL/Redis 생성·접속 정보 전달·소유 자원 정리 |
 | worker | 전달된 접속 정보로 시나리오 실행, 공통 protocol/check/metric/report 출력 |
 
-worker에는 Docker 소켓·Docker 접속 자격·controller 저장소를 주지 않는다. 현재 sequence는
-자신이 Testcontainers를 시작하므로 controller의 DB 준비와 worker의 실행을 먼저 분리해야 한다.
+worker에는 Docker 소켓·Docker 접속 자격·controller 저장소를 주지 않는다. I4 sequence 컨테이너 경로는
+controller의 DB 준비와 worker 실행을 분리한다.
 일반 runtime에 sequence 분기를 넣지 않고 모듈이 자원 준비/정리 정책을 제공한다.
 기존 자체 DB 생성 LOCAL_JVM 실행은 호환 경로로 유지한다.
 
@@ -72,7 +72,7 @@ worker는 non-root, capability 전체 제거, no-new-privileges, 읽기 전용 r
 전용 PID 공간과 제한된 임시 쓰기 영역을 사용한다. CPU·메모리·PID·실행 시간·출력·artifact
 한도를 서버에서 제한한다. HTTP 시나리오 입력으로 mount/이미지/명령/권한을 받지 않는다.
 DB가 필요한 실행에는 해당 Run 전용 네트워크와 접속 정보만 제공하고 별도 포트 공개는 하지 않는다.
-artifact 인계는 아래 I3 계약을 따르며 네트워크·모듈 자원 소유권은 I4/I5에서 검증한다.
+artifact 인계는 아래 I3 계약을 따르며 네트워크·모듈 자원 소유권은 아래 I4 계약을 따른다.
 
 ## 검증 fixture
 
@@ -112,7 +112,7 @@ finally에서도 두 컨테이너 각각의 소유권을 대조해 정리하고 
 | I1 | 비특권 경계·분리 프로세스·controller kill·새 회수 프로세스·비교 자원 보존 검증 | 검증 2개 통과 |
 | I2 | 생성 전 영속 의도·생성 후 ID 기록·불확실 요청 차단을 포함한 container lifecycle 어댑터 | 구현, 별도 어댑터 검증 |
 | I3 | 실제 Java 21 protocol transport·artifact·종료/증거 저장과 중앙 executor 연결 | 구현, 명시적 테스트 등록 |
-| I4 | sequence의 DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증 | 예정 |
+| I4 | sequence의 DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증 | 구현 |
 | I5 | 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입 | 예정 |
 
 I1만으로 D4 전체 복구 또는 종료 미확인 실행의 자동 복구를 완료로 표시하지 않는다.
@@ -154,7 +154,7 @@ PID 64개, 로그 저장 없음, 16 MiB `/tmp` tmpfs다. 명령은 최대 32개 
 총 2048문자이며 기록의 UTF-8 크기 상한도 적용한다. 이미지 ID만 허용하고 pull은 하지 않는다.
 이미지 entrypoint는 등록된 명령으로 대체하며 생성 후 실제 command도 대조한다.
 호스트 mount/소켓·공유 namespace·장치·추가 capability·포트 바인딩을 허용하지 않는다.
-이는 DB 연결 전 단계의 고정 프로파일이며 I4에서 전용 네트워크 계약을 별도로 추가해야 한다.
+이는 DB 연결 전 단계의 고정 프로파일이며 sequence는 아래 I4 전용 네트워크 프로파일을 사용한다.
 
 Docker CLI는 응답당 최대 64 KiB·30초, 직접 프로세스/IO 종료 대기는 각각 2초다.
 파일 검사/force와 OS 호출 자체의 강제 중단 시간은 보장하지 않는다. CLI timeout은 Docker
@@ -229,3 +229,55 @@ deadline과 중단을 검사하고, 각 실행의 removed 기록과 Docker 부�
 시험 이미지 정리는 삭제 CLI를 최대 20초 기다린 뒤 정확한 UUID 태그 부재를 별도 조회로
 확인한다. 응답이 늦어도 실제 부재가 확인되면 완료이며, 조회 실패·태그 잔존은 실패다.
 기존 이미지나 공유 build cache를 prune하지 않는다.
+
+## I4: controller 소유 sequence 자원
+
+`ContainerWorkerResources`는 transport가 `prepare → 실행 → finish(workerRemoved)` 순서로
+호출하는 모듈 자원 계약이다. `SequenceContainerResources`를 `ContainerWorkerExecutor`에
+명시적으로 주입한다. 기본 catalog와 LOCAL_JVM 등록은 그대로 유지한다. 일반 transport는
+sequence 분기나 DB 설정을 알지 못한다.
+
+controller는 고정된 MySQL image ID(`sha256:…`)로 실행별 internal bridge 네트워크와 DB를
+준비한다. worker는 같은 네트워크의 `sequence-db:3306/sequence_lab`에만 연결하며 Docker
+소켓·호스트 mount·공개 port가 없다. 네트워크 전체 ID, 단일 endpoint, DB alias와 소유 label을
+검증한다. worker 프로파일은 `isolated-network-v1:<networkId>`이며 기존 CPU 1, 메모리
+256 MiB, PID 64, 읽기 전용 root와 `/tmp` 16 MiB 제한을 유지한다.
+
+DB 프로파일은 `sequence-mysql-v1:<networkId>:<credentialHash>`다. UID/GID 999,
+CPU 1, 메모리 512 MiB, PID 128, read-only root, cap-drop ALL, no-new-privileges,
+로그 비활성, restart=no를 고정한다. `/tmp` 16 MiB, `/var/lib/mysql` 256 MiB,
+`/var/run/mysqld` 1 MiB tmpfs만 쓰며 모두 noexec/nosuid/nodev다. 데이터는 실행 종료 시
+폐기한다. readiness는 controller의 bounded Docker exec `SELECT 1`로 확인하며 command
+기한과 120초 중 짧은 제한을 사용한다. 개별 Docker CLI 호출에는 기존 30초 제한이 적용된다.
+
+controller가 생성한 일회성 DB 비밀번호는 `LAB_SEQUENCE_DB_MODE=EXTERNAL`,
+`LAB_SEQUENCE_DB_HOST=sequence-db`, `LAB_SEQUENCE_DB_PASSWORD` 환경으로 전달한다.
+비밀번호는 64자리 소문자 hex이며 worker는 mode·host·형식을 검증한다. JDBC 주소와
+사용자 lab은 고정하고 사용자 시나리오에는 variant/workers/blockSize만 허용한다.
+root 비밀번호는 별도로 생성하며 worker에 전달하지 않는다. journal에는 평문 비밀번호를
+저장하지 않는다. Docker 관리자는 컨테이너 환경을 inspect할 수 있다.
+
+정리 순서는 **worker 경계 제거 확인 → DB 제거 확인 → 빈 네트워크 제거 확인**이다.
+준비 실패와 인증 실패도 같은 순서로 회수한다. worker 또는 DB 종료가 미확인인 경우
+뒤의 자원은 보존하고 성공 결과를 반환하지 않는다. 자원 정리 실패는 workspace를 포함한
+`RESOURCE_CLEANUP_UNCONFIRMED`로 전달한다.
+
+host workspace의 `sequence-resources/`에는 각 4 KiB 이하인 append-only
+`intent.json`, `created.json`, `removing.json`, `removed.json`을 남긴다. 생성 요청 전 intent를
+force하고, 확인된 network ID와 intent hash를 created에 기록한다. DB는 하위 `mysql/`에서
+I2의 배타 잠금·6단계 기록을 재사용한다. network 생성 응답이 불확실하면 생성 재시도나
+이름 기반 삭제를 하지 않는다. 이 단계는 새 세션의 수명주기만 제공한다. controller 재시작 시
+네트워크 기록 재개, admission marker 해제 및 장애 주입은 I5에서 구현할 대상이다.
+기존 LOCAL_JVM 완료 기록과 `--recover`의 의미는 바뀌지 않는다.
+
+검증 순서(두 Gradle wrapper는 병렬 실행하지 않는다):
+
+```bash
+./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest
+./gradlew test sequenceContainerTest containerWorkerTest workerContainerIsolationTest careerSequenceTest
+```
+
+`sequenceContainerTest`는 캐시된 `eclipse-temurin:21-jre`와 `mysql:8.0.39`를 사용한다.
+실제 worker jar의 BEFORE/ATOMIC_UPDATE/SELECT_FOR_UPDATE 메트릭·CHECK·REPORT를
+중앙 저장하고 인증 실패 시 부분 증거와 자원 회수를 검증한다. 시험 이미지 태그와 실행별
+자원만 정리한다. 실패 workspace는 조사용으로 보존한다.

@@ -261,3 +261,18 @@ Ryuk 자체 장애, 재시작 후 잔여 컨테이너 조정, 일반 자손 프�
 ### 컨테이너 소유권과 실행별 복구
 
 worker는 workspace 배타 잠금을 유지하고 MySQL 생성 전 Run·배포 hash·Docker 엔진·소유권 토큰을 기록한다. 같은 배포 jar의 `--recover <workspace> <runId>`는 worker가 종료된 경우에만 해당 소유 컨테이너를 회수한다. 기록을 보존하고 중앙 접수 차단을 해제하지 않는다. [명령과 보장 범위](../../docs/sequence-container-recovery.md)를 따른다.
+
+
+### Controller 소유 DB 연결 (I4)
+
+명시적으로 구성한 CONTAINER executor에서는 controller가 MySQL과 실행 전용 internal
+네트워크를 소유한다. worker는 `LAB_SEQUENCE_DB_MODE=EXTERNAL`, 고정 host `sequence-db`,
+64자리 hex `LAB_SEQUENCE_DB_PASSWORD`를 검증하고 고정 database `sequence_lab`/user `lab`에
+연결한다. 이 모드에서는 Testcontainers·Ryuk·worker DB 소유권 journal을 사용하지 않는다.
+세 환경 변수는 controller가 설정하며 사용자 시나리오에 JDBC URL이나 비밀번호를 추가하지 않는다.
+환경을 지정하지 않은 LOCAL_JVM은 기존 Testcontainers·Ryuk·`--recover` 경로를 유지한다.
+부분 설정은 거절한다. 기본 중앙 catalog 등록은 아직 LOCAL_JVM이다.
+
+루트에서 `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest`를 실행한 뒤
+`./gradlew test sequenceContainerTest careerSequenceTest`로 두 실행 경로를 검증한다.
+[자원 제한·소유권·회수 순서와 I5 경계](../../docs/worker-container-isolation.md#i4-controller-소유-sequence-자원)를 따른다.

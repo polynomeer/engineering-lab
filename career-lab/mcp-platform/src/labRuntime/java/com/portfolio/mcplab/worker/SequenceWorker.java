@@ -60,7 +60,8 @@ public final class SequenceWorker {
         if (remaining <= 0 || remaining > 900000) throw new IllegalArgumentException("Invalid deadline");
         Path workspace = Path.of(command.path("workspace").textValue());
         if (!workspace.isAbsolute() || !Files.isDirectory(workspace, LinkOption.NOFOLLOW_LINKS)) throw new IllegalArgumentException("Invalid workspace");
-        try (var ownership = SequenceContainerRecovery.lock(workspace)) {
+        var external = SequenceDatabaseEndpoint.from(System.getenv());
+        try (var ownership = external == null ? SequenceContainerRecovery.lock(workspace) : null) {
             Path jar = Path.of(System.getProperty("java.class.path"));
             var identity = new WorkerProtocol.Identity(command.path("runId").textValue(), "mcp-platform", "career.mcp-platform.sequence",
                     command.path("definitionSha256").textValue(), hash(jar));
@@ -88,26 +89,28 @@ public final class SequenceWorker {
             }, "sequence-deadline"); deadline.setDaemon(true); deadline.start();
             String status = "FAILED", reason = "PREPARATION_FAILED";
             ObjectNode summary = WireJson.object(); boolean measured = false, finalizing = false, cleanupFailed = false;
-            // No reuse, external DB URL or user-selected image. Ryuk remains enabled for abnormal process loss.
-            MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0.39").withDatabaseName("sequence_lab")
+            // The legacy path owns its DB. The external path never invokes Testcontainers or owns cleanup.
+            MySQLContainer<?> mysql = external != null ? null : new MySQLContainer<>("mysql:8.0.39").withDatabaseName("sequence_lab")
                     .withUsername("lab").withPassword("lab").withReuse(false)
                     .withLabel("engineering-lab.run-id", identity.runId())
                     .withUrlParam("connectTimeout", "5000").withUrlParam("socketTimeout", "5000");
             ConfigurableApplicationContext context = null;
             try {
                 cancellation.check();
-                if (Boolean.parseBoolean(System.getenv("TESTCONTAINERS_RYUK_DISABLED")))
-                    throw new IllegalStateException("RESOURCE_REAPER_DISABLED");
-                if (!DockerClientFactory.instance().isDockerAvailable()) throw new IllegalStateException("Docker unavailable");
-                cancellation.check();
-                var intent = ownership.create(identity.runId(), identity.artifactSha256(),
-                        DockerClientFactory.instance().client().infoCmd().exec().getId());
-                mysql.withLabels(intent.labels()).withCreateContainerCmdModifier(create -> create.withName(intent.name()));
-                mysql.start();
+                if (external == null) {
+                    if (Boolean.parseBoolean(System.getenv("TESTCONTAINERS_RYUK_DISABLED")))
+                        throw new IllegalStateException("RESOURCE_REAPER_DISABLED");
+                    if (!DockerClientFactory.instance().isDockerAvailable()) throw new IllegalStateException("Docker unavailable");
+                    cancellation.check();
+                    var intent = ownership.create(identity.runId(), identity.artifactSha256(),
+                            DockerClientFactory.instance().client().infoCmd().exec().getId());
+                    mysql.withLabels(intent.labels()).withCreateContainerCmdModifier(create -> create.withName(intent.name()));
+                    mysql.start();
+                }
                 cancellation.check();
                 context = new SpringApplicationBuilder(McpLabApplication.class).web(WebApplicationType.NONE).run(
-                        "--spring.main.banner-mode=off", "--spring.datasource.url=" + mysql.getJdbcUrl(),
-                        "--spring.datasource.username=" + mysql.getUsername(), "--spring.datasource.password=" + mysql.getPassword(),
+                        "--spring.main.banner-mode=off", "--spring.datasource.url=" + (external == null ? mysql.getJdbcUrl() : external.jdbcUrl()),
+                        "--spring.datasource.username=" + (external == null ? mysql.getUsername() : "lab"), "--spring.datasource.password=" + (external == null ? mysql.getPassword() : external.password()),
                         "--spring.datasource.hikari.maximum-pool-size=" + workers, "--spring.datasource.hikari.connection-timeout=5000");
                 cancellation.check();
                 ContractCodeAllocator allocator = switch (variant) {
@@ -155,7 +158,7 @@ public final class SequenceWorker {
                 catch (Exception e) { cleanupFailed = true; status = "FAILED"; reason = "PROTOCOL_FAILED"; }
                 try { if (context != null) context.close(); }
                 catch (Exception e) { cleanupFailed = true; status = "FAILED"; reason = "CONTEXT_CLEANUP_FAILED"; }
-                try { mysql.stop(); }
+                try { if (mysql != null) mysql.stop(); }
                 catch (Exception e) { cleanupFailed = true; status = "FAILED"; reason = "CONTAINER_CLEANUP_FAILED"; }
                 String cancellationReason = cancellation.finish();
                 deadline.interrupt();

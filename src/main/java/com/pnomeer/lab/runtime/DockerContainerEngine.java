@@ -9,15 +9,25 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Bounded local Docker CLI adapter. No implicit pull, shell, host mounts or worker Docker access. */
-public final class DockerContainerEngine implements WorkerContainerLifecycle.Engine {
+public class DockerContainerEngine implements WorkerContainerLifecycle.Engine {
     public static final String OWNER = "engineering-lab.worker-owner", RUN = "engineering-lab.run-id",
             ARTIFACT = "engineering-lab.artifact-sha256";
+    private final String network;
+    public DockerContainerEngine() { this("none"); }
+    public DockerContainerEngine(String network) {
+        if (!network.equals("none") && !network.matches("[a-f0-9]{64}")) throw new IllegalArgumentException("Full network ID required");
+        this.network = network;
+    }
+    @Override public String profile() { return network.equals("none") ? "isolated-v1" : "isolated-network-v1:" + network; }
+    @Override public boolean verifySnapshot(ObjectNode value, WorkerContainerLifecycle.Spec spec, WorkerContainerLifecycle.Owner owner, String id) {
+        return matches(value, spec, owner, id, network);
+    }
     public String identity() throws Exception { return command("info", "--format", "{{.ID}}").trim(); }
     public String create(WorkerContainerLifecycle.Spec spec, WorkerContainerLifecycle.Owner owner) throws Exception {
         var args = new ArrayList<>(List.of("create", "--pull=never", "--name", owner.name(),
                 "--label", OWNER + "=" + owner.token(), "--label", RUN + "=" + spec.runId(),
                 "--label", ARTIFACT + "=" + spec.artifactSha256(), "--user", "65534:65534", "--read-only",
-                "--cap-drop=ALL", "--security-opt=no-new-privileges", "--network=none", "--ipc=private", "--restart=no",
+                "--cap-drop=ALL", "--security-opt=no-new-privileges", "--network=" + network, "--ipc=private", "--restart=no",
                 "--memory=256m", "--cpus=1", "--pids-limit=64", "--log-driver=none",
                 "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=16m", "--entrypoint", spec.command().getFirst(), spec.imageId()));
         args.addAll(spec.command().subList(1, spec.command().size()));
@@ -35,7 +45,10 @@ public final class DockerContainerEngine implements WorkerContainerLifecycle.Eng
     private static void requireId(String id) throws IOException {
         if (id == null || !id.matches("[a-f0-9]{64}")) throw new IOException("Full container ID required");
     }
-    static boolean matches(ObjectNode value, WorkerContainerLifecycle.Spec spec, WorkerContainerLifecycle.Owner owner, String id) {
+    public static boolean matches(ObjectNode value, WorkerContainerLifecycle.Spec spec, WorkerContainerLifecycle.Owner owner, String id) {
+        return matches(value, spec, owner, id, "none");
+    }
+    private static boolean matches(ObjectNode value, WorkerContainerLifecycle.Spec spec, WorkerContainerLifecycle.Owner owner, String id, String network) {
         var config = value.path("Config"); var host = value.path("HostConfig"); var labels = config.path("Labels");
         if (!id.equals(value.path("Id").asText()) || !spec.imageId().equals(value.path("Image").asText())
                 || !("/" + owner.name()).equals(value.path("Name").asText())
@@ -46,7 +59,7 @@ public final class DockerContainerEngine implements WorkerContainerLifecycle.Eng
                 || !host.path("Privileged").isBoolean() || host.path("Privileged").asBoolean()
                 || !host.path("ReadonlyRootfs").asBoolean() || host.path("AutoRemove").asBoolean()
                 || !host.path("PidMode").asText("missing").isEmpty() || !"private".equals(host.path("IpcMode").asText())
-                || !"none".equals(host.path("NetworkMode").asText())
+                || !network.equals(host.path("NetworkMode").asText())
                 || !"no".equals(host.path("RestartPolicy").path("Name").asText())
                 || host.path("Memory").asLong() != 256L * 1024 * 1024 || host.path("NanoCpus").asLong() != 1000000000L
                 || host.path("PidsLimit").asInt() != 64 || !"none".equals(host.path("LogConfig").path("Type").asText())
@@ -56,11 +69,23 @@ public final class DockerContainerEngine implements WorkerContainerLifecycle.Eng
                 || !array(config.path("Entrypoint"), spec.command().subList(0, 1))
                 || !(array(config.path("Cmd"), spec.command().subList(1, spec.command().size()))
                     || spec.command().size() == 1 && config.path("Cmd").isNull())) return false;
+        if (!network.equals("none") && !networkMatches(value, network, null)) return false;
         if (!value.path("Mounts").isArray()) return false;
         for (var mount : value.path("Mounts"))
             if (!"tmpfs".equals(mount.path("Type").asText()) || !"/tmp".equals(mount.path("Destination").asText())) return false;
         return host.path("Tmpfs").size() == 1
                 && "rw,nosuid,nodev,noexec,size=16m".equals(host.path("Tmpfs").path("/tmp").asText());
+    }
+    /** Created containers may not have an assigned endpoint ID until start. */
+    public static boolean networkMatches(ObjectNode value, String network, String alias) {
+        var networks = value.path("NetworkSettings").path("Networks");
+        if (!networks.isObject() || networks.size() != 1) return false;
+        var endpoint = networks.elements().next();
+        String actual = endpoint.path("NetworkID").asText();
+        if (!network.equals(actual) && !(actual.isEmpty() && "created".equals(value.path("State").path("Status").asText()))) return false;
+        if (alias == null) return true;
+        for (var candidate : endpoint.path("Aliases")) if (alias.equals(candidate.asText())) return true;
+        return false;
     }
     private static boolean empty(JsonNode node) { return node.isNull() || (node.isContainerNode() && node.isEmpty()); }
     private static boolean array(JsonNode node, List<String> expected) {
@@ -68,7 +93,7 @@ public final class DockerContainerEngine implements WorkerContainerLifecycle.Eng
         for (int i = 0; i < expected.size(); i++) if (!expected.get(i).equals(node.path(i).asText())) return false;
         return true;
     }
-    private static String command(String... arguments) throws Exception {
+    public static String command(String... arguments) throws Exception {
         var args = new ArrayList<>(List.of("docker")); args.addAll(List.of(arguments));
         Process child = new ProcessBuilder(args).redirectErrorStream(true).start();
         var io = Executors.newSingleThreadExecutor(r -> { var t = new Thread(r, "container-engine-cli"); t.setDaemon(true); return t; });

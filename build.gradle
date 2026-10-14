@@ -128,6 +128,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/WorkerContainerIsolationTest*'
     exclude '**/WorkerContainerLifecycleIntegrationTest*'
     exclude '**/ContainerWorkerIntegrationTest*'
+    exclude '**/SequenceContainerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -183,5 +184,18 @@ tasks.register('containerWorkerTest', Test) {
     useJUnitPlatform()
     include '**/ContainerWorkerIntegrationTest.class'
     systemProperty 'lab.worker.fixture', file('career-lab/worker-support/build/libs/worker-support-0.1.0-process-fixture.jar').absolutePath
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('sequenceContainerTest', Test) {
+    group = 'verification'
+    description = 'Verify controller-owned MySQL/network and actual Java 21 sequence container worker.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/SequenceContainerIntegrationTest.class'
+    def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
+    inputs.file(manifest)
+    systemProperty 'lab.sequence.manifest', manifest.absolutePath
     outputs.upToDateWhen { false }
 }

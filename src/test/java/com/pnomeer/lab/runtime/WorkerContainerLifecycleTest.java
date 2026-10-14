@@ -32,6 +32,34 @@ class WorkerContainerLifecycleTest {
         assertTrue(Files.exists(root.resolve("intent.json")));
         assertTrue(Files.exists(root.resolve("removed.json")));
     }
+    @Test void changedResourceProfileCannotReopenExistingOwnership() throws Exception {
+        try (var lifecycle = open()) { lifecycle.create(); }
+        var changed = new Fake() { @Override public String profile() { return "different-profile"; } };
+        assertThrows(IOException.class, () -> new WorkerContainerLifecycle(root, spec, changed));
+        assertEquals(0, changed.calls);
+    }
+    @Test void networkProfileRejectsExtraOrChangedEndpoints() throws Exception {
+        String network = "d".repeat(64);
+        var owner = new WorkerContainerLifecycle.Owner("engine", UUID.randomUUID().toString());
+        var value = snapshot(spec, owner);
+        ((ObjectNode)value.path("HostConfig")).put("NetworkMode", network);
+        var endpoints = value.putObject("NetworkSettings").putObject("Networks");
+        var endpoint = endpoints.putObject("run-network").put("NetworkID", network);
+        endpoint.putArray("Aliases").add("sequence-db");
+        var backend = new DockerContainerEngine(network);
+        assertTrue(backend.verifySnapshot(value, spec, owner, ID));
+        assertTrue(DockerContainerEngine.networkMatches(value, network, "sequence-db"));
+        endpoint.putArray("Aliases");
+        assertFalse(DockerContainerEngine.networkMatches(value, network, "sequence-db"));
+        endpoints.putObject("other").put("NetworkID", "e".repeat(64));
+        assertFalse(backend.verifySnapshot(value, spec, owner, ID));
+        endpoints.remove("other"); endpoint.put("NetworkID", "e".repeat(64));
+        assertFalse(backend.verifySnapshot(value, spec, owner, ID));
+        endpoint.put("NetworkID", "");
+        assertTrue(backend.verifySnapshot(value, spec, owner, ID));
+        ((ObjectNode)value.path("State")).put("Status", "running");
+        assertFalse(backend.verifySnapshot(value, spec, owner, ID));
+    }
     @ParameterizedTest @ValueSource(strings={"create", "start"})
     void lostMutationResponsesNeverReplayOrReconcile(String point) throws Exception {
         engine.failure = point;

@@ -28,6 +28,10 @@ public final class WorkerContainerLifecycle implements AutoCloseable {
         public String name() { return "engineering-lab-worker-" + token; }
     }
     public interface Engine {
+        default String profile() { return "isolated-v1"; }
+        default boolean verifySnapshot(ObjectNode value, Spec spec, Owner owner, String id) {
+            return DockerContainerEngine.matches(value, spec, owner, id);
+        }
         String identity() throws Exception;
         String create(Spec spec, Owner owner) throws Exception;
         Optional<ObjectNode> inspect(String id) throws Exception;
@@ -69,7 +73,7 @@ public final class WorkerContainerLifecycle implements AutoCloseable {
         String identity = engine.identity();
         if (identity == null || !identity.matches("[a-zA-Z0-9:-]{1,200}")) throw new IOException("Invalid engine identity");
         owner = new Owner(identity, UUID.randomUUID().toString());
-        var intent = WireJson.object().put("version", 1).put("profile", "isolated-v1")
+        var intent = WireJson.object().put("version", 1).put("profile", engine.profile())
                 .put("runId", spec.runId()).put("artifactSha256", spec.artifactSha256()).put("imageId", spec.imageId())
                 .put("engineId", identity).put("token", owner.token());
         var command = intent.putArray("command"); spec.command().forEach(command::add);
@@ -143,7 +147,7 @@ public final class WorkerContainerLifecycle implements AutoCloseable {
         if (records.isEmpty()) return;
         var intent = records.get("intent");
         if (intent == null || intent.size() != 8 || !intent.path("version").isIntegralNumber() || intent.path("version").asInt() != 1
-                || !intent.path("profile").asText().equals("isolated-v1")
+                || !intent.path("profile").asText().equals(engine.profile())
                 || !spec.runId().equals(intent.path("runId").asText())
                 || !spec.artifactSha256().equals(intent.path("artifactSha256").asText())
                 || !spec.imageId().equals(intent.path("imageId").asText())
@@ -189,7 +193,7 @@ public final class WorkerContainerLifecycle implements AutoCloseable {
         catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
     private void verify(ObjectNode value, String expectedId) throws IOException {
-        if (!DockerContainerEngine.matches(value, spec, owner, expectedId)) throw new IOException("Container ownership or isolation changed");
+        if (!engine.verifySnapshot(value, spec, owner, expectedId)) throw new IOException("Container ownership or isolation changed");
     }
     @Override public void close() throws IOException { try { lock.release(); } finally { lockChannel.close(); } }
 }

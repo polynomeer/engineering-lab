@@ -119,7 +119,8 @@ capability/catalog 구현 (2026-10-08): `/dashboard/v1/capabilities`, `/modules`
 - [x] 비특권 worker 컨테이너 경계에서 분리 프로세스·controller 강제 종료·새 회수 프로세스를 검증하고 설계를 확정한다(I1).
 - [x] 영속 소유권과 컨테이너 생성·시작·회수 어댑터를 구현하고 미확인 요청 차단을 검증한다(I2).
 - [x] Java 21 container transport와 중앙 protocol/metric/check/REPORT 저장을 연결한다(I3).
-- [ ] sequence DB 소유자 분리·종료 미확인 복구를 연결·검증한다(I4–I5).
+- [x] sequence DB 소유자를 controller로 분리하고 LOCAL_JVM 호환을 검증한다(I4).
+- [ ] 종료 미확인 복구·동일 저장소 재시작·접수 재개를 연결·검증한다(I5).
 - [x] sequence driver를 추출하고 기존 JUnit 검증과 같은 코드를 사용한다.
 - [x] 선택적 서버 catalog → variant API 실행 → 중앙 Run/checks/metrics/보고서·비교 단위를 연결한다.
 - [x] 전용 UI catalog/실행/check 화면과 정상 서버 재시작 후 UI 조회를 연결한다.
@@ -230,4 +231,17 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D4-I4: sequence DB 소유자를 controller로 분리하고 기존 LOCAL_JVM 호환 검증**이다. [I1–I5 설계](worker-container-isolation.md)에 따라 모듈 자원 어댑터가 DB와 전용 네트워크를 준비하고 컨테이너 worker에는 접속 정보만 전달하도록 연결한다. I3는 network=none fixture 실행과 중앙 증거 저장까지 제공한다. 기본 운영 등록과 종료 미확인 접수 자동 해제는 아직 활성화하지 않으며, 새 영속 기록 기반 Run 복구·접수 재개·장애 주입은 I5에서 진행한다.
+다음 실행 작업은 **D4-I5: 새 격리 기록 기반 중단 실행 복구·동일 저장소 재시작·접수 재개·장애 주입**이다. I4는 controller 소유 DB·전용 internal 네트워크와 실제 sequence 컨테이너 실행을 제공한다. I5에서는 worker/DB/network 기록을 함께 재검증하고, 모든 자원 종료가 확인된 경우에만 새 CONTAINER 실행의 접수 차단을 해제한다. 기존 LOCAL_JVM marker와 완료 기록 정책은 유지한다.
+
+
+sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를
+구현했다. controller가 실행별 MySQL과 internal 네트워크를 준비하고 worker는 검증된 고정
+접속 정보만 받는다. worker→DB→네트워크 순서로 확인 후 회수하며 미확인 상태는 보존한다.
+세 채번 방식의 실제 Java 21 컨테이너 실행 및 DB 인증 실패 회수를 별도 suite로 검증한다.
+기본 등록과 재시작 후 network journal 재개는 I5 범위다.
+
+검증 결과: `./scripts/career-lab.sh test :mcp-platform:sequenceWorkerManifest` 성공(Career 전체
+122개, 변경 없는 task의 성공 결과 재사용 포함). 루트 `./gradlew test sequenceContainerTest
+containerWorkerTest workerContainerIsolationTest careerSequenceTest`는 각각 260/4/10/4/7개가
+모두 통과했다. 최종 Docker 조회에서 시험 worker·DB·네트워크·격리 fixture와 임시 이미지
+태그가 없음을 확인했다. 기존 다른 세션의 MySQL 컨테이너는 보존했다.

@@ -342,6 +342,14 @@ A confirmed I2 boundary hosts a non-TTY Java 21 exec process; protocol EOF, exit
 and container removal are all required before returning a result. Bounded REPORT transfer
 accepts one regular file and delegates hash verification to the existing artifact importer.
 CONTAINER execution evidence has worker measurement scope, including unknown-worker handling
-in comparisons. Default catalog registration, sequence database provisioning and admission
-recovery remain pending I4/I5. Existing LOCAL_JVM recovery behavior is unchanged.
+in comparisons. Default catalog registration and admission recovery remain pending I5. Existing LOCAL_JVM recovery behavior is unchanged.
 See [the I3 image, transport and compatibility contract](worker-container-isolation.md#i3-protocol-transport와-중앙-증거-연결).
+
+
+I4 injects `ContainerWorkerResources` into the transport. The career adapter
+`experiments/career/SequenceContainerResources` owns a per-run internal network and bounded
+MySQL container; the Java 21 worker receives a fixed endpoint and ephemeral credentials.
+Worker removal must be confirmed before DB removal, then the empty network is removed.
+Resource journals survive failure; network journal reopening and admission recovery remain I5.
+LOCAL_JVM keeps its existing Testcontainers ownership and recovery contract.
+See [I4 resource contract](worker-container-isolation.md#i4-controller-소유-sequence-자원).
