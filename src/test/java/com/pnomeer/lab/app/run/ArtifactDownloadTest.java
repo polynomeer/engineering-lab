@@ -57,6 +57,32 @@ class ArtifactDownloadTest {
             mvc.perform(get("/runs/missing/artifacts/"+ref.artifactId()+"/download")).andExpect(status().isNotFound());
         }
     }
+    @Test void downloadsManagedWorkerReportAndRejectsMutationAndForgedPaths() throws Exception {
+        byte[] bytes = "{\"checks\":[]}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String id = "worker_" + UUID.randomUUID();
+        String relative = "worker-reports/" + id + ".bin";
+        Files.createDirectories(root.resolve("worker-reports"));
+        Files.write(root.resolve(relative), bytes);
+        var reference = new ArtifactReference(id,"report",relative,"application/octet-stream",bytes.length,
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
+        try (var store = new JdbcRunStore(root,10,1)) {
+            run(store,"report",true); store.registerArtifact(reference);
+        }
+        try (var store = new JdbcRunStore(root,10,1)) {
+            var mvc = MockMvcBuilders.standaloneSetup(controller(store,1024)).build();
+            String url = "/runs/report/artifacts/"+id+"/download";
+            mvc.perform(get(url)).andExpect(status().isOk()).andExpect(content().bytes(bytes))
+                    .andExpect(header().string("Content-Disposition","attachment; filename="+id+".bin"));
+            Files.write(root.resolve(relative),new byte[bytes.length]);
+            mvc.perform(get(url)).andExpect(status().isConflict()).andExpect(content().bytes(new byte[0]));
+            Files.delete(root.resolve(relative));
+            Files.createSymbolicLink(root.resolve(relative),root.resolve("outside"));
+            mvc.perform(get(url)).andExpect(status().isConflict());
+            String forged = "worker_" + UUID.randomUUID();
+            store.registerArtifact(new ArtifactReference(forged,"report","worker-reports/wrong.bin","application/octet-stream",0,"a".repeat(64)));
+            mvc.perform(get("/runs/report/artifacts/"+forged+"/download")).andExpect(status().isConflict());
+        }
+    }
     @Test void rejectsActiveRunsUnknownReferencesExternalPathsAndOversize() throws Exception {
         try (var store = new JdbcRunStore(root,10,1)) {
             run(store,"a",true); run(store,"b",true); run(store,"active",false);

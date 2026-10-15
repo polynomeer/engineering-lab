@@ -102,7 +102,7 @@ export async function optional<T>(path: string, signal?: AbortSignal): Promise<T
   }
 }
 export const terminal = (run: Run) => ['SUCCEEDED', 'FAILED', 'INTERRUPTED'].includes(run.status);
-export function artifactReason(run: Run, artifact: Artifact, maxBytes: number): string | null {
+export function artifactReason(run: Run, artifact: Artifact, maxBytes: number, workerReports = false): string | null {
   const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}';
   const jfr =
     new RegExp('^jfr_' + uuid + '$').test(artifact.artifactId) &&
@@ -112,7 +112,10 @@ export function artifactReason(run: Run, artifact: Artifact, maxBytes: number): 
     new RegExp('^log_' + uuid + '$').test(artifact.artifactId) &&
     artifact.relativePath === `logs/${artifact.artifactId}.ndjson` &&
     artifact.mediaType === 'application/x-ndjson';
-  if (!jfr && !log) return '참조 전용';
+  const report = workerReports && new RegExp('^worker_' + uuid + '$').test(artifact.artifactId)
+    && artifact.relativePath === `worker-reports/${artifact.artifactId}.bin`
+    && artifact.mediaType === 'application/octet-stream';
+  if (!jfr && !log && !report) return '참조 전용';
   if (!terminal(run)) return '실행 종료 후 다운로드';
   if (artifact.byteSize > maxBytes) return '다운로드 크기 제한 초과';
   return null;

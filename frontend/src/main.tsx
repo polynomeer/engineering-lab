@@ -434,7 +434,7 @@ function App() {
                     <>
                       {a.byteSize} bytes<small>{a.sha256}</small>
                     </>,
-                    artifactReason(run, a, options.artifactDownloadMaxBytes) ?? (
+                    artifactReason(run, a, options.artifactDownloadMaxBytes, features.workerReportDownload) ?? (
                       <a
                         target="_blank"
                         rel="noopener"
@@ -442,7 +442,7 @@ function App() {
                           `/runs/${encodeURIComponent(run.runId)}/artifacts/${encodeURIComponent(a.artifactId)}/download`,
                         )}
                       >
-                        다운로드 ↗
+                        {a.artifactId.startsWith('worker_') ? 'REPORT 다운로드 ↗' : '다운로드 ↗'}
                       </a>
                     ),
                   ])}

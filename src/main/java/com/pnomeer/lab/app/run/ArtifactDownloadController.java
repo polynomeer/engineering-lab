@@ -41,6 +41,8 @@ public final class ArtifactDownloadController {
             directory = "jfr"; extension = ".jfr"; mediaType = "application/octet-stream";
         } else if (artifactId.matches("log_" + uuid)) {
             directory = "logs"; extension = ".ndjson"; mediaType = "application/x-ndjson";
+        } else if (artifactId.matches("worker_" + uuid)) {
+            directory = "worker-reports"; extension = ".bin"; mediaType = "application/octet-stream";
         } else throw error(HttpStatus.CONFLICT,"Artifact is not a managed capture path");
         String filename = artifactId + extension;
         if (!reference.relativePath().equals(directory + "/" + filename) || !reference.mediaType().equals(mediaType)) {

@@ -4,6 +4,7 @@ const query = new URLSearchParams(location.search);
 const content = $('content');
 let pageSize = 20;
 let artifactDownloadMaxBytes = 0;
+let workerReportDownload = false;
 const format = value => value == null ? 'Not recorded' : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
 function node(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
 function link(text, href, cls) { const e = node('a', text, cls); e.href = href; return e; }
@@ -35,12 +36,14 @@ function artifactAction(run, artifact) {
   const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}';
   const jfr = new RegExp('^jfr_' + uuid + '$').test(artifact.artifactId);
   const log = new RegExp('^log_' + uuid + '$').test(artifact.artifactId);
+  const report = workerReportDownload && new RegExp('^worker_' + uuid + '$').test(artifact.artifactId);
   const managed = (jfr && artifact.relativePath === `jfr/${artifact.artifactId}.jfr` && artifact.mediaType === 'application/octet-stream')
-    || (log && artifact.relativePath === `logs/${artifact.artifactId}.ndjson` && artifact.mediaType === 'application/x-ndjson');
+    || (log && artifact.relativePath === `logs/${artifact.artifactId}.ndjson` && artifact.mediaType === 'application/x-ndjson')
+    || (report && artifact.relativePath === `worker-reports/${artifact.artifactId}.bin` && artifact.mediaType === 'application/octet-stream');
   if (!managed) return node('span', 'Reference only · obtain the file from its owner.', 'artifact-note');
   if (['QUEUED','RUNNING'].includes(run.status)) return node('span', 'Available after this run ends. Refresh to check.', 'artifact-note');
   if (artifact.byteSize > artifactDownloadMaxBytes) return node('span', 'Exceeds this server’s download size limit.', 'artifact-note');
-  const a = link(jfr ? 'Download JFR' : 'Download log',
+  const a = link(report ? 'Download REPORT' : jfr ? 'Download JFR' : 'Download log',
     `/runs/${encodeURIComponent(run.runId)}/artifacts/${encodeURIComponent(artifact.artifactId)}/download`, 'action');
   a.target = '_blank'; a.rel = 'noopener';
   a.setAttribute('aria-label', `${a.textContent}: ${artifact.relativePath} (opens a new tab)`);
@@ -78,7 +81,7 @@ async function detail(id) {
   content.append(node('h3','Recorded conditions'), table('Environment and provenance', ['Field','Value'], [...Object.entries(run.runMetadata.environment), ...Object.entries(run.runMetadata.git).map(([key,value]) => ['git.'+key,value])]), raw('Parameters and canonical scenario', run.runMetadata.parameters));
   content.append(node('h3','Summary'), table('Recorded summary · original metric names', ['Metric / kind', 'Value'], [...Object.entries(run.summary.counters).map(([k,v])=>[k+' / counter',v]), ...Object.entries(run.summary.gauges).map(([k,v])=>[k+' / gauge',v])]), raw('Summary details', run.summary.details));
   content.append(node('h3','Artifacts'));
-  const help = node('p', 'JFR and run logs are checked for size and checksum before download. Opens a new tab; if a file is missing, changed, or the server is busy, the error appears there.');
+  const help = node('p', 'JFR, run logs and managed worker reports are checked for size and checksum before download. Opens a new tab; if a file is missing, changed, or the server is busy, the error appears there.');
   help.id = 'artifact-download-help'; content.append(help);
   if (!artifacts.length) content.append(node('p','No artifact references recorded.'));
   else content.append(table('Referenced evidence', ['Path','Media type / bytes','SHA-256','Download'], artifacts.map(a => [a.relativePath, `${a.mediaType} / ${a.byteSize}`, a.sha256, artifactAction(run, a)])));
@@ -109,4 +112,4 @@ async function compare(baseline, candidate) {
 function selectRun(role, id) { $(role).value = id; try { sessionStorage.setItem('lab.compare.'+role, id); } catch (_) { /* Selection still works when storage is disabled. */ } }
 for (const role of ['baseline','candidate']) { let saved = ''; try { saved = sessionStorage.getItem('lab.compare.'+role) || ''; } catch (_) {} selectRun(role, query.get(role) ?? saved); $(role).onchange = () => selectRun(role, $(role).value.trim()); }
 $('comparison-form').onsubmit = event => { event.preventDefault(); location.href = route({baseline:$('baseline').value.trim(),candidate:$('candidate').value.trim()}); };
-work(async () => { const options = await api('/runs/ui/options'); pageSize = options.pageSize; artifactDownloadMaxBytes = options.artifactDownloadMaxBytes; await catalog(); if (query.has('run')) await detail(query.get('run')); else if (query.has('baseline') && query.has('candidate')) await compare(query.get('baseline'),query.get('candidate')); else await runs(); });
+work(async () => { const options = await api('/runs/ui/options'); pageSize = options.pageSize; artifactDownloadMaxBytes = options.artifactDownloadMaxBytes; workerReportDownload = options.workerReportDownload === 1; await catalog(); if (query.has('run')) await detail(query.get('run')); else if (query.has('baseline') && query.has('candidate')) await compare(query.get('baseline'),query.get('candidate')); else await runs(); });

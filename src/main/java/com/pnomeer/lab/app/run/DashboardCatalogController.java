@@ -32,7 +32,7 @@ public class DashboardCatalogController {
         this.workers = Map.copyOf(workers);
         this.catalog = catalog;
         this.features = Map.ofEntries(Map.entry("executionEvidence", true), Map.entry("checksRead", true),
-                Map.entry("extendedExport", true), Map.entry("executionComparison", true),
+                Map.entry("workerReportDownload", true), Map.entry("extendedExport", true), Map.entry("executionComparison", true),
                 Map.entry("localJvm", workers.values().stream().anyMatch(w -> w.kind().name().equals("LOCAL_JVM"))), Map.entry("container", workers.values().stream().anyMatch(w -> w.kind().name().equals("CONTAINER"))), Map.entry("cancellation", false),
                 Map.entry("jvmObservation", observation.jvmEnabled()), Map.entry("trace", trace.enabled()),
                 Map.entry("jfr", jfr.enabled()), Map.entry("runLogs", logs.enabled()));

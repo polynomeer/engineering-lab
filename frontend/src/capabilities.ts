@@ -5,7 +5,7 @@ export function capabilities(value: unknown): { schemaVersion: 1; features: Reco
   if (!('features' in value) || !value.features || typeof value.features !== 'object' || Array.isArray(value.features))
     return null;
   const features: Record<string, boolean> = {};
-  for (const key of ['executionEvidence', 'checksRead', 'extendedExport', 'executionComparison', 'localJvm', 'container', 'cancellation'])
+  for (const key of ['workerReportDownload', 'executionEvidence', 'checksRead', 'extendedExport', 'executionComparison', 'localJvm', 'container', 'cancellation'])
     features[key] = Object.prototype.hasOwnProperty.call(value.features, key)
       && (value.features as Record<string, unknown>)[key] === true;
   return { schemaVersion: 1, features };

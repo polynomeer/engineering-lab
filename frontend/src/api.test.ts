@@ -40,6 +40,15 @@ describe('API compatibility', () => {
     expect(parseRoute('/app/experiments/%xx', '').kind).toBe('missing');
     expect(parseRoute('/app/compare', '?baseline=a&candidate=b').query.get('candidate')).toBe('b');
   });
+  it('requires explicit server support and exact managed paths for worker reports', () => {
+    const run = { runId: '12345678-1234-1234-1234-123456789abc', status: 'FAILED' } as Run;
+    const id = 'worker_' + run.runId;
+    const artifact = { artifactId: id, relativePath: `worker-reports/${id}.bin`, mediaType: 'application/octet-stream', byteSize: 12 } as Artifact;
+    expect(artifactReason(run, artifact, 100)).toBe('참조 전용');
+    expect(artifactReason(run, artifact, 100, true)).toBeNull();
+    expect(artifactReason(run, { ...artifact, relativePath: '../secret' }, 100, true)).toBe('참조 전용');
+    expect(artifactReason(run, artifact, 1, true)).toBe('다운로드 크기 제한 초과');
+  });
   it('does not offer downloads for arbitrary references, active runs or excessive sizes', () => {
     const run = evidence.run as Run;
     expect(artifactReason(run, evidence.artifacts[0], 1000)).toBe('참조 전용');
