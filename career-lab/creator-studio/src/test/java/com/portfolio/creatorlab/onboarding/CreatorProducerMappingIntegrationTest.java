@@ -129,4 +129,22 @@ class CreatorProducerMappingIntegrationTest extends AbstractMySqlIntegrationTest
                     assertThat(h.getReason()).isEqualTo("VoC #1234 복구");
                 });
     }
+
+    @Test void transferMovesOnlySelectedCreatorsProgramsAndRollsBackWithHistoryFailure(){
+        var member=memberRepository.save(new Member("scoped@example.com"));
+        var creator=creatorOnboardingService.joinAsNewCreator(member.getId(),"source","selected");
+        var otherMember=memberRepository.save(new Member("other@example.com"));
+        var other=creatorRepository.save(new Creator(otherMember.getId(),creator.getProducerId(),"other"));
+        var selectedProgram=programRepository.save(new Program(creator.getProducerId(),creator.getId(),"selected"));
+        var otherProgram=programRepository.save(new Program(creator.getProducerId(),other.getId(),"other"));
+        var target=producerRepository.save(new Producer("target"));
+        assertThatThrownBy(()->producerMappingAdminService.changeProducer(creator.getId(),target.getId(),member.getId(),null,true)).isInstanceOf(RuntimeException.class);
+        assertThat(programRepository.findById(selectedProgram.getId()).orElseThrow().getProducerId()).isEqualTo(creator.getProducerId());
+        assertThat(creatorRepository.findById(creator.getId()).orElseThrow().getProducerId()).isEqualTo(creator.getProducerId());
+        assertThat(historyRepository.findByCreatorId(creator.getId())).isEmpty();
+        producerMappingAdminService.changeProducer(creator.getId(),target.getId(),member.getId(),"transfer",true);
+        assertThat(programRepository.findById(selectedProgram.getId()).orElseThrow().getProducerId()).isEqualTo(target.getId());
+        assertThat(programRepository.findById(otherProgram.getId()).orElseThrow().getProducerId()).isEqualTo(creator.getProducerId());
+        assertThat(historyRepository.findByCreatorId(creator.getId())).hasSize(1);
+    }
 }

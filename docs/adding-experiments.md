@@ -100,3 +100,5 @@ python3 scripts/verify-career-modules.py
 Batch/Excel 연동 예제는 [Memory worker](batch-memory-worker.md)를 참고한다. JVM 상태를 비교하는 실험은 variant마다 새 Run을 사용하고 측정 구간과 샘플 한계를 CHECK/REPORT에 명시한다. DB 자원은 controller의 CareerContainerResources 계약을 사용한다.
 
 DB를 사용하는 CHECK 전용 시나리오는 [MDS worker](mds-worker.md)를 참고한다. 기대한 업무 실패의 상태 검증과 최종 업무 완료 여부를 별도 CHECK로 기록하며, 인프라 예외를 정상 중복으로 처리하지 않는다.
+
+비동기 외부 연동의 CHECK는 [Creator worker](creator-worker.md)를 참고한다. worker 전용 bounded stub과 실제 executor drain으로 호출 결과를 관측하며, 업무 commit과 외부 전달 성공을 별도 CHECK로 기록한다.

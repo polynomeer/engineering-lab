@@ -9,6 +9,15 @@ export const moduleViews: Record<
     introduction?: string;
   }
 > = {
+  'career.creator-studio.session-rotation': {
+    introduction: '실제 Redis에서 opaque token을 교체합니다. BEFORE의 PASS는 옛 토큰이 남는 문제 재현입니다. AFTER는 재사용·기기 불일치를 거절하고 CONCURRENT는 같은 refresh token의 두 요청 중 하나만 성공하는지 확인합니다. 개선안은 당시 배포된 기능이 아닌 제안 설계의 재구현이며 JWT 서명·탈취 탐지·Redis Cluster는 검증하지 않습니다.',
+  },
+  'career.creator-studio.mapping-integrity': {
+    introduction: '실제 MySQL에서 가입과 매핑 변경을 분리합니다. BEFORE는 확정된 장애 원인이 아닌 덮어쓰기 가설의 재현입니다. AFTER는 중복 가입·미확인 이관을 차단하고 TRANSFER는 선택한 Creator의 Program과 매핑·이력을 함께 변경하며 다른 Creator의 콘텐츠는 유지합니다. 동시 이관이나 Episode/Clip은 검증하지 않습니다.',
+  },
+  'career.creator-studio.post-commit': {
+    introduction: 'Braze/Mixpanel은 실제 외부 호출 없이 기록용 stub으로 대체합니다. 커밋 전 호출 없음·롤백 시 미호출·커밋된 행 조회를 확인하고 비동기 작업 종료까지 기다립니다. RETRY는 Braze가 두 번 실패한 뒤 세 번째 성공, EXHAUSTED는 세 번 실패해 Run FAILED가 되지만 DB 커밋과 Mixpanel 성공은 남습니다. outbox나 프로세스 중단 후 전달 보장은 검증하지 않습니다.',
+  },
   'career.mds-distribution.settlement-guard': {
     introduction: '새 Java 21 worker와 임시 MySQL에서 정산 가드를 확인합니다. BEFORE의 PASS는 정산 중 수정되는 문제 재현을 뜻합니다. AFTER는 차단·해제 후 수정, TTL_RECOVERY는 2초 TTL의 지연 평가와 이전 소유자 해제 방지를 검사합니다. 정산 계산이나 수정과 락 획득 사이의 모든 동시성 경합을 보장하는 검증은 아닙니다.',
   },

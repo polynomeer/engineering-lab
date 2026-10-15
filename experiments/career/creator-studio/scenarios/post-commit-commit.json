@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.creator-studio.post-commit",
+  "scenario": {
+    "id": "post-commit-commit",
+    "hypothesis": "Bounded synthetic checks; session proposal, mapping hypothesis, external stubs only"
+  },
+  "parameters": {
+    "variant": "COMMIT"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

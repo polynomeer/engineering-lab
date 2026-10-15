@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.creator-studio.session-rotation",
+  "scenario": {
+    "id": "session-rotation-after",
+    "hypothesis": "Bounded synthetic checks; session proposal, mapping hypothesis, external stubs only"
+  },
+  "parameters": {
+    "variant": "AFTER"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

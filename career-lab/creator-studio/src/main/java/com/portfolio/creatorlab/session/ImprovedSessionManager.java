@@ -36,24 +36,27 @@ public class ImprovedSessionManager implements SessionManager {
     private static final String INDEX_PREFIX = "session:index:";
     private static final String REFRESH_PREFIX = "session:refresh:";
 
-    /**
-     * KEYS[1] = 역인덱스 키, ARGV[1] = 새 해시, ARGV[2] = 세션 값, ARGV[3] = TTL(초).
-     * 역인덱스에 남아있던 이전 해시가 있으면 그 세션을 먼저 지우고, 새 세션과
-     * 역인덱스를 같은 원자적 실행 안에서 갱신한다.
-     */
+    /** NEW-DESIGN: consume the one-use refresh record and rotate both tokens in one Redis command. */
     private static final DefaultRedisScript<Long> ROTATE_SESSION = new DefaultRedisScript<>(
-            "local oldHash = redis.call('GET', KEYS[1]) "
-                    + "if oldHash then redis.call('DEL', 'session:token:' .. oldHash) end "
-                    + "redis.call('SET', 'session:token:' .. ARGV[1], ARGV[2], 'EX', ARGV[3]) "
-                    + "redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3]) "
-                    + "return 1",
-            Long.class);
+            "local raw = redis.call('GET', KEYS[1]) "
+            + "if not raw then return 0 end "
+            + "local split = string.find(raw, '|', 1, true) "
+            + "if not split or string.sub(raw, split + 1) ~= ARGV[1] then return -1 end "
+            + "local index = 'session:index:' .. string.sub(raw, 1, split - 1) .. ':' .. ARGV[1] "
+            + "local old = redis.call('GET', index) "
+            + "if old then redis.call('DEL', 'session:token:' .. old) end "
+            + "redis.call('DEL', KEYS[1]) "
+            + "redis.call('SET', 'session:token:' .. ARGV[2], raw, 'EX', ARGV[4]) "
+            + "redis.call('SET', index, ARGV[2], 'EX', ARGV[4]) "
+            + "redis.call('SET', 'session:refresh:' .. ARGV[3], raw, 'EX', ARGV[5]) "
+            + "return 1", Long.class);
 
     private final StringRedisTemplate redis;
     private final Duration accessTtl;
     private final Duration refreshTtl;
 
     public ImprovedSessionManager(StringRedisTemplate redis, Duration accessTtl, Duration refreshTtl) {
+        if (accessTtl.toSeconds() < 1 || refreshTtl.toSeconds() < 1) throw new IllegalArgumentException("TTL must be at least one second");
         this.redis = redis;
         this.accessTtl = accessTtl;
         this.refreshTtl = refreshTtl;
@@ -85,32 +88,13 @@ public class ImprovedSessionManager implements SessionManager {
      */
     @Override
     public TokenPair refresh(String refreshToken, String deviceId) {
-        String refreshHash = sha256(refreshToken);
-        String raw = redis.opsForValue().get(REFRESH_PREFIX + refreshHash);
-        if (raw == null) {
-            throw new InvalidTokenException("refresh token not found or already used: " + refreshToken);
-        }
-        String[] parts = raw.split("\\|", 2);
-        long memberId = Long.parseLong(parts[0]);
-        String storedDeviceId = parts[1];
-        if (!storedDeviceId.equals(deviceId)) {
-            throw new InvalidTokenException("device mismatch for refresh token");
-        }
-
-        // 1회용 — 재사용(같은 refresh token으로 두 번 refresh)을 막는다.
-        redis.delete(REFRESH_PREFIX + refreshHash);
-
         String newAccessToken = "at-" + UUID.randomUUID();
         String newRefreshToken = "rt-" + UUID.randomUUID();
-        String newAccessHash = sha256(newAccessToken);
-
-        redis.execute(ROTATE_SESSION,
-                Collections.singletonList(indexKey(memberId, deviceId)),
-                newAccessHash,
-                new SessionData(memberId, deviceId).serialize(),
-                String.valueOf(accessTtl.toSeconds()));
-
-        storeRefreshRecord(newRefreshToken, memberId, deviceId);
+        Long result = redis.execute(ROTATE_SESSION,
+                Collections.singletonList(REFRESH_PREFIX + sha256(refreshToken)), deviceId,
+                sha256(newAccessToken), sha256(newRefreshToken),
+                String.valueOf(accessTtl.toSeconds()), String.valueOf(refreshTtl.toSeconds()));
+        if (!Long.valueOf(1).equals(result)) throw new InvalidTokenException("Refresh token unavailable or device mismatch");
         return new TokenPair(newAccessToken, newRefreshToken);
     }
 

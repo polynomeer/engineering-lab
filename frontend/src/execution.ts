@@ -6,6 +6,15 @@ export type Draft = {
 };
 export const presets: Record<string, Draft[]> = {
   ...Object.fromEntries(Object.entries({
+    'session-rotation': ['BEFORE', 'AFTER', 'CONCURRENT'],
+    'mapping-integrity': ['BEFORE', 'AFTER', 'TRANSFER'],
+    'post-commit': ['COMMIT', 'ROLLBACK', 'RETRY', 'EXHAUSTED'],
+  }).map(([name, variants]) => ['career.creator-studio.' + name, variants.map(variant => ({
+    id: name + '-' + variant.toLowerCase(),
+    hypothesis: '세션 교체·매핑 무결성·커밋 경계를 합성 입력과 외부 연동 stub으로 확인한다',
+    parameters: { variant },
+  }))])),
+  ...Object.fromEntries(Object.entries({
     'settlement-guard': ['BEFORE', 'AFTER', 'TTL_RECOVERY'],
     idempotency: ['SEQUENTIAL', 'CONCURRENT', 'RETRY_AFTER_FAILURE', 'PROCESSING_FAILURE'],
   }).map(([name, variants]) => ['career.mds-distribution.' + name, variants.map(variant => ({

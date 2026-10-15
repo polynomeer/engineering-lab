@@ -383,3 +383,7 @@ D5-3 adds a Java 21 batch-excel memory worker with one fresh JVM/MySQL per varia
 ## MDS scenarios
 
 D5-4 adds a check-only Java 21 MDS worker for settlement guards and message idempotency. Existing Spring services and AOP run against a controller-owned MySQL using the unchanged CareerContainerResources lifecycle and a separate MDS journal/profile. Two concurrent deliveries and one explicit retry bound the fixture. Only confirmed MySQL duplicate-key errors enter duplicate handling; infrastructure failures propagate. The scenario does not claim SQS delivery semantics or crash-safe exactly-once processing. See [MDS contracts](mds-worker.md).
+
+## Creator scenarios
+
+D5-5 adds a check-only Java 21 Creator worker, with isolated Redis for session rotation and MySQL for mapping/post-commit scenarios. It uses unchanged controller resource ownership contracts. Refresh consumption and token rotation share one Lua invocation; explicit transfer updates only the selected creator’s programs with mapping/history in one transaction. Worker-only bounded recording clients inspect existing asynchronous listeners after draining their executor. External integrations remain stubs; no outbox or crash durability is claimed. See [Creator contracts](creator-worker.md).

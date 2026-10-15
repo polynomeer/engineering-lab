@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.creator-studio.session-rotation",
+  "scenario": {
+    "id": "session-rotation-concurrent",
+    "hypothesis": "Bounded synthetic checks; session proposal, mapping hypothesis, external stubs only"
+  },
+  "parameters": {
+    "variant": "CONCURRENT"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

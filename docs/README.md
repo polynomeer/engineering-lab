@@ -38,3 +38,5 @@
 - [Batch / Excel memory worker](batch-memory-worker.md): D5-3 배포, sampled heap 해석, 실패 증거와 검증
 
 - [MDS worker](mds-worker.md): 정산 가드·TTL·중복 전달·실패 재시도와 격리 실행
+
+- [Creator worker](creator-worker.md): 세션 교체, 매핑 무결성, post-commit stub과 실패 증거

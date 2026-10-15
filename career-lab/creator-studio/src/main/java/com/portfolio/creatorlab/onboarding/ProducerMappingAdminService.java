@@ -42,6 +42,7 @@ public class ProducerMappingAdminService {
             throw new ContentTransferRequiredException(fromProducerId);
         }
 
+        if (transferContent) programRepository.transferCreatorPrograms(fromProducerId, toProducerId, creatorId);
         creator.reassignProducer(toProducerId);
         historyRepository.save(
                 new ProducerMappingHistory(creatorId, fromProducerId, toProducerId, changedByMemberId, reason));

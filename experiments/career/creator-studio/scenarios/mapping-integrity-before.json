@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.creator-studio.mapping-integrity",
+  "scenario": {
+    "id": "mapping-integrity-before",
+    "hypothesis": "Bounded synthetic checks; session proposal, mapping hypothesis, external stubs only"
+  },
+  "parameters": {
+    "variant": "BEFORE"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

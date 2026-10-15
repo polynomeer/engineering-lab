@@ -132,4 +132,25 @@ class SessionRotationRaceConditionTest {
         assertThatThrownBy(() -> improved.refresh(original.refreshToken(), "device-D"))
                 .isInstanceOf(InvalidTokenException.class);
     }
+
+    @Test void concurrentReuseHasExactlyOneWinner() throws Exception {
+        var manager=new ImprovedSessionManager(redisTemplate,Duration.ofSeconds(30),Duration.ofMinutes(1));
+        var original=manager.issue(5005L,"device-race");
+        var executor=java.util.concurrent.Executors.newFixedThreadPool(2);
+        var gate=new java.util.concurrent.CountDownLatch(1);
+        try {
+            java.util.concurrent.Callable<TokenPair> task=()->{gate.await();try{return manager.refresh(original.refreshToken(),"device-race");}catch(InvalidTokenException expected){return null;}};
+            var a=executor.submit(task);var b=executor.submit(task);gate.countDown();
+            var first=a.get(5,java.util.concurrent.TimeUnit.SECONDS);var second=b.get(5,java.util.concurrent.TimeUnit.SECONDS);
+            assertThat((first==null?0:1)+(second==null?0:1)).isEqualTo(1);
+            assertThat(manager.lookup(original.accessToken())).isEmpty();
+            assertThat(manager.lookup((first==null?second:first).accessToken())).isPresent();
+        } finally {gate.countDown();executor.shutdownNow();assertThat(executor.awaitTermination(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();}
+    }
+    @Test void wrongDeviceDoesNotConsumeRefreshRecord(){
+        var manager=new ImprovedSessionManager(redisTemplate,Duration.ofSeconds(30),Duration.ofMinutes(1));
+        var original=manager.issue(6006L,"correct");
+        assertThatThrownBy(()->manager.refresh(original.refreshToken(),"wrong")).isInstanceOf(InvalidTokenException.class);
+        assertThat(manager.lookup(manager.refresh(original.refreshToken(),"correct").accessToken())).isPresent();
+    }
 }

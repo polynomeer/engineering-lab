@@ -133,3 +133,7 @@ src/main/java/com/portfolio/creatorlab/
 ├── onboarding/        시나리오 2 — CreatorOnboardingService / ProducerMappingAdminService / LegacyProducerCreationService
 └── integration/       시나리오 3(선택) — ContentChangedEvent, Braze/MixpanelEventListener, ProgramCreationService
 ```
+
+## 공통 대시보드 연동 (D5-5)
+
+[Creator worker 가이드](../../docs/creator-worker.md)에 따라 세 시나리오를 중앙 API와 CHECK 화면에서 실행합니다. refresh 소비·회전은 단일 Lua로 원자화했고, 명시적 콘텐츠 이관은 해당 Creator의 Program을 매핑·이력과 함께 변경합니다. 동시 refresh·기기 불일치·이관 rollback 회귀를 추가했습니다. 외부 연동은 기록용 stub으로 커밋·롤백·재시도 소진을 검사하며 실제 Braze/Mixpanel 요청은 하지 않습니다.

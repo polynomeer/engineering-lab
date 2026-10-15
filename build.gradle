@@ -133,6 +133,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/EquityContainerIntegrationTest*'
     exclude '**/MemoryContainerIntegrationTest*'
     exclude '**/MdsContainerIntegrationTest*'
+    exclude '**/CreatorContainerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -266,5 +267,21 @@ tasks.register('mdsContainerTest', Test) {
     inputs.files(fileTree('career-lab/mds-distribution/build/libs') { include '*-mds-worker.jar' })
     systemProperty 'lab.mds.manifest', manifest.absolutePath
     systemProperty 'lab.mds.evidence', file('build/verification/d5-4').absolutePath
+    outputs.upToDateWhen { false }
+}
+
+// D5-5 module gate: real MySQL, protocol evidence and same-store reopen.
+tasks.register('creatorContainerTest', Test) {
+    group = 'verification'
+    description = 'Verify Creator session, mapping and post-commit in isolated containers.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/CreatorContainerIntegrationTest.class'
+    def manifest = file('career-lab/creator-studio/build/libs/creator-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/creator-studio/build/libs') { include '*-creator-worker.jar' })
+    systemProperty 'lab.creator.manifest', manifest.absolutePath
+    systemProperty 'lab.creator.evidence', file('build/verification/d5-5').absolutePath
     outputs.upToDateWhen { false }
 }
