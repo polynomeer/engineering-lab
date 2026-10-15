@@ -294,31 +294,39 @@ worker·의존 DB/Redis·network 제거와 저장소 재개방을 검증했고, 
 
 ## D6. 관측·artifact 확장과 운영 마무리
 
-- [ ] worker에서 지원 가능한 JVM/JFR/log capability를 명시한다. 지원한 기능만 UI에 노출한다.
-- [ ] 관리 artifact 이관과 hash/path/size 검증·종류별 다운로드를 추가한다. 기존 JFR/log와 참조 전용 동작을 회귀 검증한다.
-- [ ] 총 workspace quota, 실행 슬롯, timeout·배압·대용량 조회의 실제 상한을 측정한다.
-- [ ] frontend+API+worker 빌드/시작/정지/복구 명령과 readiness 진단을 정리한다.
-- [ ] 신규 화면 캡처로 사용 가이드를 갱신하고, 기존 캡처와 URL의 적용 범위를 표시한다.
-- [ ] 전환 기본값을 변경하기 전에 legacy와 신규 화면 parity 표를 검토한다. 구화면 제거는 별도 커밋이며 API 제거와 묶지 않는다.
+- [x] worker에서 지원 가능한 JVM/JFR/log capability를 명시한다. 지원한 기능만 UI에 노출한다.
+- [x] 관리 artifact 이관과 hash/path/size 검증·종류별 다운로드를 추가한다. 기존 JFR/log와 참조 전용 동작을 회귀 검증한다.
+- [x] 총 workspace quota, 실행 슬롯, timeout·배압·대용량 조회의 실제 상한을 측정한다.
+- [x] frontend+API+worker 빌드/시작/정지/복구 명령과 readiness 진단을 정리한다.
+- [x] 신규 화면 캡처로 사용 가이드를 갱신하고, 기존 캡처와 URL의 적용 범위를 표시한다.
+- [x] 전환 기본값을 변경하기 전에 legacy와 신규 화면 parity 표를 검토한다. 구화면 제거는 별도 커밋이며 API 제거와 묶지 않는다.
 
 완료 기준: 기존 세 실험군과 Career Lab 13개 시나리오가 동일 화면에서 실행·조회·증거 보존되고, 구화면/API 호환과 장애 복구가 재현된다. 다음 절의 검증 표가 모두 완료되어야 전체 연동 완료로 보고한다.
 
+D6 구현 (2026-10-15): 기존 관리 REPORT 사본의 secure snapshot 다운로드를 신/구 화면에
+연결하고, 구 서버 capability 부재 시 참조 전용을 유지한다. worker 관측은 현재 지원하는
+환경/CHECK/등록 metric과 미지원 JVM/JFR/log를 구분한다. 보존 workspace/report의
+접수 예산(기본 1 GiB, 실행당 128 MiB 예약)을 추가하고 실행 슬롯·배압·전송·조회 상한을
+검증한다. 접수 예산은 파일시스템 hard quota가 아니며 전체 볼륨 용량 보장은 범위 밖이다.
+[운영 명령·제한·parity](dashboard-operations.md), [신규 사용 캡처](standalone-dashboard.md#d6-worker-관측과-report-다운로드)를 따른다.
+
 ## 최종 검증 표
 
-| 검증 | 필수 증거 |
+| 검증 | 상태와 증거 |
 | --- | --- |
-| 기존 코드 회귀 | 루트 전체 테스트 + Career Lab 전체 테스트 보고서 |
-| frontend | typecheck/unit/build + 실제 browser E2E |
-| URL/상태 호환 | 대응표 전체 deep link, origin 이행, 프리셋/CSV 테스트 |
-| API 호환 | 구/신 조합, JSON/header/cursor/error/multipart/export 계약 |
-| 데이터 이행 | 백업본 v2→v3, 재시작, rollback 복원 결과 |
-| 실행 격리 | worker JDK/heap/DB 격리, 동시성 제한, 정리 확인 |
-| 관측 정확성 | worker/controller 구분, 단위·구간·결측·expected anomaly |
-| 장애 | 저장 실패·timeout·kill·protocol 오류·quota·Docker 불가 |
-| 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
-| 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
+| 기존 코드 회귀 | 완료: 루트 전체 385건, Career 전체 150건; 상세는 운영 가이드 검증 기록 |
+| frontend | 완료: unit 18건, typecheck/build, serve 1건, browser 66건(선택적 실제 sequence 2건 제외) |
+| URL/상태 호환 | 완료: DashboardRoutingTest + deployment/settings/execution browser; deep link·query·origin 이전·프리셋/CSV |
+| API 호환 | 완료: DashboardContractTest/Catalog tests + 실제 queue/IO/Excel API browser; 기존 v1/export 유지 |
+| 데이터 이행 | 완료: RunSchemaMigrationTest·RunRestartIntegrationTest, Creator 10변형 저장소 재개방/다운로드 |
+| 실행 격리 | 완료: D4/I1–I5/D5 기록 + D6 Creator 10건·공통 containerWorkerTest 17건; 자원 정리 확인 |
+| 관측 정확성 | 완료: worker/controller 구분·capability·단위/결측 회귀, D5 실제 snapshot 재사용 browser |
+| 장애 | 완료: worker-fault-injection.md 검증 표 + 루트 budget·artifact 오류, 공통 컨테이너 실패/중단 회귀 |
+| 메모리/용량 | 완료: WorkerStorageBudgetTest·ExecutionAdmissionTest·BoundedMetricWriterTest·1만 행 export·browser 페이지 교체; hard quota/RSS SLA는 보장하지 않음 |
+| 사용자 문서 | 완료: dashboard-operations.md와 standalone-dashboard.md의 D6 캡처/명령/복구/parity |
 
-다음 실행 작업은 **D6: 관측·artifact 확장과 운영 마무리**다. D4 sequence와 D5-1–D5-5를 통해 Career Lab 13개 시나리오의 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증도 완료했다. 전체 전환 완료에는 D6의 관측·다운로드·quota·운영 문서와 최종 검증 표 확인이 남아 있다.
+
+D6 구현을 마쳤으며 위 최종 검증 결과로 완료 상태를 관리한다. D4 sequence와 D5-1–D5-5를 통해 Career Lab 13개 시나리오의 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증도 완료했다. 기본 redirect와 Career 비활성 설정은 유지한다. 운영 환경의 활성화·보존 정책·파일시스템 quota와 구화면 제거는 별도 배포 결정이다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를

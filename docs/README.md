@@ -40,3 +40,5 @@
 - [MDS worker](mds-worker.md): 정산 가드·TTL·중복 전달·실패 재시도와 격리 실행
 
 - [Creator worker](creator-worker.md): 세션 교체, 매핑 무결성, post-commit stub과 실패 증거
+
+- [통합 대시보드 운영](dashboard-operations.md): D6 관측·REPORT 다운로드·용량 제한·배포·복구·전환 parity

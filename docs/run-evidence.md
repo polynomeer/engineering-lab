@@ -32,7 +32,7 @@ UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기와 
 - 상세의 Use as baseline/candidate로 대상을 정한 뒤 Compare runs를 누른다. 두 선택 ID만 sessionStorage에 보관하며 실행 데이터는 저장소에서 조회한다.
 - `/runs/ui?run=<id>` 또는 `/runs/ui?baseline=<id>&candidate=<id>`를 저장해 다시 연다. 브라우저 뒤로 가기도 지원한다.
 - 좁은 화면의 비교 표는 표 안에서 가로 스크롤한다. 로딩/빈 결과/오류를 명시하고 저장된 문자열은 HTML로 해석하지 않는다.
-- 상세 Artifacts 표의 Download JFR/Download log 링크로 관리 파일을 받는다. 새 탭에서 요청하므로 원래 상세 화면을 유지하고 오류 응답은 새 탭에 표시한다. JavaScript Blob으로 전체 파일을 버퍼링하지 않는다. 실행 중·서버 크기 상한 초과·참조 전용 항목에는 링크 대신 사유를 표시한다. 파일 존재/checksum의 최종 판단은 클릭 시 서버가 수행한다.
+- 상세 Artifacts 표의 Download JFR/Download log/Download REPORT 링크로 관리 파일을 받는다. 새 탭에서 요청하므로 원래 상세 화면을 유지하고 오류 응답은 새 탭에 표시한다. JavaScript Blob으로 전체 파일을 버퍼링하지 않는다. 실행 중·서버 크기 상한 초과·참조 전용 항목에는 링크 대신 사유를 표시한다. 파일 존재/checksum의 최종 판단은 클릭 시 서버가 수행한다.
 - 실행 중에는 Refresh run으로 갱신한다. 자동 polling은 하지 않는다.
 - [Finding 템플릿](findings/TEMPLATE.md)에 증거와 해석을 기록한다. 결과 자동 판정이나 Finding 자동 저장은 제공하지 않는다.
 
@@ -42,7 +42,7 @@ UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기와 
 
 ## JFR·Run 로그 다운로드
 
-`GET /runs/{id}/artifacts/{artifactId}/download`는 해당 Run에 등록된 참조 중 `jfr/jfr_<UUID>.jfr` 또는 `logs/log_<UUID>.ndjson` 형태만 지원한다. ID와 파일명이 일치해야 하며 미디어 타입도 각각 application/octet-stream, application/x-ndjson이어야 한다. UUID는 소문자 hex 표기다. 이는 관리 경로 규칙이며 등록자를 인증하거나 내장 수집기가 생성했다는 출처 증명은 아니다. 일반 사용자 제공 파일 참조는 목록/export에 남고 이 API로 읽지 않는다.
+`GET /runs/{id}/artifacts/{artifactId}/download`는 해당 Run에 등록된 참조 중 `jfr/jfr_<UUID>.jfr`, `logs/log_<UUID>.ndjson`, `worker-reports/worker_<UUID>.bin` 형태를 지원한다. ID와 파일명이 일치해야 하며 미디어 타입도 각각 application/octet-stream, application/x-ndjson, application/octet-stream이어야 한다. UUID는 소문자 hex 표기다. 이는 관리 경로 규칙이며 등록자를 인증하거나 내장 수집기가 생성했다는 출처 증명은 아니다. 일반 사용자 제공 파일 참조는 목록/export에 남고 이 API로 읽지 않는다.
 
 ```bash
 curl --fail --output run-log.ndjson \
@@ -56,7 +56,7 @@ curl --fail --output run-log.ndjson \
 
 전체 파일을 메모리에 올리지 않는다. 8 KiB 버퍼로 크기와 SHA-256을 검증하면서 JVM 임시 디렉터리에 비공개 사본을 만든 뒤, 검증이 끝난 그 사본을 전송한다. 원본이 이후 바뀌어도 전송 내용은 검증된 사본과 일치한다. 임시 디스크 사용량은 동시 슬롯 수 × max-bytes 이내이며, 슬롯은 검증과 전송 전체 동안 유지한다. 연결 오류·검증 실패·정상 종료에서 사본을 삭제하고 슬롯을 반환한다. 프로세스 강제 종료 시 남은 `lab-artifact-*.snapshot` 파일은 자동 정리하지 않으며 프로세스가 종료된 뒤 운영자가 정리한다. 기존 수집 파일은 수정하거나 삭제하지 않는다.
 
-storage root는 신뢰할 수 있는 서버 설정이다. 그 아래 jfr/logs 디렉터리와 파일은 SecureDirectoryStream의 상대 경로·NOFOLLOW 접근을 사용한다. 심볼릭 링크와 일반 파일이 아닌 항목은 거부한다. 해당 기능을 지원하지 않는 파일시스템에서는 안전성이 낮은 경로 접근으로 대체하지 않고 503을 반환한다. 로컬 파일 소유자의 악의적 변경에 대한 접근 제어를 대신하지 않는다.
+storage root는 신뢰할 수 있는 서버 설정이다. 그 아래 jfr/logs/worker-reports 디렉터리와 파일은 SecureDirectoryStream의 상대 경로·NOFOLLOW 접근을 사용한다. 심볼릭 링크와 일반 파일이 아닌 항목은 거부한다. 해당 기능을 지원하지 않는 파일시스템에서는 안전성이 낮은 경로 접근으로 대체하지 않고 503을 반환한다. 로컬 파일 소유자의 악의적 변경에 대한 접근 제어를 대신하지 않는다.
 
 | 응답 | 의미 |
 | --- | --- |
@@ -127,7 +127,7 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 
 서버가 관리하는 storageRoot와 workspace 부모 디렉터리를 사용한다. 경로 탈출·절대 경로·빈 경로 요소·심볼릭 링크·일반 파일이 아닌 항목은 거부한다. `SecureDirectoryStream`으로 workspace와 하위 디렉터리 핸들을 고정하고 마지막 파일도 NOFOLLOW로 연다. 이 기능이 없는 파일시스템에서는 실패하며 불안전한 경로 탐색으로 대체하지 않는다. 저장 루트는 worker 출력 디렉터리와 별개로 관리해야 한다.
 
-8 KiB 버퍼로 복사하면서 실제 크기와 SHA-256이 선언과 일치하는지 확인한다. 검증한 임시 사본을 같은 디렉터리 안에서 원자적으로 이동한 후 DB 참조를 등록한다. 이후 원본이 변경돼도 보관한 사본은 달라지지 않는다. 검증이나 등록이 실패하면 이번 사본을 삭제하고 Run은 실패한다. 이전에 등록한 부분 증거는 유지한다. 파일 이동과 DB 등록은 하나의 트랜잭션이 아니므로 프로세스 강제 종료 시 미등록 파일이 남을 수 있다. 전체 저장 용량·잔여 파일 정리는 후속 운영 단계다.
+8 KiB 버퍼로 복사하면서 실제 크기와 SHA-256이 선언과 일치하는지 확인한다. 검증한 임시 사본을 같은 디렉터리 안에서 원자적으로 이동한 후 DB 참조를 등록한다. 이후 원본이 변경돼도 보관한 사본은 달라지지 않는다. 검증이나 등록이 실패하면 이번 사본을 삭제하고 Run은 실패한다. 이전에 등록한 부분 증거는 유지한다. 파일 이동과 DB 등록은 하나의 트랜잭션이 아니므로 프로세스 강제 종료 시 미등록 파일이 남을 수 있다. D6 접수 예산은 보존 workspace/report 합계를 확인한다. 미등록 잔여 파일 자동 삭제와 파일시스템 hard quota는 제공하지 않는다.
 
 | 실행별 제한 | 기본값 / 최대값 |
 | --- | ---: |
@@ -135,8 +135,10 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 | 파일당 크기 | 16 MiB |
 | 합계 크기 | 64 MiB |
 
-`WorkerArtifactImporter.Limits`로 더 작은 값을 주입할 수 있으며, 같은 Run의 중복 원본 경로와 실패 이후 재사용은 거부한다. 아직 운영 Spring 설정에는 연결하지 않았다. REPORT만 지원하며 worker JFR/LOG 검증과 다운로드 경로 통합은 D6 범위다.
+`WorkerArtifactImporter.Limits`로 더 작은 값을 주입할 수 있으며, 같은 Run의 중복 원본 경로와 실패 이후 재사용은 거부한다. 아직 운영 Spring 설정에는 연결하지 않았다. worker artifact는 REPORT만 지원하며 JFR/LOG 수집 capability는 false다. D6에서 REPORT 다운로드 경로를 통합했다.
 
-보고서 참조는 기존 artifact 목록/export에서 보존되지만 현재 관리 다운로드 API는 기존 JFR/log 경로만 지원한다. 따라서 보고서 바이트를 UI에서 다운로드하는 기능은 아직 없다. 서버 보관 파일은 참조의 relativePath로 확인할 수 있다.
+보고서 참조는 기존 artifact 목록/export에 보존된다. 관리 다운로드 API와 신/구 화면에서 중앙 사본을 다운로드하며, 서버 보관 파일은 참조의 relativePath로 확인할 수 있다.
 
 검증: `WorkerArtifactImporterTest`는 바이트 일치·원본 변경·경로/링크/종류 거부·해시/크기/개수/합계 상한·중복·등록 실패 정리를 확인한다. `LocalJvmExecutorTest`는 실제 Java 21 worker 보고서를 H2 참조와 함께 보존하고 재개방하며, 잘못된 해시가 성공이나 완료 증거로 처리되지 않음을 검증한다.
+
+D6 관리 REPORT 다운로드와 관측 capability·접수 예산의 현재 계약은 [통합 운영 가이드](dashboard-operations.md)를 따른다. 위 capability 도입 시점 설명 이후 LOCAL_JVM/CONTAINER 등록은 활성화한 worker를 반영하며 workerReportDownload=true를 제공한다.

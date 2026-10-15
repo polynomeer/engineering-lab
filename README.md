@@ -306,3 +306,5 @@ Career sequence의 CONTAINER 배포는 고정 worker/MySQL 이미지 ID와 jar S
 controller가 worker·DB·전용 네트워크를 회수하고, opt-in 재시작 복구가 확인된 경우에만
 접수를 재개합니다. 중단 Run의 부분 증거는 유지합니다.
 [설정과 복구 범위](docs/career-worker-deployment.md#container-실행과-시작-시-복구-i5)를 따르세요.
+
+D6의 [통합 대시보드 운영 가이드](docs/dashboard-operations.md)는 worker 관측 범위, 관리 REPORT 다운로드, workspace 접수 예산, 빌드·시작·정지·복구와 구화면 parity를 정리합니다.

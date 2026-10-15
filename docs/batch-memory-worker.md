@@ -54,8 +54,8 @@ collector 정렬 때문에 정확히 같지 않을 수 있다. `measurement-wind
 네 CHECK를 생성한다. batch는 집계 행 수와 gross 합계를, Excel은 SAX readback으로
 모든 행의 여섯 셀을 seed와 대조한다. readback은 측정 밖에서 수행한다.
 
-Excel 출력은 검증 후 삭제한다. REPORT는 중앙 사본으로 보존되지만 현재 화면과 확장
-NDJSON export에는 참조만 제공한다. REPORT 다운로드는 D6 범위다. 실패 실행도 확인된
+Excel 출력은 검증 후 삭제한다. REPORT는 중앙 사본으로 보존되지만 확장
+NDJSON export에는 참조를 제공하고 화면에서 중앙 사본을 다운로드한다. D6 관리 REPORT 다운로드를 지원한다. 실패 실행도 확인된
 CHECK/메트릭/REPORT를 조회할 수 있고 동일 저장소 재개방 후 그대로 유지한다.
 
 ## 배포와 자원 관리
@@ -132,3 +132,5 @@ frontend 단위 17건·타입 검사·빌드, 실제 응답 6종·preset 2종·�
 테스트의 잘못된 가정은 관측 원문 전체 표시 검사로 수정했다. 최종 검증은 건너뜀 없이 통과했다.
 
 테스트 소유 worker·의존 컨테이너·network·임시 이미지 제거를 확인하고 Vite 서버를 종료했다. 다른 작업의 Docker 자원은 유지했다.
+
+D6의 현재 동작·제한·운영 명령은 [통합 운영 가이드](dashboard-operations.md)를 따른다.

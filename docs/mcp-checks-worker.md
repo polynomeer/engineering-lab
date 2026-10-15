@@ -81,8 +81,7 @@ Run 상세에서 체크 ID/기대값/관측값, worker Java/OS/hash, 증거 완�
 이 실험은 METRIC을 생성하지 않아 catalog의 presentation에도 METRICS가 없으며
 빈 관측 표 대신 검증 결과와 내보내기 안내를 제공한다. 원시 체크와 실행 정보는
 확장 NDJSON export로 받는다. `checks-report.json`은 hash/크기를 검증해 중앙
-저장소에 보관하며 화면/export에는 참조만 제공한다. REPORT 다운로드는 기존
-D6 범위로 남아 있으며 이 단계에서는 지원하지 않는다.
+저장소에 보관하며 export에는 참조를 제공하며 화면에서는 관리 사본을 다운로드한다. D6에서는 검증된 중앙 REPORT 사본 다운로드도 지원한다.
 서버 재시작 후에도 같은 저장소에서 결과를 조회한다.
 
 ## 검증
@@ -118,3 +117,5 @@ MCP_CHECKS_EVIDENCE=../build/verification/d5-1 npm run test:e2e -- mcp-checks.sp
 기존 sequence API 3 variants를 포함한 회귀 1건, frontend 단위 17건·브라우저 12건이
 실패/건너뜀 없이 통과했다(Career의 미변경 모듈은 기존 성공 결과 일부 재사용).
 타입 검사와 빌드도 통과했고 테스트 worker 컨테이너·이미지 및 Vite 서버를 정리했다.
+
+D6의 현재 동작·제한·운영 명령은 [통합 운영 가이드](dashboard-operations.md)를 따른다.

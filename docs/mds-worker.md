@@ -50,7 +50,7 @@ cause의 MySQL duplicate-key 오류 1062/SQLState 23000만 FAILED 재시도 판�
 실제 MySQL의 순차/동시 중복·실패 재시도 회귀를 함께 실행한다.
 
 REPORT `mds-report.json`은 중앙 사본으로 보존한다. 현재 UI와 확장 export에서는
-hash/크기/참조를 제공하며 다운로드는 D6 범위다. 업무 실패 시에도 확인된 증거를
+hash/크기/참조를 제공하며 D6 관리 다운로드를 지원한다. 업무 실패 시에도 확인된 증거를
 조회/export할 수 있고 동일 저장소 재개방 후 그대로 유지한다.
 
 ## 배포·설정·자원
@@ -125,3 +125,5 @@ worker jar 시스템 속성 이름 오타로 배포 테스트 2건이 실패했�
 전체 suite로 재검증했다. 테스트를 비활성화하거나 기대 결과를 완화하지 않았다.
 정상/업무 실패의 CHECK·REPORT·raw export와 저장소 재개방, 실행 소유 자원 제거를
 확인했다. 테스트 worker·DB·network·이미지 태그가 남지 않았고 Vite 서버도 종료했다.
+
+D6의 현재 동작·제한·운영 명령은 [통합 운영 가이드](dashboard-operations.md)를 따른다.

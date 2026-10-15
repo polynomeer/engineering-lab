@@ -64,7 +64,7 @@ LOCAL_JVM의 임의 출력까지 제한해야 하는 배포는 별도 볼륨 quo
 | REPORT 이관 | 파일당 16 MiB, 합계 64 MiB, 32개; 크기/hash/중복/path 검사, 8 KiB 복사 버퍼. |
 | 다운로드 | 기본 파일당 256 MiB, 동시 2; snapshot 디스크 최대 512 MiB, 전송 버퍼 8 KiB/요청. 클라이언트 실패에도 slot/snapshot 해제. |
 | metric 배압 | writer queue 1,000, batch 100, preview 200. 테스트는 queue 2에서 4번째 생산자가 대기하고 4건 모두 저장되는지 확인한다. |
-| 조회 | metric/run page 설정 500, UI 20(최대 100); CHECK min(설정,100), 최대 100,000 checks/Run. UI는 다음 페이지로 교체하며 전체 이력을 누적하지 않는다. |
+| 조회 | metric/run page 설정 500, UI 20(최대 100); export 페이지 min(설정,100), CHECK min(설정,100), 최대 100,000 checks/Run. UI는 다음 페이지로 교체하며 전체 이력을 누적하지 않는다. |
 | 컨테이너 | worker 256 MiB/1 CPU/64 PID, /tmp 16 MiB; DB/Redis는 모듈별 tmpfs·memory 경계. LOCAL_JVM은 동일 OS 격리를 제공하지 않는다. |
 
 위 숫자는 설정/프로토콜 경계다. 작은 제어된 fixture로 차단·배압·페이지 교체를 재현한
@@ -146,3 +146,44 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 
 구화면에 Career 전용 CHECK 화면이 없다는 차이를 명시적으로 유지한다. API 제거나
 기본 redirect 변경은 이번 작업에 포함하지 않는다.
+
+대용량 조회 검증은 `RunEvidenceTest`가 실제 H2에 metric 10,000개를 100개씩 저장하고
+저장소를 재개방해 export한다. 출력 body를 쌓지 않는 counting sink로 10,002줄을 세며,
+DB 조회가 100개 페이지 101회(마지막 빈 페이지 포함)인지 확인한다. 이는 보유 행 수
+경계의 검증이며 전체 JVM heap의 상한 계측은 아니다.
+
+## 최종 검증 기록 (2026-10-15)
+
+- `./gradlew test`: 385건, 실패/건너뜀 0. 10,000행 export는 101회 조회(최대
+  100행/페이지), 10,002줄, 1,227,434 byte를 응답 누적 없이 전송했다.
+- `./scripts/career-lab.sh test`: 150건, 실패/건너뜀 0. 변경 없는 task의 성공 결과
+  재사용을 포함한다. 이후 여섯 worker manifest를 현재 jar hash로 생성했다.
+- `./gradlew test creatorContainerTest containerWorkerTest bootJar`: 당시 루트 384건,
+  Creator 10건, 공통 컨테이너 17건 통과. 이후 추가한 export 검사 포함 최종 루트가 385건이다.
+  Creator 열 변형은 저장소 재개방 후 REPORT 다운로드의 byte/hash도 확인했다.
+- frontend `npm test`: 18건; typecheck/build 성공; `npm run test:serve`: 1건 통과.
+- 실제 API + 전체 browser: 66건 통과, 별도 sequence 서버/저장 Run을 요구하는 선택적
+  2건은 건너뜀. queue/IO/Excel은 실제 API로 실행했다. Career snapshot은 D5-1–D5-5
+  컨테이너 결과를 재사용했으며, D6의 새 실제 컨테이너 실행은 Creator/공통 suite다.
+- 데스크톱/375px 모바일 REPORT 캡처를 눈으로 확인했다. 테스트 API/Vite를 종료하고
+  해당 임시 API 저장소를 제거했다. 소유 worker 컨테이너·Creator network·시험 이미지
+  태그가 남지 않았다. 공유 Docker/다른 세션 자원을 변경하지 않았다.
+
+처음 전체 browser 실행은 API 서버 미기동으로 실패해 중단했다. 전용 임시 API를
+기동한 뒤 아래 명령으로 전체 재검증했다. serve test의 sandbox 포트 제한도 로컬
+listen 권한으로 재실행해 통과했다. 테스트를 비활성화해 성공 처리하지 않았다.
+
+```bash
+# 전용 API 18086, frontend 5196을 먼저 시작한다. frontend/에서 실행
+DASHBOARD_URL=http://127.0.0.1:5196 \
+LEGACY_URL=http://127.0.0.1:18086/experiments/ui \
+MCP_CHECKS_EVIDENCE=../build/verification/d5-1 \
+EQUITY_EVIDENCE=../build/verification/d5-2 \
+MEMORY_EVIDENCE=../build/verification/d5-3 \
+MDS_EVIDENCE=../build/verification/d5-4 \
+CREATOR_EVIDENCE=../build/verification/d5-5 npm run test:e2e
+```
+
+snapshot 경로가 없으면 각 worker 문서의 container test를 먼저 실행한다. 원시 테스트
+보고서는 `build/reports/tests/`, `career-lab/*/build/reports/tests/`,
+`frontend/test-results/`에 생성되며 Git에는 위 재현 명령과 검증 결과·선택한 캡처를 보존한다.

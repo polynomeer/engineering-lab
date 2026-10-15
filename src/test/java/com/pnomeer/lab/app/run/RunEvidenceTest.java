@@ -49,6 +49,35 @@ class RunEvidenceTest {
             assertEquals("end", lines.getLast().get("type").asText());
         }
     }
+    @Test void exportsTenThousandRowsInBoundedPagesWithoutRetainingResponse() throws Exception {
+        try(var store = new JdbcRunStore(root,500,100)) {
+            create(store,"large",Map.of(),RunStatus.SUCCEEDED);
+            for(int offset=0;offset<10000;offset+=100) {
+                var batch = new ArrayList<StoredMetric>();
+                for(int i=offset;i<offset+100;i++) batch.add(new StoredMetric(i,new MetricPoint(i,Map.of(),Map.of("n",(long)i),Map.of())));
+                store.appendMetrics("large",batch);
+            }
+        }
+        try(var reopened = new JdbcRunStore(root,500,100)) {
+            var store = org.mockito.Mockito.spy(reopened);
+            long[] counts = {0,0};
+            var response = new org.springframework.mock.web.MockHttpServletResponse() {
+                @Override public jakarta.servlet.ServletOutputStream getOutputStream() {
+                    return new jakarta.servlet.ServletOutputStream() {
+                        public boolean isReady() { return true; }
+                        public void setWriteListener(jakarta.servlet.WriteListener listener) {}
+                        public void write(int value) { counts[0]++; if(value=='\n') counts[1]++; }
+                    };
+                }
+            };
+            var properties = new StorageProperties(root.toString(),100,100,10,2,1,1000,500,200,8,".",100);
+            new RunEvidenceController(store,properties).export("large",response);
+            assertEquals(10002,counts[1]);
+            org.mockito.Mockito.verify(store,org.mockito.Mockito.times(101)).metrics(org.mockito.ArgumentMatchers.eq("large"),org.mockito.ArgumentMatchers.anyLong(),org.mockito.ArgumentMatchers.eq(100));
+            assertEquals(0,response.getContentAsByteArray().length);
+            System.out.println("D6 export rows=10000 pages=101 maxPage=100 bytes="+counts[0]);
+        }
+    }
     @Test void handlesMissingActiveAndMalformedReferences() throws Exception {
         try (var store = new JdbcRunStore(root, 2, 2)) {
             create(store, "a", Map.of(), RunStatus.RUNNING);

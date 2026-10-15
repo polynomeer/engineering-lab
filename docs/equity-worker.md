@@ -77,8 +77,8 @@ DB 오류를 성공이나 0건으로 바꾸지 않는다.
 Redis는 CHECK만 생성하고 METRICS presentation을 광고하지 않는다.
 
 각 실행은 체크, 허용된 메트릭, `equity-report.json` REPORT를 중앙 저장소에 남긴다.
-REPORT는 크기/hash 검증 후 복사된다. UI와 확장 NDJSON export에서는 참조만 제공하며
-REPORT 다운로드는 D6 범위다. 실패 Run도 부분 증거를 조회/export할 수 있고
+REPORT는 크기/hash 검증 후 복사된다. 확장 NDJSON export에는 참조를 제공하며 UI에서 중앙 사본을 다운로드한다.
+D6 관리 REPORT 다운로드를 지원한다. 실패 Run도 부분 증거를 조회/export할 수 있고
 `evidenceComplete=false`를 유지한다. 같은 저장소 재시작 후 조회할 수 있다.
 
 ## 배포와 실행
@@ -166,3 +166,5 @@ EQUITY_EVIDENCE를 생략하면 snapshot 테스트는 명시적으로 건너뛴�
 정리했다. INVALID_ROW 실행에서 확인된 부분 저장은 180/200행이었다. 소규모 삭제
 fixture에서 AFTER의 총시간과 최대 단계 시간이 모두 BEFORE보다 길게 관측돼,
 단일 실행의 수치를 일반적인 성능 개선 근거로 삼지 않는다는 해석도 유지한다.
+
+D6의 현재 동작·제한·운영 명령은 [통합 운영 가이드](dashboard-operations.md)를 따른다.

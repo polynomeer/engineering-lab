@@ -145,3 +145,24 @@ Excel 캡처는 저장소의 생성기로 만든 20행 합성 XLSX를 두 모드
 [MDS worker](mds-worker.md)를 켜면 settlement-guard/idempotency를 같은 preset 폼과 CHECK 표에서 실행·조회한다. BEFORE PASS는 문제 재현이며 PROCESSING_FAILURE는 실패 행과 부분 증거를 보여준다. 수치 메트릭 차트를 추가하지 않는다.
 
 [Creator worker](creator-worker.md)를 켜면 session-rotation/mapping-integrity/post-commit을 동일 preset·CHECK 화면에서 실행한다. BEFORE PASS의 의미, 설계 제안·장애 가설의 구분을 확인한다. EXHAUSTED는 DB 커밋과 Mixpanel stub 성공이 남아도 Braze stub 전달 실패로 Run FAILED를 표시한다.
+
+## D6: worker 관측과 REPORT 다운로드
+
+2026-10-15 캡처다. 위의 기존 캡처는 해당 단계의 IN_PROCESS 화면이며, 아래는
+Creator EXHAUSTED 실제 컨테이너 API 결과를 고정해 신 frontend로 표시한 화면이다.
+백엔드 다운로드는 별도 실제 컨테이너/저장소 재개방 검증으로 확인했다.
+
+1. 실험에서 **실행 준비 상태**와 지원 관측을 확인한다. worker의 추가 JVM/JFR/log
+   수집이 없더라도 CHECK와 해당 실험 metric, worker 환경 metadata는 조회할 수 있다.
+2. Run 상세의 상태와 검증 표를 확인한다. EXHAUSTED는 DB 커밋 후 외부 stub 전달 실패이며,
+   FAILED 상태에서도 확인된 REPORT를 다운로드할 수 있다.
+3. **첨부 증거 → REPORT 다운로드**를 누른다. 서버가 크기/hash를 검사한 `.bin` 사본을
+   제공한다. REPORT JSON은 텍스트 편집기로 열 수 있다. 실패 응답은 새 탭에 표시한다.
+4. 구 서버나 임의 경로는 **참조 전용**이다. 크기 초과·실행 중·파일 누락·변조를
+   성공 다운로드로 표시하지 않는다. 상세 설정/복구는 [운영 가이드](dashboard-operations.md)를 따른다.
+
+![실패 Run의 CHECK와 관리 REPORT 다운로드](images/22-worker-report-desktop.png)
+
+모바일에서는 페이지 폭을 유지하고 긴 검증 표 안에서 좌우로 스크롤한다.
+
+![모바일 REPORT 다운로드](images/23-worker-report-mobile.png)
