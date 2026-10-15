@@ -5,6 +5,14 @@ export type Draft = {
   parameters: Record<string, string | number | boolean>;
 };
 export const presets: Record<string, Draft[]> = {
+  ...Object.fromEntries(Object.entries({
+    'settlement-guard': ['BEFORE', 'AFTER', 'TTL_RECOVERY'],
+    idempotency: ['SEQUENTIAL', 'CONCURRENT', 'RETRY_AFTER_FAILURE', 'PROCESSING_FAILURE'],
+  }).map(([name, variants]) => ['career.mds-distribution.' + name, variants.map(variant => ({
+    id: name + '-' + variant.toLowerCase().replaceAll('_', '-'),
+    hypothesis: '기존 서비스의 정산 가드·TTL 또는 중복 전달·실패 재시도를 실제 DB에서 확인한다',
+    parameters: { variant },
+  }))])),
   ...Object.fromEntries(['batch-memory', 'excel-memory'].map(name => ['career.batch-excel.' + name,
     ['BEFORE', 'AFTER', 'FAIL_AFTER_MEASUREMENT'].map(variant => ({
       id: name + '-' + variant.toLowerCase().replaceAll('_', '-'),

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mds-distribution.idempotency",
+  "scenario": {
+    "id": "idempotency-retry-after-failure",
+    "hypothesis": "Bounded synthetic service checks; no SQS or exactly-once crash guarantee"
+  },
+  "parameters": {
+    "variant": "RETRY_AFTER_FAILURE"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

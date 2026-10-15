@@ -137,16 +137,11 @@ Docker(Testcontainers)가 필요합니다 — MySQL 컨테이너를 자동으로
 
 ### 3. 동시 중복 메시지는 "유니크 제약 위반"이 아니라 "잠금 대기/데드락"으로 나타날 수도 있다
 
-동시(멀티스레드) 중복 전달 테스트에서, 두 스레드가 같은 `messageId`로 거의
-동시에 INSERT를 시도하면 항상 깔끔한
-`DataIntegrityViolationException`(유니크 제약 위반)만 나는 게 아니라, MySQL의
-잠금 대기 상황에 따라 다른 종류의 `DataAccessException` 계열 예외가 날 수도
-있다는 걸 감안해, `IdempotentMessageProcessor.tryInsertNew`의 예외 처리를
-`DataIntegrityViolationException` 대신 상위 타입인 `DataAccessException`으로
-넓게 잡도록 설계했다. equity-system-lab의 Redis 락 레이스 테스트처럼, "동시에
-같은 자원을 두 프로세스가 건드리면 정확히 어떤 예외가 나는지"는 타이밍에
-따라 달라질 수 있다는 걸 감안해 보수적으로 처리하는 게 안전하다는 교훈은
-동일했다.
+동시에 같은 메시지 ID를 INSERT하면 중복 키 이외에 잠금 대기·데드락도 발생할 수 있다.
+초기 구현은 모든 DataAccessException을 중복처럼 취급했지만, 이는 연결 장애·다른 제약
+위반도 정상 중복으로 숨길 수 있었다. D5-4에서는 cause의 MySQL 오류 1062/SQLState
+23000만 중복 후보로 분류한다. 나머지 DB 예외는 호출자에게 전파하므로 후속 접수/재전달
+정책에서 처리해야 한다. worker는 이를 FAILED로 기록하며 자동 재시도를 추가하지 않는다.
 
 ### 4. Testcontainers를 여러 테스트 클래스에서 공유할 때의 함정 (equity-system-lab과 동일)
 
@@ -176,3 +171,9 @@ src/main/java/com/portfolio/mdslab/
 ├── settlement/   시나리오 1 — @SettlementGuarded, Aspect, 배치/서비스
 └── messaging/    시나리오 2 — 멱등 처리, 리스너, 등록 서비스
 ```
+
+## 공통 대시보드 연동 (D5-4)
+
+[배포·CHECK 해석·검증 가이드](../../docs/mds-worker.md)를 참고하세요. 독립 Java 21
+worker가 기존 서비스를 호출하고 controller가 격리 MySQL을 준비·정리합니다.
+실제 SQS 및 저장 완료와 DONE 기록 사이의 crash에 대한 exactly-once 보장은 범위 밖입니다.

@@ -132,6 +132,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/ChecksContainerIntegrationTest*'
     exclude '**/EquityContainerIntegrationTest*'
     exclude '**/MemoryContainerIntegrationTest*'
+    exclude '**/MdsContainerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -249,5 +250,21 @@ tasks.register('memoryContainerTest', Test) {
     inputs.files(fileTree('career-lab/batch-excel/build/libs') { include '*-memory-worker.jar' })
     systemProperty 'lab.memory.manifest', manifest.absolutePath
     systemProperty 'lab.memory.evidence', file('build/verification/d5-3').absolutePath
+    outputs.upToDateWhen { false }
+}
+
+// D5-4 module gate: real MySQL, protocol evidence and same-store reopen.
+tasks.register('mdsContainerTest', Test) {
+    group = 'verification'
+    description = 'Verify MDS guard and idempotency in isolated containers.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/MdsContainerIntegrationTest.class'
+    def manifest = file('career-lab/mds-distribution/build/libs/mds-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/mds-distribution/build/libs') { include '*-mds-worker.jar' })
+    systemProperty 'lab.mds.manifest', manifest.absolutePath
+    systemProperty 'lab.mds.evidence', file('build/verification/d5-4').absolutePath
     outputs.upToDateWhen { false }
 }

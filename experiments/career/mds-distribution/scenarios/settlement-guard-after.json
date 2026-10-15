@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mds-distribution.settlement-guard",
+  "scenario": {
+    "id": "settlement-guard-after",
+    "hypothesis": "Bounded synthetic service checks; no SQS or exactly-once crash guarantee"
+  },
+  "parameters": {
+    "variant": "AFTER"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

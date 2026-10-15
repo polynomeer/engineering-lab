@@ -9,6 +9,12 @@ export const moduleViews: Record<
     introduction?: string;
   }
 > = {
+  'career.mds-distribution.settlement-guard': {
+    introduction: '새 Java 21 worker와 임시 MySQL에서 정산 가드를 확인합니다. BEFORE의 PASS는 정산 중 수정되는 문제 재현을 뜻합니다. AFTER는 차단·해제 후 수정, TTL_RECOVERY는 2초 TTL의 지연 평가와 이전 소유자 해제 방지를 검사합니다. 정산 계산이나 수정과 락 획득 사이의 모든 동시성 경합을 보장하는 검증은 아닙니다.',
+  },
+  'career.mds-distribution.idempotency': {
+    introduction: '실제 MySQL에 리스너를 직접 호출해 순차 중복, 두 스레드의 동시 중복, 실패 후 재시도를 확인합니다. RETRY_AFTER_FAILURE는 같은 ID의 실패 payload를 정상 payload로 바꾸는 합성 재시도입니다. PROCESSING_FAILURE는 실패 행과 부분 증거를 남깁니다. 실제 SQS·ACK·DLQ 및 저장 후 프로세스 중단 시 정확히 한 번 처리는 검증하지 않습니다.',
+  },
   ...Object.fromEntries(['batch-memory', 'excel-memory'].map(name => ['career.batch-excel.' + name, {
     introduction: '변형마다 새 Java 21 JVM과 임시 MySQL을 사용합니다. 동일한 seed·rows·힙 한도로 비교하세요. 메모리는 20ms 주기와 시작/종료 시점의 heap used 표본이며 실제 최고점·live set·RSS가 아닙니다. GC를 강제하지 않습니다. 앱 시작·seed·결과 검증은 측정에서 제외합니다. FAIL_AFTER_MEASUREMENT는 AFTER 처리와 검증 후 실패를 주입해 부분 증거를 확인하며 배치 재시작 검증은 아닙니다. 합성 입력은 최대 5,000행, JVM heap은 128MiB이며 성능 우위를 보장하지 않습니다.',
   }])),

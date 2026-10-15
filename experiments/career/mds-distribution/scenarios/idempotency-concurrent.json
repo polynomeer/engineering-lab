@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.mds-distribution.idempotency",
+  "scenario": {
+    "id": "idempotency-concurrent",
+    "hypothesis": "Bounded synthetic service checks; no SQS or exactly-once crash guarantee"
+  },
+  "parameters": {
+    "variant": "CONCURRENT"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

@@ -200,7 +200,7 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | D5-1 완료 | mcp-platform: architecture, validation | 정상/고의 위반, 단계별 검증을 CHECK_RESULTS로 표시; 모듈 3개 시나리오 완료 |
 | D5-2 완료 | equity-system: deletion, redis-lock, registration | 단일 삭제 단계 시간(트랜잭션 시간 대용)과 전체 시간 구분, 락 기대 결과, 등록 집계·측정값; 3개 완료 |
 | D5-3 완료 | batch-excel: batch-memory, excel-memory | 새 JVM별 variant 측정, sampled heap 표기, seed/측정 구간·heap 한도 기록; 2개 완료 |
-| D5-4 | mds-distribution: settlement-guard, idempotency | TTL·중복 이벤트·실패 재시도 check, 격리 DB 정리; 2개 완료 |
+| D5-4 완료 | mds-distribution: settlement-guard, idempotency | TTL·중복 이벤트·실패 재시도 check, 격리 DB 정리; 2개 완료 |
 | D5-5 | creator-studio: session-rotation, mapping-integrity, post-commit | token/매핑/commit 경계 check, 외부 연동 stub 유지; 3개 완료 |
 
 각 모듈의 gate: schema validation → 실제 컨테이너 실행 → partial failure → raw/export → 브라우저 표시 → 재시작 조회. metric이 없는 시나리오에 빈 차트 대신 check 표를 제공한다. FACT/NEW-DESIGN 구분을 유지한다.
@@ -258,6 +258,22 @@ frontend 단위 17건·타입 검사·빌드, 실제 응답 6종·preset 2종·�
 
 테스트 소유 worker·의존 컨테이너·network·임시 이미지 제거를 확인하고 Vite 서버를 종료했다. 다른 작업의 Docker 자원은 유지했다.
 
+D5-4 구현·검증 (2026-10-15): Java 21 MDS worker가 기존 정산 AOP/상태 락과 메시지 멱등 처리 서비스를
+호출한다. BEFORE/AFTER/TTL_RECOVERY 및 순차·동시 중복/실패 재시도/업무 실패를
+CHECK로 기록하며 수치 메트릭은 광고하지 않는다. controller 소유 MySQL은 별도 MDS
+프로파일로 격리하고 기존 공통 자원 코드를 변경하지 않는다. DB 예외는 확인된 MySQL
+중복 키만 분류하며 나머지 오류를 전파한다. [배포·검증 범위](mds-worker.md)를 따른다.
+
+최종 검증 (2026-10-15): Career 전체 144건(미변경 일부 결과 재사용), 루트 352건,
+`mdsContainerTest` 실제 컨테이너 7건, frontend 단위 17건·타입 검사·빌드가 통과했다.
+실제 API snapshot 7종·preset 2종·기존 Career 화면 4종의 브라우저 13건도
+실패/건너뜀 없이 통과했다. 기존 선택 실행 실서버 브라우저 2건은 대상에서 제외했다.
+375px 가로 넘침 검증과 desktop/mobile 캡처를 확인했다. 처음 모듈 테스트에서
+worker jar 시스템 속성 이름 오타로 배포 테스트 2건이 실패했으나 설정을 수정하고
+전체 suite로 재검증했다. 테스트를 비활성화하거나 기대 결과를 완화하지 않았다.
+정상/업무 실패의 CHECK·REPORT·raw export와 저장소 재개방, 실행 소유 자원 제거를
+확인했다. 테스트 worker·DB·network·이미지 태그가 남지 않았고 Vite 서버도 종료했다.
+
 ## D6. 관측·artifact 확장과 운영 마무리
 
 - [ ] worker에서 지원 가능한 JVM/JFR/log capability를 명시한다. 지원한 기능만 UI에 노출한다.
@@ -284,7 +300,7 @@ frontend 단위 17건·타입 검사·빌드, 실제 응답 6종·preset 2종·�
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D5-4: mds-distribution settlement-guard/idempotency 연동**이다. D5-1의 MCP architecture/validation과 D5-2의 equity-system 세 시나리오 및 D5-3의 batch-excel 두 시나리오 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
+다음 실행 작업은 **D5-5: creator-studio session-rotation/mapping-integrity/post-commit 연동**이다. D5-1의 MCP architecture/validation과 D5-2의 equity-system 세 시나리오 및 D5-3의 batch-excel 두 시나리오, D5-4의 MDS 두 시나리오 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를

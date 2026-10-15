@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import java.util.HexFormat
+
 plugins {
     java
     id("org.springframework.boot") version "3.3.4"
@@ -36,6 +39,7 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok")
     testAnnotationProcessor("org.projectlombok:lombok")
 
+    testImplementation(project(":worker-support"))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:junit-jupiter:1.20.2")
     testImplementation("org.testcontainers:mysql:1.20.2")
@@ -53,5 +57,48 @@ tasks.withType<Test> {
     testLogging {
         events("passed", "skipped", "failed", "standardOut")
         showStandardStreams = true
+    }
+}
+
+// External endpoints are provisioned by the controller; no Docker client in this worker.
+val labRuntime by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+configurations[labRuntime.implementationConfigurationName].extendsFrom(configurations.implementation.get())
+configurations[labRuntime.runtimeOnlyConfigurationName].extendsFrom(configurations.runtimeOnly.get())
+dependencies { add(labRuntime.implementationConfigurationName, project(":worker-support")) }
+val mdsWorkerJar by tasks.registering(org.springframework.boot.gradle.tasks.bundling.BootJar::class) {
+    dependsOn(tasks.named(labRuntime.classesTaskName))
+    archiveClassifier.set("mds-worker")
+    targetJavaVersion.set(JavaVersion.VERSION_21)
+    mainClass.set("com.portfolio.mdslab.worker.MdsWorker")
+    classpath = labRuntime.runtimeClasspath
+}
+sourceSets.test.get().compileClasspath += labRuntime.output
+tasks.test {
+    dependsOn(mdsWorkerJar)
+    inputs.file(mdsWorkerJar.flatMap { it.archiveFile })
+    systemProperty("mds.worker.jar", mdsWorkerJar.get().archiveFile.get().asFile.absolutePath)
+    classpath += labRuntime.output + configurations[labRuntime.runtimeClasspathConfigurationName]
+}
+tasks.register("mdsWorkerManifest") {
+    dependsOn(mdsWorkerJar)
+    val jar = mdsWorkerJar.flatMap { it.archiveFile }
+    val descriptor = layout.buildDirectory.file("libs/mds-worker-manifest.json")
+    inputs.file(jar); outputs.file(descriptor)
+    doLast {
+        val artifact = jar.get().asFile
+        val digest = MessageDigest.getInstance("SHA-256")
+        artifact.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            while (true) { val n = input.read(buffer); if (n == -1) break; digest.update(buffer, 0, n) }
+        }
+        descriptor.get().asFile.writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(mapOf(
+            "schemaVersion" to 1, "protocolVersion" to 1, "moduleId" to "mds-distribution",
+            "experimentIds" to listOf("career.mds-distribution.settlement-guard", "career.mds-distribution.idempotency"),
+            "javaMajor" to 21, "jarFile" to artifact.name,
+            "artifactSha256" to HexFormat.of().formatHex(digest.digest()), "requiresDocker" to false
+        ))) + "\n")
     }
 }

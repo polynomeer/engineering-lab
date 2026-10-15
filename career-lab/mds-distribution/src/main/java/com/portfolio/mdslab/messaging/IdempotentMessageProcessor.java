@@ -53,12 +53,12 @@ public class IdempotentMessageProcessor {
             repository.saveAndFlush(new ProcessedMessage(messageId, messageType));
             return true;
         } catch (DataAccessException e) {
-            // 유니크 제약 위반(DataIntegrityViolationException)이 정상 케이스지만,
-            // 동시에 같은 PK로 INSERT가 몰리면 MySQL이 잠금 대기/데드락 계열
-            // 예외(CannotAcquireLockException 등)를 던지는 경우도 실제로
-            // 관찰했다(README 참고) — 둘 다 "누군가 이미 처리 중/처리했다"는
-            // 뜻이므로 DataAccessException 상위 타입으로 함께 묶어 스킵 처리한다.
-            return false;
+            // Only MySQL duplicate-key errors establish a duplicate; infrastructure errors must propagate.
+            for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+                if (cause instanceof java.sql.SQLException sql && sql.getErrorCode() == 1062
+                        && "23000".equals(sql.getSQLState())) return false;
+            }
+            throw e;
         }
     }
 

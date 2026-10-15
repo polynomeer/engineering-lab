@@ -141,3 +141,5 @@ Excel 캡처는 저장소의 생성기로 만든 20행 합성 XLSX를 두 모드
 실제 측정되지 않은 메트릭은 생략하고, REPORT는 참조 전용으로 표시한다.
 
 [Memory worker](batch-memory-worker.md)를 활성화하면 batch-memory/excel-memory preset을 실행할 수 있다. CHECK에서 seed·측정 구간·heap 한도를 확인하고 원본 관측 표에서 sampled heap을 조회한다. FAIL_AFTER_MEASUREMENT는 작업 후 의도적 실패이며, 남은 측정값을 성공 결과로 해석하지 않는다.
+
+[MDS worker](mds-worker.md)를 켜면 settlement-guard/idempotency를 같은 preset 폼과 CHECK 표에서 실행·조회한다. BEFORE PASS는 문제 재현이며 PROCESSING_FAILURE는 실패 행과 부분 증거를 보여준다. 수치 메트릭 차트를 추가하지 않는다.

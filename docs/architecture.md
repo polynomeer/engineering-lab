@@ -379,3 +379,7 @@ Redis produces checks only. Sequence resource profiles and recovery journals rem
 See [deployment, metrics and failure semantics](equity-worker.md).
 
 D5-3 adds a Java 21 batch-excel memory worker with one fresh JVM/MySQL per variant. Existing jobs and exporters are reused; a constant-space sampler records heap used without explicit GC around work only. Controller resource ownership is shared in CareerContainerResources; equity namespaces, profiles and environment contracts remain unchanged. Batch uses its own journal/profile. See [measurement and deployment contracts](batch-memory-worker.md).
+
+## MDS scenarios
+
+D5-4 adds a check-only Java 21 MDS worker for settlement guards and message idempotency. Existing Spring services and AOP run against a controller-owned MySQL using the unchanged CareerContainerResources lifecycle and a separate MDS journal/profile. Two concurrent deliveries and one explicit retry bound the fixture. Only confirmed MySQL duplicate-key errors enter duplicate handling; infrastructure failures propagate. The scenario does not claim SQS delivery semantics or crash-safe exactly-once processing. See [MDS contracts](mds-worker.md).

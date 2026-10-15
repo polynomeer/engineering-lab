@@ -36,3 +36,5 @@
 - 문서만 바뀌어도 `./gradlew test`, 링크/이미지와 diff 확인 후 작업 단위로 커밋합니다.
 
 - [Batch / Excel memory worker](batch-memory-worker.md): D5-3 배포, sampled heap 해석, 실패 증거와 검증
+
+- [MDS worker](mds-worker.md): 정산 가드·TTL·중복 전달·실패 재시도와 격리 실행
