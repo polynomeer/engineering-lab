@@ -74,7 +74,7 @@ npm run test:e2e
 - `src/LegacyTools.tsx`, `src/moduleViews.tsx`: 기존 업로드 API·Excel 상세 adapter, 현재 DB·비영속 IO 도구
 - `src/settings.ts`, `src/SettingsPage.tsx`: bounded 설정 검증·이전·단일 key 저장, 선택적 conflict 처리
 - `src/WorkerEvidence.tsx`: 실행 준비 상태, worker 환경, 종료 후 검증 결과의 bounded 페이지 조회와 확장 내보내기
-- `src/style.css`: 기존 Run 화면의 어두운 토큰과 반응형 스타일
+- `src/style.css`: Dark Observatory 차콜·앰버 토큰과 반응형 스타일
 - `tests/dashboard.spec.ts`: 실제 서버 기반 browser E2E와 오류/cursor/legacy fallback
 - `../contracts/dashboard/v1/fixtures/evidence.json`: Java HTTP 계약 테스트와 공유하는 합성 fixture
 
@@ -115,3 +115,9 @@ CAREER_REOPEN_IDS=before-run-id,atomic-run-id npm run test:e2e -- --grep 'stored
 ```
 
 이 검증은 정상 재시작 후 조회이며 강제 종료·Docker daemon 장애 복구를 검증한 것은 아닙니다.
+
+## Dark Observatory 화면
+
+[디자인 명세](../docs/dashboard-visual-design.md)를 적용했습니다. 좌측 catalog 탐색과 Run 상세의 전체·검증 결과·메트릭·실행 환경·아티팩트 보기를 제공합니다. Worker 증거는 데스크톱에서 검증 결과와 환경을 나란히, 모바일에서는 검증 목록과 환경을 한 열로 표시합니다. 모바일 메뉴는 접을 수 있고 Escape로 닫으면 메뉴 버튼에 focus가 돌아옵니다. check 집계는 현재 페이지 범위이며 전체 통과 수로 해석하지 않습니다.
+
+`tests/design.spec.ts`는 결과 보기 전환 중 증거 유지, 모바일 메뉴 키보드 조작과 375/768/1024px 가로 넘침을 검증합니다. 캡처는 합성 응답을 사용하며 실제 측정값이 아닙니다.

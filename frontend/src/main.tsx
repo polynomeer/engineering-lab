@@ -178,6 +178,16 @@ function App() {
     document.addEventListener('visibilitychange', visible);
     return () => document.removeEventListener('visibilitychange', visible);
   }, []);
+  const [detailView, setDetailView] = useState('overview');
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const restoreDesktopNavigation = () => {
+      const drawer = document.querySelector<HTMLDetailsElement>('.navigation-drawer');
+      if (desktop.matches && drawer) drawer.open = true;
+    };
+    desktop.addEventListener('change', restoreDesktopNavigation);
+    return () => desktop.removeEventListener('change', restoreDesktopNavigation);
+  }, []);
   const DetailPanel = run && moduleViews[run.experimentType]?.detail;
   const groups = modules.length
     ? modules
@@ -196,31 +206,24 @@ function App() {
       <a className="skip" href="#content">
         본문으로 이동
       </a>
-      <header>
-        <a className="brand" href="/app/runs">
-          ENGINEERING LAB<span>실험의 결과를, 검증 가능한 증거로.</span>
-        </a>
-        <nav aria-label="주 탐색">
-          <a href="/app/experiments" aria-current={route.kind === 'execute' ? 'page' : undefined}>
-            실험 실행
-          </a>
-          <a href="/app/runs" aria-current={route.kind === 'list' ? 'page' : undefined}>
-            실행 기록
-          </a>
-          <a href="/app/compare" aria-current={route.kind === 'compare' ? 'page' : undefined}>
-            비교
-          </a>
-          <a
-            href={
-              new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href
-            }
-          >
-            기존 실험 실행 ↗
-          </a>
-        </nav>
-      </header>
       <div className="layout">
-        <aside>
+        <aside className="sidebar">
+          <a className="sidebar-brand" href="/app/runs">Engineering Lab<small>EXPERIMENT OBSERVATORY</small></a>
+          <details className="navigation-drawer" open onKeyDown={(event) => {
+            if (event.key === 'Escape' && window.innerWidth < 1024) {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector('summary')?.focus();
+            }
+          }}>
+            <summary>메뉴</summary>
+            <nav aria-label="대시보드 탐색">
+              <a href="/app/experiments" aria-current={route.kind === 'execute' ? 'page' : undefined}>실험 실행</a>
+              <a href="/app/runs" aria-current={['list', 'detail'].includes(route.kind) ? 'page' : undefined}>실행 기록</a>
+              <a href="/app/compare" aria-current={route.kind === 'compare' ? 'page' : undefined}>Run 비교</a>
+              <a href="/app/tools/ingestion-db">현재 DB 조회</a>
+              <a href="/app/tools/io-echo">IO 단건 데모</a>
+              <a href="/app/settings">설정 이전</a>
+            </nav>
           <p className="eyebrow">EXPERIMENT CATALOG</p>
           <a href="/app/runs?experiment=">모든 실행</a>
           {groups.map((group) => (
@@ -230,7 +233,7 @@ function App() {
               {group.experiments.map((item) => (
                 <a
                   key={item.id}
-                  aria-current={route.query.get('experiment') === item.id ? 'page' : undefined}
+                  aria-current={(route.query.get('experiment') ?? run?.experimentType) === item.id ? 'page' : undefined}
                   href={'/app/experiments?experiment=' + encodeURIComponent(item.id)}
                 >
                   {item.title}
@@ -238,15 +241,16 @@ function App() {
               ))}
             </section>
           ))}
-          <a href="/app/settings">설정 이전</a>
-          <a href="/app/tools/ingestion-db">현재 DB 조회</a>
-          <a href="/app/tools/io-echo">IO 단건 데모</a>
+
+          <a href={new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href}>기존 실험 실행 ↗</a>
           <p className="note">서버에 등록된 모듈만 표시됩니다.</p>
+          </details>
+          <p className="connection-status">{bootstrapError ? 'API 연결 확인 필요' : loading ? 'API 확인 중' : 'API 조회 완료'}<small>등록된 기능과 기록된 환경을 표시합니다.</small></p>
         </aside>
         <main id="content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">RUN EVIDENCE</p>
+              <p className="eyebrow">ENGINEERING LAB / {run?.experimentType ?? "WORKSPACE"}</p>
               <h1>
                 {route.kind === 'settings'
                   ? '설정 이전'
@@ -257,7 +261,7 @@ function App() {
                       : route.kind === 'execute'
                         ? '실험 실행'
                         : route.kind === 'detail'
-                          ? '실행 상세'
+                          ? '실행 기록과 검증 증거'
                           : route.kind === 'compare'
                             ? '실행 비교'
                             : route.kind === 'missing'
@@ -265,9 +269,10 @@ function App() {
                               : '실행 기록'}
               </h1>
             </div>
+            <div className="heading-actions"><a className="primary-action" href="/app/experiments">새 실험 실행</a>
             <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
               새로고침
-            </button>
+            </button></div>
           </div>
           {legacy && <p className="note">기존 API 호환 모드 · 공통 실행·조회 API를 사용합니다.</p>}
           <p role="status" className="status">
@@ -348,25 +353,31 @@ function App() {
           )}
           {route.kind === 'detail' && run && (
             <>
-              <h2>{run.scenarioId}</h2>
-              <p className="mono">{run.runId}</p>
-              <Badge run={run} />
+              <section className="run-strip" aria-label="선택한 실행">
+                <Badge run={run} /><h2>{run.scenarioId}</h2><span className="mono">{run.runId}</span>
+                <small>{run.experimentType}</small>
+              </section>
+              <div className="result-tabs" aria-label="결과 보기">
+                {[['overview', '전체'], ['checks', '검증 결과'], ['metrics', '메트릭'], ['environment', '실행 환경'], ['artifacts', '아티팩트']].map(([id, title]) =>
+                  <button key={id} disabled={id === 'checks' && !features.checksRead} aria-pressed={detailView === id} onClick={() => setDetailView(id)}>{title}</button>)}
+              </div>
               <Actions run={run} />
               {run.failureMessage && <p className="error">{run.failureMessage}</p>}
-              <h2>가설</h2>
+              <section hidden={!['overview', 'environment'].includes(detailView)}><h2>가설</h2>
               <p>
                 {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
               </p>
-              {DetailPanel && <DetailPanel id={run.runId} status={run.status} />}
+              </section>
+              <section hidden={!['overview', 'metrics'].includes(detailView)}>{DetailPanel && <DetailPanel id={run.runId} status={run.status} />}</section>
               {(features.executionEvidence || features.checksRead) && (
-                <WorkerEvidence
+                <WorkerEvidence view={detailView}
                   key={run.runId}
                   run={run}
                   features={features}
                   pageSize={options.pageSize}
                 />
               )}
-              <h2>결과 요약</h2>
+              <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}><h2 id="run-metrics">결과 요약</h2>
               {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length > 0 && (
                 <Table
                   label="원본 metric 이름과 값"
@@ -382,7 +393,7 @@ function App() {
                 />
               )}
               <Raw label="결과 상세" value={run.summary.details} />
-              <h2>입력과 실행 환경</h2>
+              </section><section className="detail-panel" hidden={!['overview', 'environment'].includes(detailView)}><h2 id="run-environment">입력과 실행 환경</h2>
               <Raw label="파라미터와 시나리오 정의" value={run.runMetadata.parameters} />
               <Raw
                 label="서버 JVM / 운영체제 / Git"
@@ -391,7 +402,7 @@ function App() {
                   git: run.runMetadata.git,
                 }}
               />
-              <h2>관측 기록</h2>
+              </section><section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}><h2>관측 기록</h2>
               {metrics.metrics.length === 0 && after === -1 && metrics.nextAfter === null ? (
                 <p>이 페이지에 측정값이 없습니다. 검증 실험은 위의 검증 결과와 실행·검증 내보내기를 확인하세요.</p>
               ) : (
@@ -419,7 +430,7 @@ function App() {
                   </div>
                 </>
               )}
-              <h2>첨부 증거</h2>
+              </section><section className="detail-panel" hidden={!['overview', 'artifacts'].includes(detailView)}><h2 id="run-artifacts">첨부 증거</h2>
               <p className="note">
                 다운로드 시 서버가 크기와 SHA-256을 검증합니다. 오류는 새 탭에 표시됩니다.
               </p>
@@ -448,6 +459,7 @@ function App() {
                   ])}
                 />
               )}
+              </section>
             </>
           )}
           {route.kind === 'compare' && (

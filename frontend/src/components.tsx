@@ -56,7 +56,8 @@ export function Raw({ label, value }: { label: string; value: unknown }) {
   );
 }
 export function Badge({ run }: { run: Run }) {
-  return <span className={'badge ' + run.status.toLowerCase()}>{run.status}</span>;
+  const label: Record<string, string> = { RUNNING: '실행 중', SUCCEEDED: '성공', FAILED: '실패' };
+  return <span title={run.status} className={'badge ' + run.status.toLowerCase()}>{label[run.status] ?? run.status}</span>;
 }
 export function Actions({ run }: { run: Run }) {
   return (

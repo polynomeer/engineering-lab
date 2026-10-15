@@ -97,10 +97,12 @@ export function WorkerEvidence({
   run,
   features,
   pageSize,
+  view = 'overview',
 }: {
   run: Run;
   features: Record<string, boolean>;
   pageSize: number;
+  view?: string;
 }) {
   const [execution, setExecution] = useState<Execution | null>(null);
   const [checks, setChecks] = useState<Checks | null>(null);
@@ -162,14 +164,15 @@ export function WorkerEvidence({
   }, [run.runId, run.status, features, after, revision, pageSize]);
   const evidence = execution?.execution;
   return (
-    <section aria-label="실행 및 검증 증거">
-      <h2>실행 환경과 증거 상태</h2>
+    <section id="worker-evidence" className="evidence-workspace" aria-label="실행 및 검증 증거">
       {busy && <p role="status">실행 증거 확인 중…</p>}
       {error && (
         <div role="alert" className="error">
           {error} <button onClick={() => setRevision((n) => n + 1)}>증거 다시 조회</button>
         </div>
       )}
+      <section className="panel evidence-inspector" hidden={!['overview', 'environment'].includes(view)}>
+      <h2>실행 환경과 증거 상태</h2>
       {execution && !execution.available && (
         <p>이 실행에는 확장 실행 정보가 기록되지 않았습니다.</p>
       )}
@@ -200,6 +203,8 @@ export function WorkerEvidence({
             ))}
         </>
       )}
+      </section>
+      <section className="panel checks-panel" hidden={!['overview', 'checks'].includes(view)}>
       {features.checksRead && (
         <>
           <h2>검증 결과</h2>
@@ -213,6 +218,7 @@ export function WorkerEvidence({
                   PASS는 기록된 기대값 충족을 뜻합니다. 의도한 이상 현상을 재현한 경우에도 PASS일 수
                   있습니다.
                 </p>
+                <p className="check-summary">현재 페이지 · {checks.checks.filter(c => c.status === 'PASS').length} PASS · {checks.checks.filter(c => c.status === 'FAIL').length} FAIL</p>
                 <div className="worker-checks">
                 <Table
                   label="기대값과 관측값"
@@ -222,7 +228,7 @@ export function WorkerEvidence({
                       {c.checkId}
                       <small>{c.description}</small>
                     </>,
-                    c.status,
+                    <span className={"badge " + (c.status === "PASS" ? "succeeded" : c.status === "FAIL" ? "failed" : "")}>{c.status}</span>,
                     c.expected,
                     c.observed.length > 240 || c.observed.includes('\n')
                       ? <Raw label="관측 상세 보기" value={c.observed} />
@@ -247,7 +253,9 @@ export function WorkerEvidence({
             ))}
         </>
       )}
-      {features.extendedExport && terminal(run) && (
+      {!features.checksRead && <p>이 서버는 검증 결과 조회를 지원하지 않습니다.</p>}
+      </section>
+      {['overview', 'artifacts'].includes(view) && features.extendedExport && terminal(run) && (
         <a href={apiUrl(`/dashboard/v1/runs/${encodeURIComponent(run.runId)}/export`)}>
           실행·검증 포함 내보내기 (NDJSON)
         </a>
