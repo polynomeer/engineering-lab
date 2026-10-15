@@ -131,3 +131,11 @@ Excel 캡처는 저장소의 생성기로 만든 20행 합성 XLSX를 두 모드
 ## MCP architecture / validation
 
 [checks worker](mcp-checks-worker.md)를 켜면 MCP 모듈에서 두 실험을 선택한다. architecture의 `VIOLATION`은 고의 위반을 FAIL로 기록하며, validation의 입력 거절은 기대값과 일치하면 PASS다. `not executed`는 후속 단계 미실행을 뜻한다. 측정값이 없는 실험은 검증 표와 확장 NDJSON export로 확인한다. `checks-report.json`은 중앙에 보관하며 화면에서는 참조만 제공한다(REPORT 다운로드는 D6 범위).
+
+### Equity 실험 실행
+
+[Equity worker](equity-worker.md)를 켜면 equity-system의 deletion·redis-lock·registration을
+같은 실험 목록에서 선택한다. preset을 고르고 실행 후 Run의 CHECK와 원본 관측을 확인한다.
+삭제 전체 시간과 단일 단계 시간은 구분해서 비교한다. Redis BEFORE의 PASS는 문제 재현의
+기대 일치이며 안전성 인증이 아니다. 등록 INVALID_ROW는 실패 Run과 부분 저장 건수를 남긴다.
+실제 측정되지 않은 메트릭은 생략하고, REPORT는 참조 전용으로 표시한다.

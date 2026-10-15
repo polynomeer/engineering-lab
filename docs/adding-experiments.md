@@ -13,7 +13,7 @@
 | run | 한 번 실행한 결과와 영속 증거 | UUID |
 | executor | 실행 환경; 그룹과 독립 | IN_PROCESS, LOCAL_JVM, CONTAINER |
 
-Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 앞으로 engineering 실험도 다른 JDK/외부 인프라가 필요하면 worker 실행을 선택할 수 있도록 설계한다. 현재 sequence는 서버 설정으로 LOCAL_JVM 또는 CONTAINER worker를 등록할 수 있다. architecture/validation은 [전용 checks CONTAINER worker](mcp-checks-worker.md)로 등록한다. 나머지 Career 시나리오에는 별도의 driver와 등록이 필요하다.
+Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 앞으로 engineering 실험도 다른 JDK/외부 인프라가 필요하면 worker 실행을 선택할 수 있도록 설계한다. 현재 sequence는 서버 설정으로 LOCAL_JVM 또는 CONTAINER worker를 등록할 수 있다. architecture/validation은 [전용 checks CONTAINER worker](mcp-checks-worker.md)로 등록한다. equity-system의 세 실험은 [equity CONTAINER worker](equity-worker.md)와 실행별 MySQL/Redis 자원을 사용한다. 나머지 Career 시나리오에는 별도의 driver와 등록이 필요하다.
 
 ## 현재 구현: 내장 실험 추가
 

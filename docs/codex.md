@@ -148,3 +148,10 @@ D4 실패 주입 요구사항과 검증 수준은 [실패 주입 검증 표](wor
 fixture 수정 시 Career 전체 테스트 후 루트 `test containerWorkerTest`를 순차 실행한다.
 
 D5-1 architecture/validation 전용 배포는 [MCP checks worker](mcp-checks-worker.md)를 따른다. 공유 규칙/fixture는 Career `mcp-platform/src/checkRuntime`, 중앙 등록은 `ChecksRegistrationConfiguration`, 모듈 병합은 `McpModuleConfiguration`이다. `checksContainerTest`와 frontend `mcp-checks.spec.ts`로 검증한다.
+
+D5-2 equity 배포·측정·복구는 [Equity worker](equity-worker.md)를 따른다. Career의
+`equity-system/src/labRuntime`에 worker, 중앙 `EquityRegistrationConfiguration`에
+schema/worker/metric 등록, `EquityContainerResources`에 실행별 MySQL/Redis 소유권이 있다.
+`./scripts/career-lab.sh test :equity-system:equityWorkerManifest` 후 `./gradlew test equityContainerTest`를
+순차 실행한다. frontend `equity.spec.ts`는 `EQUITY_EVIDENCE=../build/verification/d5-2`로
+실제 API snapshot을 읽는다. Redis는 CHECK 전용이며 삭제 시간은 실제 lock 계측이 아니다.

@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import org.springframework.stereotype.Service;
 
 /**
@@ -36,65 +35,55 @@ public class ParallelRegistrationPipeline {
         this.insertDao = insertDao;
     }
 
+    public record Result(int insertedRows, int maxInFlightChunks, int backpressureWaits, long backpressureNanos) {}
+
     public int register(List<RawEquityRow> rawRows, int chunkSize) {
-        List<List<RawEquityRow>> chunks = partition(rawRows, chunkSize);
-        Semaphore backpressure = new Semaphore(MAX_IN_FLIGHT_CHUNKS);
+        return registerMeasured(rawRows, chunkSize, POOL_SIZE, MAX_IN_FLIGHT_CHUNKS).insertedRows();
+    }
 
-        try (ExecutorService pool = Executors.newFixedThreadPool(POOL_SIZE)) {
-            List<Future<Integer>> futures = new ArrayList<>(chunks.size());
-            for (List<RawEquityRow> chunk : chunks) {
-                acquireUninterruptibly(backpressure);
-                futures.add(pool.submit(() -> {
-                    try {
-                        return processAndInsertChunk(chunk);
-                    } finally {
-                        backpressure.release();
+    /** Bounded submission window: both pending work and retained futures are O(maxInFlight). */
+    public Result registerMeasured(List<RawEquityRow> rows, int chunkSize, int workers, int maxInFlight) {
+        if (chunkSize < 1 || chunkSize > 5000 || workers < 1 || workers > 16 || maxInFlight < 1 || maxInFlight > 32)
+            throw new IllegalArgumentException("Invalid registration bounds");
+        var pending = new java.util.HashSet<Future<Integer>>();
+        int total = 0, peak = 0, waits = 0;
+        long waitNanos = 0;
+        try (ExecutorService pool = Executors.newFixedThreadPool(workers)) {
+            var completed = new java.util.concurrent.ExecutorCompletionService<Integer>(pool);
+            try {
+                int offset = 0;
+                while (offset < rows.size() || !pending.isEmpty()) {
+                    if (offset < rows.size() && pending.size() < maxInFlight) {
+                        int end = Math.min(rows.size(), offset + chunkSize);
+                        var chunk = rows.subList(offset, end);
+                        pending.add(completed.submit(() -> processAndInsertChunk(chunk)));
+                        peak = Math.max(peak, pending.size()); offset = end;
+                    } else {
+                        Future<Integer> done = completed.poll();
+                        if (done == null) {
+                            long start = System.nanoTime();
+                            done = completed.take();
+                            // Count only producer admission waits, not the final drain.
+                            if (offset < rows.size()) { waits++; waitNanos += System.nanoTime() - start; }
+                        }
+                        pending.remove(done); total += done.get();
                     }
-                }));
+                }
+            } catch (InterruptedException e) {
+                pending.forEach(f -> f.cancel(true)); pool.shutdownNow();
+                Thread.currentThread().interrupt(); throw new IllegalStateException("Registration interrupted", e);
+            } catch (java.util.concurrent.ExecutionException e) {
+                pending.forEach(f -> f.cancel(true)); pool.shutdownNow();
+                throw new IllegalStateException("Registration chunk failed", e.getCause());
             }
-
-            int total = 0;
-            for (Future<Integer> future : futures) {
-                total += awaitResult(future);
-            }
-            return total;
         }
+        return new Result(total, peak, waits, waitNanos);
     }
 
     private int processAndInsertChunk(List<RawEquityRow> chunk) {
         List<MappedEquityRow> mapped = new ArrayList<>(chunk.size());
-        for (RawEquityRow raw : chunk) {
-            mapped.add(rowProcessor.process(raw));
-        }
+        for (RawEquityRow raw : chunk) mapped.add(rowProcessor.process(raw));
         insertDao.insertBatch(mapped);
         return mapped.size();
-    }
-
-    private static List<List<RawEquityRow>> partition(List<RawEquityRow> rows, int chunkSize) {
-        List<List<RawEquityRow>> chunks = new ArrayList<>();
-        for (int i = 0; i < rows.size(); i += chunkSize) {
-            chunks.add(rows.subList(i, Math.min(i + chunkSize, rows.size())));
-        }
-        return chunks;
-    }
-
-    private static void acquireUninterruptibly(Semaphore semaphore) {
-        try {
-            semaphore.acquire();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("backpressure 대기 중 인터럽트됨", e);
-        }
-    }
-
-    private static int awaitResult(Future<Integer> future) {
-        try {
-            return future.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("청크 처리 대기 중 인터럽트됨", e);
-        } catch (java.util.concurrent.ExecutionException e) {
-            throw new IllegalStateException("청크 처리 중 오류", e.getCause());
-        }
     }
 }

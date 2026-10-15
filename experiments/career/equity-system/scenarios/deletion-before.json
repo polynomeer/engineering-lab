@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.equity-system.deletion",
+  "scenario": {
+    "id": "deletion-before",
+    "hypothesis": "FACT-based mechanism with bounded NEW-DESIGN synthetic input"
+  },
+  "parameters": {
+    "variant": "BEFORE",
+    "rows": 12000
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

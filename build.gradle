@@ -130,6 +130,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/ContainerWorkerIntegrationTest*'
     exclude '**/SequenceContainerIntegrationTest*'
     exclude '**/ChecksContainerIntegrationTest*'
+    exclude '**/EquityContainerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -215,5 +216,21 @@ tasks.register('checksContainerTest', Test) {
     inputs.files(fileTree('career-lab/mcp-platform/build/libs') { include '*-checks-worker.jar' })
     systemProperty 'lab.checks.manifest', manifest.absolutePath
     systemProperty 'lab.checks.evidence', file('build/verification/d5-1').absolutePath
+    outputs.upToDateWhen { false }
+}
+
+// D5-2 module gate: real MySQL/Redis, protocol evidence and same-store reopen.
+tasks.register('equityContainerTest', Test) {
+    group = 'verification'
+    description = 'Verify equity deletion, Redis lock and registration in isolated containers.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/EquityContainerIntegrationTest.class'
+    def manifest = file('career-lab/equity-system/build/libs/equity-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/equity-system/build/libs') { include '*-equity-worker.jar' })
+    systemProperty 'lab.equity.manifest', manifest.absolutePath
+    systemProperty 'lab.equity.evidence', file('build/verification/d5-2').absolutePath
     outputs.upToDateWhen { false }
 }

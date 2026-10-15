@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.equity-system.redis-lock",
+  "scenario": {
+    "id": "redis-lock-before",
+    "hypothesis": "FACT-based mechanism with bounded NEW-DESIGN synthetic input"
+  },
+  "parameters": {
+    "variant": "BEFORE"
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

@@ -198,7 +198,7 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | 순서 | 범위 | 완료 기준 |
 | --- | --- | --- |
 | D5-1 완료 | mcp-platform: architecture, validation | 정상/고의 위반, 단계별 검증을 CHECK_RESULTS로 표시; 모듈 3개 시나리오 완료 |
-| D5-2 | equity-system: deletion, redis-lock, registration | 거래 점유 시간과 전체 시간 구분, 락 기대 결과, 등록 집계·측정값; 3개 완료 |
+| D5-2 완료 | equity-system: deletion, redis-lock, registration | 단일 삭제 단계 시간(트랜잭션 시간 대용)과 전체 시간 구분, 락 기대 결과, 등록 집계·측정값; 3개 완료 |
 | D5-3 | batch-excel: batch-memory, excel-memory | 새 JVM별 variant 측정, sampled heap 표기, seed/측정 구간·heap 한도 기록; 2개 완료 |
 | D5-4 | mds-distribution: settlement-guard, idempotency | TTL·중복 이벤트·실패 재시도 check, 격리 DB 정리; 2개 완료 |
 | D5-5 | creator-studio: session-rotation, mapping-integrity, post-commit | token/매핑/commit 경계 check, 외부 연동 stub 유지; 3개 완료 |
@@ -219,6 +219,24 @@ FAIL/FAILED이며 예상한 validation 거절과 후속 단계 미실행은 expe
 데스크톱/모바일 캡처를 확인해 긴 관측 원문은 접이식 스크롤 영역으로 표시했다.
 브라우저 스냅샷 검증은 실제 실행/API/reopen 통합 검증과 별도로 기록한 응답을 사용한다.
 [설정·의미·재현 명령](mcp-checks-worker.md)을 따른다.
+
+D5-2 구현·검증 (2026-10-15): Java 21 equity worker에 기존 삭제 서비스·Redis 잠금·등록
+파이프라인을 연결했다. 실행별 controller 소유 MySQL/Redis와 내부 네트워크를 사용하며
+sequence의 프로파일·journal은 유지한다. 등록 파이프라인의 Future 누적을 제한된
+완료 창으로 교체해 최대 진행 청크 수와 실제 제출 대기를 측정한다. 삭제 전체 시간과
+최대 JDBC 단계 시간은 분리하며 후자는 실제 lock 계측이 아닌 트랜잭션 시간 대용 지표다.
+Redis는 CHECK 전용이다. INVALID_ROW는 마지막 행의 오류 문맥, 부분 DB 건수,
+실패 CHECK·REPORT·export를 남기고 증거 완료로 봉인하지 않는다.
+
+검증: Career 전체 136건(미변경 일부 결과 재사용), 루트 324건, 실제 MySQL/Redis를
+쓰는 `equityContainerTest` 7건, frontend 단위 17건·타입 검사·빌드 통과.
+실제 API snapshot 7종 + preset 3종 + 기존 Career 화면 4종의 브라우저 14건이
+실패/건너뜀 없이 통과했다. 375px 표시·가로 넘침과 desktop/mobile 캡처를 확인했다.
+선택 실행인 기존 Career 실서버 브라우저 2건은 이 회귀 대상에서 제외했다.
+각 실행의 schema 거절, 성공/부분 실패, raw/export, worker·의존 자원 제거,
+같은 저장소 재개방 후 메트릭·체크·artifact 일치와 접수 준비 상태를 확인했다.
+테스트 컨테이너·네트워크·이미지 태그를 제거했으며 기본 설정은 비활성이다.
+[설정·측정 범위·재현 명령](equity-worker.md)을 따른다. REPORT 다운로드는 D6 범위다.
 
 ## D6. 관측·artifact 확장과 운영 마무리
 
@@ -246,7 +264,7 @@ FAIL/FAILED이며 예상한 validation 거절과 후속 단계 미실행은 expe
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D5-2: equity-system deletion/redis-lock/registration 연동**이다. D5-1의 MCP architecture/validation 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
+다음 실행 작업은 **D5-3: batch-excel batch-memory/excel-memory 연동**이다. D5-1의 MCP architecture/validation과 D5-2의 equity-system 세 시나리오 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를

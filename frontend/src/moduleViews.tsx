@@ -9,6 +9,15 @@ export const moduleViews: Record<
     introduction?: string;
   }
 > = {
+  'career.equity-system.deletion': {
+    introduction: '임시 MySQL에서 같은 입력을 삭제합니다. AFTER는 복합 인덱스와 5,000행 청크를 사용합니다. 전체 시간과 최대 단일 삭제 단계 시간을 구분하세요. 단일 단계 시간은 트랜잭션 시간의 대용 지표이며 실제 잠금 점유 시간을 직접 측정하지 않습니다. 총시간 단축을 보장하지 않습니다.',
+  },
+  'career.equity-system.redis-lock': {
+    introduction: '실제 Redis에서 토큰 소유권과 TTL을 확인합니다. BEFORE는 다른 소유자의 잠금을 지우는 문제와 TTL 부재를 재현해도 기대와 일치하면 PASS입니다. 소유자 교체는 합성 순서로 주입하며 AFTER의 TTL 만료는 실제 관측합니다.',
+  },
+  'career.equity-system.registration': {
+    introduction: '행당 2ms 합성 대기를 포함한 등록 실험입니다. BEFORE는 고정 배치 1,000행을 순차 처리하므로 chunkSize·workers·maxInFlight는 AFTER와 INVALID_ROW에만 적용됩니다. AFTER는 제한된 청크 창의 최대 크기와 실제 제출 대기를 측정합니다. INVALID_ROW는 마지막 행의 share=101로 실패하며 이미 저장된 청크를 되돌리지 않습니다. 과거 업무 성능 수치로 해석하지 마세요.',
+  },
   'career.mcp-platform.architecture': {
     introduction: '실제 계약 코드와 고의 위반 예제에 같은 ArchUnit 규칙을 적용합니다. VIOLATION은 규칙별 FAIL과 실패 Run을 남기는 데모입니다. FACT 기반 규칙과 NEW-DESIGN 예제를 구분해 확인하세요.',
   },

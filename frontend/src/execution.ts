@@ -5,6 +5,17 @@ export type Draft = {
   parameters: Record<string, string | number | boolean>;
 };
 export const presets: Record<string, Draft[]> = {
+  'career.equity-system.deletion': ['BEFORE', 'AFTER'].map(variant => ({
+    id: 'deletion-' + variant.toLowerCase(), hypothesis: '삭제 건수와 비대상 보존을 확인하고 전체 시간·단일 단계 시간을 비교한다',
+    parameters: { variant, rows: 12000 },
+  })),
+  'career.equity-system.redis-lock': ['BEFORE', 'AFTER'].map(variant => ({
+    id: 'redis-lock-' + variant.toLowerCase(), hypothesis: '지연된 해제와 TTL 정책의 기대 결과를 확인한다', parameters: { variant },
+  })),
+  'career.equity-system.registration': ['BEFORE', 'AFTER', 'INVALID_ROW'].map(variant => ({
+    id: 'registration-' + variant.toLowerCase().replaceAll('_', '-'), hypothesis: '저장 건수와 제한된 청크 실행을 확인한다',
+    parameters: { variant, rows: 200, chunkSize: 20, workers: 2, maxInFlight: 2 },
+  })),
   'career.mcp-platform.architecture': ['COMPLIANT', 'VIOLATION'].map(variant => ({
     id: 'architecture-' + variant.toLowerCase(),
     hypothesis: variant === 'COMPLIANT' ? '실제 계약 코드가 레이어 규칙을 지킨다' : '고의 위반 코드에서 규칙별 FAIL을 확인한다',

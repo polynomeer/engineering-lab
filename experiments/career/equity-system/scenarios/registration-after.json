@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.equity-system.registration",
+  "scenario": {
+    "id": "registration-after",
+    "hypothesis": "FACT-based mechanism with bounded NEW-DESIGN synthetic input"
+  },
+  "parameters": {
+    "variant": "AFTER",
+    "rows": 200,
+    "chunkSize": 20,
+    "workers": 2,
+    "maxInFlight": 2
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

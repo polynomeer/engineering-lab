@@ -367,3 +367,13 @@ recovery is disabled unless explicitly enabled. See the [I5 contract](worker-con
 ## MCP check scenarios
 
 D5-1 adds a separate DB-free Java 21 checks deployment. ArchUnit rules and deliberate violation fixtures live in `checkRuntime`, shared with JUnit but excluded from the ordinary application and sequence jar. The controller registers architecture and validation independently using container resources NONE and separate admission guards. `McpModuleConfiguration` advertises one module containing only enabled scenarios. Check-only registrations omit METRICS presentation; protocol v1 and sequence settings remain compatible. See [checks deployment and semantics](mcp-checks-worker.md).
+
+## Equity scenarios
+
+D5-2 adds one Java 21 equity deployment with three independently guarded registrations.
+The controller owns an internal network plus a bounded MySQL or Redis dependency per Run.
+The worker reuses existing deletion, lock and registration implementations without Docker access.
+Registration uses a bounded completion window and lazy synthetic input; confirmed partial writes
+remain visible on failure. Deletion distinguishes total duration from the longest JDBC step proxy;
+Redis produces checks only. Sequence resource profiles and recovery journals remain unchanged.
+See [deployment, metrics and failure semantics](equity-worker.md).

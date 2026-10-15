@@ -19,6 +19,7 @@
 | 처리량·제한 힙 실험 재현 | [Pipeline benchmark](pipeline-benchmark.md) |
 | 실제 측정값과 원본 증거 | [Pipeline Finding](findings/2026-10-04-pipeline-throughput-heap.md) |
 | 독립 대시보드 실행·화면 | [사용 가이드](standalone-dashboard.md), [개발/검증 명령](../frontend/README.md) |
+| Equity 삭제·잠금·등록 worker 실행·측정·복구 | [Equity worker](equity-worker.md) |
 | 새 실험·모듈 추가 | [확장 가이드](adding-experiments.md) |
 | 독립 프론트엔드·Career Lab 연동 (설계안) | [통합 설계](dashboard-integration-design.md), [이행 계획](dashboard-integration-plan.md) |
 | 기능 경계·실행 모델 설계 | [플랫폼 설계](experiment-platform-design.md) |

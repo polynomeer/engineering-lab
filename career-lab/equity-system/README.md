@@ -101,3 +101,15 @@ src/main/java/com/portfolio/equitylab/
   (`design/mcp-platform-revamp.md` 참고 — 별도 프로젝트로 분리할지 검토)
 - 청크 크기별 "총 처리시간 vs 락 점유 시간" 트레이드오프 곡선
 - JMH 기반 마이크로벤치마크로 전환(현재는 JUnit 타이머 기반의 매크로벤치마크)
+
+## 중앙 대시보드 worker (D5-2)
+
+세 실험의 CONTAINER 실행·CHECK·메트릭·REPORT·부분 실패·export 연동은
+[Equity worker 운영 문서](../../docs/equity-worker.md)를 따른다. `:equity-system:equityWorkerManifest`로
+별도 Java 21 jar와 hash manifest를 만든다. worker 내부에는 Docker client가 없으며
+중앙 controller가 실행별 MySQL/Redis와 네트워크를 관리한다.
+
+등록 파이프라인은 완료된 Future 목록을 입력 크기만큼 보관하지 않고 제한된 창에서
+회수한다. 기존 `register(rows, chunkSize)`의 기본 8 worker/8 청크는 유지한다.
+`registerMeasured`로 설정 가능한 상한과 실제 제출 대기를 측정한다. 행당 2ms는
+기존 합성 지연이며 과거 업무 처리량이 아니다. 실패 시 앞선 청크의 커밋이 남을 수 있다.

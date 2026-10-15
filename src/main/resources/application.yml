@@ -26,6 +26,14 @@ pipeline:
 
 lab:
   career:
+    equity:
+      enabled: false
+      recover-on-startup: false
+      container:
+        image-id: ""
+        artifact-sha256: ""
+        mysql-image-id: ""
+        redis-image-id: ""
     checks:
       enabled: false
       recover-on-startup: false
