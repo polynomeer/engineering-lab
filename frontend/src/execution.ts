@@ -5,6 +5,13 @@ export type Draft = {
   parameters: Record<string, string | number | boolean>;
 };
 export const presets: Record<string, Draft[]> = {
+  ...Object.fromEntries(['batch-memory', 'excel-memory'].map(name => ['career.batch-excel.' + name,
+    ['BEFORE', 'AFTER', 'FAIL_AFTER_MEASUREMENT'].map(variant => ({
+      id: name + '-' + variant.toLowerCase().replaceAll('_', '-'),
+      hypothesis: '같은 seed와 건수를 새 JVM에서 실행하고 sampled heap과 결과 정확성을 확인한다',
+      parameters: { variant, rows: 2001, seed: 42 },
+    })),
+  ])),
   'career.equity-system.deletion': ['BEFORE', 'AFTER'].map(variant => ({
     id: 'deletion-' + variant.toLowerCase(), hypothesis: '삭제 건수와 비대상 보존을 확인하고 전체 시간·단일 단계 시간을 비교한다',
     parameters: { variant, rows: 12000 },

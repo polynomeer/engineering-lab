@@ -9,6 +9,9 @@ export const moduleViews: Record<
     introduction?: string;
   }
 > = {
+  ...Object.fromEntries(['batch-memory', 'excel-memory'].map(name => ['career.batch-excel.' + name, {
+    introduction: '변형마다 새 Java 21 JVM과 임시 MySQL을 사용합니다. 동일한 seed·rows·힙 한도로 비교하세요. 메모리는 20ms 주기와 시작/종료 시점의 heap used 표본이며 실제 최고점·live set·RSS가 아닙니다. GC를 강제하지 않습니다. 앱 시작·seed·결과 검증은 측정에서 제외합니다. FAIL_AFTER_MEASUREMENT는 AFTER 처리와 검증 후 실패를 주입해 부분 증거를 확인하며 배치 재시작 검증은 아닙니다. 합성 입력은 최대 5,000행, JVM heap은 128MiB이며 성능 우위를 보장하지 않습니다.',
+  }])),
   'career.equity-system.deletion': {
     introduction: '임시 MySQL에서 같은 입력을 삭제합니다. AFTER는 복합 인덱스와 5,000행 청크를 사용합니다. 전체 시간과 최대 단일 삭제 단계 시간을 구분하세요. 단일 단계 시간은 트랜잭션 시간의 대용 지표이며 실제 잠금 점유 시간을 직접 측정하지 않습니다. 총시간 단축을 보장하지 않습니다.',
   },

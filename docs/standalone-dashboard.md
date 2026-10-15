@@ -139,3 +139,5 @@ Excel 캡처는 저장소의 생성기로 만든 20행 합성 XLSX를 두 모드
 삭제 전체 시간과 단일 단계 시간은 구분해서 비교한다. Redis BEFORE의 PASS는 문제 재현의
 기대 일치이며 안전성 인증이 아니다. 등록 INVALID_ROW는 실패 Run과 부분 저장 건수를 남긴다.
 실제 측정되지 않은 메트릭은 생략하고, REPORT는 참조 전용으로 표시한다.
+
+[Memory worker](batch-memory-worker.md)를 활성화하면 batch-memory/excel-memory preset을 실행할 수 있다. CHECK에서 seed·측정 구간·heap 한도를 확인하고 원본 관측 표에서 sampled heap을 조회한다. FAIL_AFTER_MEASUREMENT는 작업 후 의도적 실패이며, 남은 측정값을 성공 결과로 해석하지 않는다.

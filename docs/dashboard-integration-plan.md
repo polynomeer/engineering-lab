@@ -199,7 +199,7 @@ D4의 기반 위에서 모듈별로 완료하고 커밋한다. 하네스 변경 
 | --- | --- | --- |
 | D5-1 완료 | mcp-platform: architecture, validation | 정상/고의 위반, 단계별 검증을 CHECK_RESULTS로 표시; 모듈 3개 시나리오 완료 |
 | D5-2 완료 | equity-system: deletion, redis-lock, registration | 단일 삭제 단계 시간(트랜잭션 시간 대용)과 전체 시간 구분, 락 기대 결과, 등록 집계·측정값; 3개 완료 |
-| D5-3 | batch-excel: batch-memory, excel-memory | 새 JVM별 variant 측정, sampled heap 표기, seed/측정 구간·heap 한도 기록; 2개 완료 |
+| D5-3 완료 | batch-excel: batch-memory, excel-memory | 새 JVM별 variant 측정, sampled heap 표기, seed/측정 구간·heap 한도 기록; 2개 완료 |
 | D5-4 | mds-distribution: settlement-guard, idempotency | TTL·중복 이벤트·실패 재시도 check, 격리 DB 정리; 2개 완료 |
 | D5-5 | creator-studio: session-rotation, mapping-integrity, post-commit | token/매핑/commit 경계 check, 외부 연동 stub 유지; 3개 완료 |
 
@@ -238,6 +238,26 @@ Redis는 CHECK 전용이다. INVALID_ROW는 마지막 행의 오류 문맥, 부�
 테스트 컨테이너·네트워크·이미지 태그를 제거했으며 기본 설정은 비활성이다.
 [설정·측정 범위·재현 명령](equity-worker.md)을 따른다. REPORT 다운로드는 D6 범위다.
 
+D5-3 구현 (2026-10-15): 기존 Spring Batch tasklet/chunk와 XSSF/SXSSF를 Java 21
+memory worker로 연결했다. 각 Run은 새 JVM/MySQL에서 같은 seed로 입력을 준비한다.
+20ms 및 경계 heap 샘플은 상수 공간으로 집계하며 명시적 GC를 호출하지 않는다.
+측정 구간·heap 한도·seed를 CHECK/REPORT에 기록하고 결과 행/셀 무결성을 검증한다.
+FAIL_AFTER_MEASUREMENT는 AFTER 작업 후 의도적 최종화 실패이며 batch 재시작 검증이 아니다.
+공통 CareerContainerResources를 추출하되 equity의 기존 자원 프로파일은 유지한다.
+[배포·측정 해석·재현 명령](batch-memory-worker.md)을 따른다.
+
+
+최종 검증 (2026-10-15): `./scripts/career-lab.sh test :batch-excel:memoryWorkerManifest`와
+equity manifest 갱신 후 `./gradlew test memoryContainerTest equityContainerTest`가 성공했다.
+Career 140건(일부 미변경 결과 재사용), 루트 338건, 실제 memory 6건·equity 7건,
+frontend 단위 17건·타입 검사·빌드, 실제 응답 6종·preset 2종·기존 Career 화면 4종의
+브라우저 12건이 모두 통과했다. 선택 실행인 기존 실서버 브라우저 2건은 제외했다.
+375px 가로 넘침 검증과 desktop/mobile 캡처를 확인했다. 브라우저 초기 서버 바인딩
+권한 문제는 권한을 갖춰 재시작해 해소했고, 실제 176자 측정 조건이 접기 대상이라는
+테스트의 잘못된 가정은 관측 원문 전체 표시 검사로 수정했다. 최종 검증은 건너뜀 없이 통과했다.
+
+테스트 소유 worker·의존 컨테이너·network·임시 이미지 제거를 확인하고 Vite 서버를 종료했다. 다른 작업의 Docker 자원은 유지했다.
+
 ## D6. 관측·artifact 확장과 운영 마무리
 
 - [ ] worker에서 지원 가능한 JVM/JFR/log capability를 명시한다. 지원한 기능만 UI에 노출한다.
@@ -264,7 +284,7 @@ Redis는 CHECK 전용이다. INVALID_ROW는 마지막 행의 오류 문맥, 부�
 | 메모리/용량 | 서버 큐·worker pipe·브라우저 보유 point·artifact 상한 |
 | 사용자 문서 | 시작·모듈 선택·실행·비교·다운로드·복구 캡처와 명령 |
 
-다음 실행 작업은 **D5-3: batch-excel batch-memory/excel-memory 연동**이다. D5-1의 MCP architecture/validation과 D5-2의 equity-system 세 시나리오 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
+다음 실행 작업은 **D5-4: mds-distribution settlement-guard/idempotency 연동**이다. D5-1의 MCP architecture/validation과 D5-2의 equity-system 세 시나리오 및 D5-3의 batch-excel 두 시나리오 연동을 완료했다. I1–I5의 컨테이너 실행·자원 소유권·재시작 복구와 D4 실패 주입 요구사항 대조·누락 통합 검증을 완료했다. 나머지 Career 시나리오와 D6 운영·관측·quota·문서 마무리는 별도 범위다.
 
 
 sequence 자원 분리 (2026-10-14): I4 `ContainerWorkerResources`와 `SequenceContainerResources`를

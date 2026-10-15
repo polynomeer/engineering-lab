@@ -96,3 +96,5 @@ python3 scripts/verify-career-modules.py
 ## 확장 완료 판단
 
 새 내장 실험은 module metadata + registration + scenario + 테스트로 추가한다. 새 Career 프로젝트는 디렉터리 + 선언 + 자체 빌드/테스트로 추가한다. 공통 UI/worker 도입 후에는 모듈 이름별 화면·실행 분기 없이 capability와 등록된 panel/executor를 사용해야 한다. 단계별 구현 상태는 [대시보드 이행 계획](dashboard-integration-plan.md)에 기록한다.
+
+Batch/Excel 연동 예제는 [Memory worker](batch-memory-worker.md)를 참고한다. JVM 상태를 비교하는 실험은 variant마다 새 Run을 사용하고 측정 구간과 샘플 한계를 CHECK/REPORT에 명시한다. DB 자원은 controller의 CareerContainerResources 계약을 사용한다.

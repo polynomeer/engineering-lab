@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "experiment": "career.batch-excel.excel-memory",
+  "scenario": {
+    "id": "excel-memory-after",
+    "hypothesis": "Bounded synthetic workload; sampled heap is not true peak or historic performance"
+  },
+  "parameters": {
+    "variant": "AFTER",
+    "rows": 2001,
+    "seed": 42
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

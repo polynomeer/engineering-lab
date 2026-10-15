@@ -22,7 +22,7 @@ Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니
 [모듈별 사용법과 빌드 경계](career-lab/README.md)를 참고하세요.
 아래 빠른 시작과 화면 설명은 루트 실험 플랫폼을 대상으로 합니다.
 Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
-[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, worker 통신·프로세스 실행과 중앙 저장 어댑터, [첫 sequence worker 배포물](career-lab/mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 구현했습니다. 첫 sequence 실험의 [선택적 중앙 API 등록](docs/career-worker-deployment.md)을 지원합니다. architecture/validation도 [DB 없는 checks 컨테이너 worker](docs/mcp-checks-worker.md)로 같은 API와 검증 화면에 연결합니다. equity-system의 deletion/redis-lock/registration은 [전용 equity worker](docs/equity-worker.md)로 연동합니다. [대시보드 실행·검증 결과 화면](docs/standalone-dashboard.md#career-sequence-실행과-검증-결과)도 지원합니다. 종료가 확인된 sequence 실행은 [선택적 서버 시작 시 복구](docs/sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구)를 지원하며, 기본값은 비활성입니다.
+[단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, worker 통신·프로세스 실행과 중앙 저장 어댑터, [첫 sequence worker 배포물](career-lab/mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 구현했습니다. 첫 sequence 실험의 [선택적 중앙 API 등록](docs/career-worker-deployment.md)을 지원합니다. architecture/validation도 [DB 없는 checks 컨테이너 worker](docs/mcp-checks-worker.md)로 같은 API와 검증 화면에 연결합니다. equity-system의 deletion/redis-lock/registration은 [전용 equity worker](docs/equity-worker.md)로 연동합니다. Batch/Excel의 두 memory 실험도 [독립 JVM memory worker](docs/batch-memory-worker.md)로 공통 화면에 연결합니다. [대시보드 실행·검증 결과 화면](docs/standalone-dashboard.md#career-sequence-실행과-검증-결과)도 지원합니다. 종료가 확인된 sequence 실행은 [선택적 서버 시작 시 복구](docs/sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구)를 지원하며, 기본값은 비활성입니다.
 
 별도 실행하는 [독립 대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기존 실행 화면도 계속 제공합니다. [독립·내장 배포와 기존 URL 전환](docs/dashboard-deployment.md)을 지원하며 기본은 기존 화면 유지입니다.
 
@@ -195,6 +195,7 @@ Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata�
 | `pipeline.backpressure.offer-timeout-ms` | 200 | timed offer 대기 |
 | `pipeline.error-preview-limit` | 100 | 메모리에 보유할 오류 행 미리보기 |
 | `pipeline.shutdown-timeout-ms` | 30000 | drain 및 별도 executor 종료 대기 |
+| `lab.career.memory.enabled` | `false` | batch/excel CONTAINER 등록; worker/MySQL image ID와 jar hash 필수 ([설정](docs/batch-memory-worker.md)) |
 | `lab.career.equity.enabled` | `false` | equity 세 시나리오 CONTAINER 등록; worker/MySQL/Redis image ID와 jar hash 필수 ([설정](docs/equity-worker.md)) |
 | `lab.career.checks.enabled` | `false` | architecture/validation CONTAINER 등록; 고정 image ID/jar hash 필수 ([설정](docs/mcp-checks-worker.md)) |
 | `lab.career.checks.recover-on-startup` | `false` | checks v2 기록을 검증해 시작 시 복구 |

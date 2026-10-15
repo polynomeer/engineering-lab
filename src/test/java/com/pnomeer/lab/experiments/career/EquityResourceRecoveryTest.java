@@ -20,7 +20,7 @@ abstract class EquityResourceRecoveryTest {
     final String name = "engineering-lab-"+namespace()+"-net-" + token;
     final Fake docker = new Fake();
     Path journal;
-    EquityContainerResources resources() { return new EquityContainerResources(image, namespace().equals("equity-redis"), docker::run); }
+    CareerContainerResources resources() { return new EquityContainerResources(image, namespace().equals("equity-redis"), docker::run); }
     void fixture() throws Exception {
         journal = Files.createDirectory(root.resolve(namespace()+"-resources"));
         var intent = WireJson.object().put("version",1).put("profile",namespace()+"-network-v1").put("engineId","engine")

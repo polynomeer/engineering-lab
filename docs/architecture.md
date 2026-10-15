@@ -377,3 +377,5 @@ Registration uses a bounded completion window and lazy synthetic input; confirme
 remain visible on failure. Deletion distinguishes total duration from the longest JDBC step proxy;
 Redis produces checks only. Sequence resource profiles and recovery journals remain unchanged.
 See [deployment, metrics and failure semantics](equity-worker.md).
+
+D5-3 adds a Java 21 batch-excel memory worker with one fresh JVM/MySQL per variant. Existing jobs and exporters are reused; a constant-space sampler records heap used without explicit GC around work only. Controller resource ownership is shared in CareerContainerResources; equity namespaces, profiles and environment contracts remain unchanged. Batch uses its own journal/profile. See [measurement and deployment contracts](batch-memory-worker.md).

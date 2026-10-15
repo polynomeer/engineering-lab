@@ -131,6 +131,7 @@ tasks.register('careerSequenceTest', Test) {
     exclude '**/SequenceContainerIntegrationTest*'
     exclude '**/ChecksContainerIntegrationTest*'
     exclude '**/EquityContainerIntegrationTest*'
+    exclude '**/MemoryContainerIntegrationTest*'
     systemProperty 'lab.worker.java', javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }.get().executablePath.asFile.absolutePath
     def manifest = file('career-lab/mcp-platform/build/libs/sequence-worker-manifest.json')
     inputs.file(manifest)
@@ -232,5 +233,21 @@ tasks.register('equityContainerTest', Test) {
     inputs.files(fileTree('career-lab/equity-system/build/libs') { include '*-equity-worker.jar' })
     systemProperty 'lab.equity.manifest', manifest.absolutePath
     systemProperty 'lab.equity.evidence', file('build/verification/d5-2').absolutePath
+    outputs.upToDateWhen { false }
+}
+
+// D5-3 module gate: real MySQL, protocol evidence and same-store reopen.
+tasks.register('memoryContainerTest', Test) {
+    group = 'verification'
+    description = 'Verify batch and Excel memory in isolated containers.'
+    testClassesDirs = sourceSets.careerTest.output.classesDirs
+    classpath = sourceSets.careerTest.runtimeClasspath
+    useJUnitPlatform()
+    include '**/MemoryContainerIntegrationTest.class'
+    def manifest = file('career-lab/batch-excel/build/libs/memory-worker-manifest.json')
+    inputs.file(manifest)
+    inputs.files(fileTree('career-lab/batch-excel/build/libs') { include '*-memory-worker.jar' })
+    systemProperty 'lab.memory.manifest', manifest.absolutePath
+    systemProperty 'lab.memory.evidence', file('build/verification/d5-3').absolutePath
     outputs.upToDateWhen { false }
 }

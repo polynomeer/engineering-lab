@@ -34,3 +34,5 @@
 - API 변경은 사용 가이드와 API 참조를 함께 확인합니다. 화면 변경은 [캡처 재현 정보](user-guide.md#캡처-재현-정보)에 따라 실제 앱을 실행해 필요한 이미지와 설명을 교체합니다.
 - 캡처는 합성 데이터로 작성하며 원본 Run 증거를 대신하지 않습니다. 성능 주장은 Finding의 입력·코드·환경·반복 조건과 원본 export로 추적합니다.
 - 문서만 바뀌어도 `./gradlew test`, 링크/이미지와 diff 확인 후 작업 단위로 커밋합니다.
+
+- [Batch / Excel memory worker](batch-memory-worker.md): D5-3 배포, sampled heap 해석, 실패 증거와 검증

@@ -148,3 +148,7 @@ src/test/java/com/portfolio/batchlab/
 - JFR(Java Flight Recorder) 기반 측정으로 전환해 `MemoryUsageProbe`의 `System.gc()`
   의존도를 낮추기
 - chunk size·SXSSF window size를 바꿔가며 메모리/처리시간 트레이드오프 곡선 그리기
+
+## 대시보드 worker (D5-3)
+
+[Memory worker 가이드](../../docs/batch-memory-worker.md)에 따라 두 실험을 중앙 API/화면에 등록할 수 있습니다. 기존 benchmark와 달리 variant마다 새 JVM에서 명시적 GC 없이 sampled heap을 측정합니다.
