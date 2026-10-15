@@ -74,6 +74,13 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
             long interval, int samples, boolean traceEnabled, int spans, JfrRecorder jfr, RunLogRecorder logs,
             Map<String, String> modules, List<? extends WorkerRegistration> workers) {
+        return configured(store, provenance, options, previewLimit, maxActiveRuns, jvmProbe, interval, samples,
+                traceEnabled, spans, jfr, logs, modules, workers, null);
+    }
+    public static DurableExperimentRunner configured(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
+            long interval, int samples, boolean traceEnabled, int spans, JfrRecorder jfr, RunLogRecorder logs,
+            Map<String, String> modules, List<? extends WorkerRegistration> workers, WorkerStorageBudget budget) {
         var registrations = new HashMap<String, ExperimentExecutors.Registration>();
         var bindings = new HashMap<String, ExperimentExecutors.Binding>();
         var definitions = new HashMap<String, RunExecution.Definition>();
@@ -82,7 +89,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         modules.forEach((id, module) -> definitions.put(id, new RunExecution.Definition(RunExecution.Kind.IN_PROCESS,
                 module, 0, RunExecution.MeasurementScope.CONTROLLER_PROCESS)));
         for (var worker : workers) {
-            if (registrations.putIfAbsent(worker.id(), new ExperimentExecutors.Registration(worker.executor(), 1)) != null)
+            if (registrations.putIfAbsent(worker.id(), new ExperimentExecutors.Registration(budget == null ? worker.executor() : budget.wrap(worker.executor()), 1)) != null)
                 throw new IllegalArgumentException("Duplicate worker registration");
             for (String id : worker.experiments()) {
                 if (!worker.moduleId().equals(modules.get(id)) || bindings.putIfAbsent(id,

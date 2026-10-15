@@ -387,3 +387,12 @@ D5-4 adds a check-only Java 21 MDS worker for settlement guards and message idem
 ## Creator scenarios
 
 D5-5 adds a check-only Java 21 Creator worker, with isolated Redis for session rotation and MySQL for mapping/post-commit scenarios. It uses unchanged controller resource ownership contracts. Refresh consumption and token rotation share one Lua invocation; explicit transfer updates only the selected creator’s programs with mapping/history in one transaction. Worker-only bounded recording clients inspect existing asynchronous listeners after draining their executor. External integrations remain stubs; no outbox or crash durability is claimed. See [Creator contracts](creator-worker.md).
+
+## Worker retained storage admission (D6)
+
+A controller-wide WorkerStorageBudget wraps registered worker executors. Preflight and execution
+admission scan retained workspace/report bytes with bounded entry count/depth; synchronized leases
+reserve headroom across callers. No cleanup is inferred from quota rejection. This is an admission
+budget, not a filesystem hard quota, and excludes H2/uploads/controller captures and Docker volumes.
+Managed REPORT downloads reuse the secure snapshot/hash verification used for JFR/logs.
+See [operating limits](dashboard-operations.md).

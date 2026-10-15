@@ -45,7 +45,7 @@ class CreatorContainerIntegrationTest {
     }
     private MockMvc mvc(ConfigurableApplicationContext app) {
         return MockMvcBuilders.standaloneSetup(app.getBean(ScenarioRunController.class), app.getBean(ExecutionEvidenceController.class),
-                app.getBean(DashboardCatalogController.class), app.getBean(ExperimentCatalogController.class))
+                app.getBean(DashboardCatalogController.class), app.getBean(ExperimentCatalogController.class), app.getBean(ArtifactDownloadController.class))
                 .setControllerAdvice(new ScenarioExceptionHandler()).build();
     }
     @ParameterizedTest @CsvSource({"session-rotation,BEFORE,SUCCEEDED,3","session-rotation,AFTER,SUCCEEDED,6",
@@ -129,6 +129,10 @@ class CreatorContainerIntegrationTest {
             var api = mvc(app);
             api.perform(get("/dashboard/v1/runs/" + id + "/checks")).andExpect(status().isOk()).andExpect(jsonPath("$.checks.length()").value(count));
             assertEquals(status == RunStatus.SUCCEEDED,store.execution(id).orElseThrow().evidenceComplete());
+            var artifact = store.artifacts(id).getFirst();
+            api.perform(get("/runs/" + id + "/artifacts/" + artifact.artifactId() + "/download"))
+                    .andExpect(status().isOk()).andExpect(content().bytes(Files.readAllBytes(root.resolve(artifact.relativePath()))))
+                    .andExpect(header().string("X-Artifact-SHA256", artifact.sha256()));
             assertTrue(app.getBeansOfType(ContainerWorkerRegistration.class).values().stream().allMatch(w -> w.readiness().get().ready()));
         }
     }

@@ -25,6 +25,10 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  worker-storage:
+    max-bytes: 1073741824
+    reservation-bytes: 134217728
+    max-entries: 100000
   career:
     creator:
       enabled: false

@@ -36,12 +36,14 @@ const readinessLabels: Record<string, string> = {
 export function ExecutionReadiness({ id, children }: { id: string; children: ReactNode }) {
   const [state, setState] = useState('');
   const [error, setError] = useState('');
+  const [observation, setObservation] = useState<string[] | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setState('');
+    setObservation(null);
     setError('');
-    get<{ readiness: string; executionKind: string }>(
+    get<{ readiness: string; executionKind: string; capabilities?: Record<string, boolean> }>(
       `/dashboard/v1/experiments/${encodeURIComponent(id)}`,
       controller.signal,
       75000,
@@ -49,7 +51,11 @@ export function ExecutionReadiness({ id, children }: { id: string; children: Rea
       .then((value) => {
         if (!value || typeof value.readiness !== 'string' || !value.readiness)
           throw new Error('준비 상태 응답을 확인할 수 없습니다. 다시 확인하세요.');
-        if (!controller.signal.aborted) setState(value.readiness);
+        if (!controller.signal.aborted) {
+          setState(value.readiness);
+          if (value.capabilities) setObservation(Object.entries({ jvmObservation: 'JVM 주기 관측', trace: 'Trace', jfr: 'JFR', runLogs: 'Run log' })
+            .filter(([key]) => value.capabilities?.[key] === true).map(([, label]) => label));
+        }
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -65,6 +71,7 @@ export function ExecutionReadiness({ id, children }: { id: string; children: Rea
             ? '준비 상태 확인 실패'
             : '실행 환경 확인 중… 최대 75초가 걸릴 수 있습니다.'}
       </p>
+      {state && <p>지원 관측: {observation === null ? '서버가 제공하지 않음' : observation.length ? observation.join(' · ') : '추가 수집 없음 (실행 결과의 worker 환경·CHECK·등록된 metric은 별도)'}</p>}
       {error && (
         <p role="alert" className="error">
           {error}

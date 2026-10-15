@@ -50,7 +50,7 @@ test(kind + ' readiness blocks execution and retry preserves draft', async ({ pa
   await fixtureCatalog(page, kind);
   let state = 'DOCKER_UNAVAILABLE';
   await page.route('**/api/dashboard/v1/experiments/' + experiment, (route) =>
-    route.fulfill({ json: { readiness: state, executionKind: kind } }),
+    route.fulfill({ json: { readiness: state, executionKind: kind, capabilities: { jfr: false, runLogs: false, jvmObservation: false, trace: false } } }),
   );
   await page.goto(path);
   const submit = page.getByRole('button', { name: '실험 실행', exact: true });
@@ -59,6 +59,7 @@ test(kind + ' readiness blocks execution and retry preserves draft', async ({ pa
   state = 'READY';
   await page.getByRole('button', { name: '준비 상태 다시 확인' }).click();
   await expect(submit).toBeEnabled();
+  await expect(page.getByText('지원 관측: 추가 수집 없음', { exact: false })).toBeVisible();
   await page.getByLabel('시나리오 ID').fill('keep-my-draft');
   await page.getByRole('button', { name: '준비 상태 다시 확인' }).click();
   await expect(submit).toBeEnabled();
