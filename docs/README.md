@@ -44,3 +44,5 @@
 - [통합 대시보드 운영](dashboard-operations.md): D6 관측·REPORT 다운로드·용량 제한·배포·복구·전환 parity
 
 - [전체 모듈 로컬 배포·인수 검증](local-deployment.md): 고정 배포물 준비, 기동, 13개 시나리오와 실패·재시작 검증
+
+- [macOS 상시 실행](local-service.md): LaunchAgent 설치·자동 재기동·중지·제거와 소유권 검증

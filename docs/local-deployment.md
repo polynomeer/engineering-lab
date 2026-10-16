@@ -142,3 +142,5 @@ DASHBOARD_URL=http://127.0.0.1:4188 CAREER_REOPEN_IDS='<before-id>,<atomic-id>' 
 의도적 post-commit 재시도 소진의 FAILED·부분 증거·다운로드:
 
 ![배포 실패 증거와 REPORT](images/25-local-deployment-failure.png)
+
+로그인 시 자동 기동·프로세스 종료 후 재기동은 [macOS 상시 실행 가이드](local-service.md)를 따른다.
