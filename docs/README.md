@@ -48,3 +48,5 @@
 - [macOS 상시 실행](local-service.md): LaunchAgent 설치·자동 재기동·중지·제거와 소유권 검증
 
 - [백업·복원 자동화](local-backup.md): 정기 백업·최근 백업 보존·hash 검증·별도 저장소 복원
+
+- [릴리스 기록 v0.1.0](releases/v0.1.0.md): 포함 기능·검증 범위·업그레이드·운영 제한

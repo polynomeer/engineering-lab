@@ -310,3 +310,5 @@ controller가 worker·DB·전용 네트워크를 회수하고, opt-in 재시작 
 D6의 [통합 대시보드 운영 가이드](docs/dashboard-operations.md)는 worker 관측 범위, 관리 REPORT 다운로드, workspace 접수 예산, 빌드·시작·정지·복구와 구화면 parity를 정리합니다.
 
 다섯 Career 모듈을 함께 활성화하려면 [전체 모듈 로컬 배포·인수 검증](docs/local-deployment.md)의 준비·시작 스크립트를 사용합니다. 빌드 산출물과 image ID/hash를 고정하고 별도 저장소에 결과를 보존합니다.
+
+릴리스별 변경과 검증 범위는 [CHANGELOG](CHANGELOG.md)와 [v0.1.0 릴리스 기록](docs/releases/v0.1.0.md)을 참고하세요.
