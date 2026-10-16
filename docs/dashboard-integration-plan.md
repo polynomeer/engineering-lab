@@ -394,3 +394,13 @@ Career 첫 전체 실행은 기존 MySQL 초기화 지연으로 1건 실패했�
 배포 3개를 재실행해 통과했다. worker-support 55개와 나머지 모듈 결과를 합쳐 Career 125개를
 확인했다. 구체적인 명령·실패 이력·검증 한계는 검증 표에 기록했다. 최종 조회에서 시험
 worker·생성용 컨테이너·임시 이미지가 없었고 기존 다른 세션의 MySQL은 보존했다.
+
+## D6 이후 실제 로컬 배포 인수 — 2026-10-16
+
+고정 controller/frontend와 여섯 worker 이미지로 engineering 3개·Career 5개 모듈을
+동시에 활성화했다. Career 정상 13개와 의도적 실패 4개의 CHECK 67개·REPORT 17개,
+서버 정상 재시작 후 동일 증거/hash 보존을 검증했다. 실제 sequence 실행/비교와
+재시작 browser를 포함해 기존 화면·다운로드 인수를 완료했다. catalog 테스트의
+고정 3개 모듈 가정도 확장 배포에 맞게 수정하고 재검증했다.
+[재현 명령·결과·캡처](local-deployment.md)를 따른다. 범위는 단일 호스트 loopback
+배포이며 외부 공개 서비스, 자동 보존 정책, 볼륨 hard quota 도입은 포함하지 않는다.

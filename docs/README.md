@@ -42,3 +42,5 @@
 - [Creator worker](creator-worker.md): 세션 교체, 매핑 무결성, post-commit stub과 실패 증거
 
 - [통합 대시보드 운영](dashboard-operations.md): D6 관측·REPORT 다운로드·용량 제한·배포·복구·전환 parity
+
+- [전체 모듈 로컬 배포·인수 검증](local-deployment.md): 고정 배포물 준비, 기동, 13개 시나리오와 실패·재시작 검증

@@ -147,7 +147,9 @@ test('extension catalog and legacy comparison work together against the new serv
   expect(caps.features.localJvm).toBe(false);
   expect(caps.features.executionEvidence).toBe(true);
   const modules = await (await request.get('/api/dashboard/v1/modules')).json();
-  expect(modules).toHaveLength(3);
+  expect(modules.map((m: { module: { id: string } }) => m.module.id)).toEqual(
+    expect.arrayContaining(['pipeline', 'concurrency', 'io']),
+  );
   expect(modules.every((m: { readiness: string }) => m.readiness === 'READY')).toBe(true);
   const extension = await (await request.get('/api/dashboard/v1/experiments/concurrency.queue-contention')).json();
   expect(extension.moduleId).toBe('concurrency');

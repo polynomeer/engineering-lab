@@ -38,3 +38,6 @@ out/
 
 # Local experiment evidence
 .lab/
+
+# Python tooling cache
+scripts/__pycache__/
