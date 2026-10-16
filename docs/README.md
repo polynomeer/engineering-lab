@@ -46,3 +46,5 @@
 - [전체 모듈 로컬 배포·인수 검증](local-deployment.md): 고정 배포물 준비, 기동, 13개 시나리오와 실패·재시작 검증
 
 - [macOS 상시 실행](local-service.md): LaunchAgent 설치·자동 재기동·중지·제거와 소유권 검증
+
+- [백업·복원 자동화](local-backup.md): 정기 백업·최근 백업 보존·hash 검증·별도 저장소 복원

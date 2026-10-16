@@ -126,3 +126,9 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 4. 이전 서버로 되돌릴 때는 v3 DB를 그대로 열지 않는다. 필요한 새 Run의 기존 API export와 v3 저장 디렉터리 원본을 별도 보존하고 앱을 종료한다. 신규 `/dashboard/v1/runs/{id}/export`는 execution/check를 포함하지만 기존 `/runs/{id}/export`는 포함하지 않는다. export는 DB 복원 도구가 아니므로 **v3 DB 자체도 반드시 보관**한다.
 5. 별도의 빈 저장 디렉터리에 업데이트 전 전체 복사본을 복원하고 이전 서버의 storage root로 지정한다. 자동 DB 백업을 사용할 경우 ZIP의 `runs.mv.db`를 빈 디렉터리에 풀고, 백업 시점에 대응하는 artifact 파일도 전체 복사본에서 복원한다. 현재 DB 위에 실행 중 덮어쓰거나 schema version 숫자만 낮추지 않는다.
 6. 이전 서버에서 기존 Run·metric·dead-letter·artifact를 확인한다. v3 이행 뒤 생성된 Run은 v2 백업에 없으므로 보존한 v3 원본은 삭제하지 않는다. 자동 복원 테스트는 ZIP을 별도 위치에 풀어 schema 2와 원시 증거 일치를 확인한다.
+
+## 운영 배포의 자동 백업
+
+고정 로컬 배포와 LaunchAgent를 사용하는 경우 [백업·복원 자동화](local-backup.md)의
+정기 snapshot을 사용할 수 있다. 서비스 정지·저장소 잠금·DB와 artifact 동시 복사·hash
+검증·서비스 재개를 묶으며, 복원은 기존 저장소를 덮어쓰지 않는 새 경로에만 허용한다.

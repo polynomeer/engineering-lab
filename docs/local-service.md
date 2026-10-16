@@ -97,3 +97,6 @@ test ! -e "$service_archive" && \
 이전 설치 로그는 `services-archive-20261016/`, 최종 서비스 로그는 `services/`에 있다.
 로그인 자동 실행은 plist의 RunAtLoad/KeepAlive와 실제 bootstrap으로 확인했다.
 사용자 세션을 종료하거나 호스트를 재부팅하는 시험은 수행하지 않았다.
+
+정기 백업과 서비스 정지/재개의 연계는 [백업·복원 자동화](local-backup.md)를 따른다.
+서비스 제거·배포 교체 전에 백업 예약도 제거한다.
