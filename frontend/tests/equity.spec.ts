@@ -20,6 +20,7 @@ for (const name of ['deletion-before', 'deletion-after', 'redis-lock-before', 'r
     await page.route('**/api/dashboard/v1/runs/' + id + '/execution', r => r.fulfill({ json: snapshot.execution }));
     await page.route('**/api/dashboard/v1/runs/' + id + '/checks?*', r => r.fulfill({ json: snapshot.checks }));
     await page.goto('/app/runs/' + id);
+    await page.getByRole('button', { name: '전체', exact: true }).click();
     const table = page.getByRole('table', { name: '기대값과 관측값' });
     await expect(table.getByRole('row')).toHaveCount(snapshot.checks.checks.length + 1);
     await expect(table.getByRole('cell', { name: 'FAIL', exact: true })).toHaveCount(name === 'registration-invalid-row' ? 2 : 0);

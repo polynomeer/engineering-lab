@@ -1,4 +1,14 @@
-import { WorkerEvidence } from './WorkerEvidence';
+import {
+  CubeIcon,
+  PlayIcon,
+  ReaderIcon,
+  BarChartIcon,
+  GearIcon,
+  ArchiveIcon,
+  LightningBoltIcon,
+} from '@radix-ui/react-icons';
+import { WorkerEvidence, type Execution } from './WorkerEvidence';
+import { RecentRuns } from './RecentRuns';
 import { capabilities as parseCapabilities } from './capabilities';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -178,7 +188,15 @@ function App() {
     document.addEventListener('visibilitychange', visible);
     return () => document.removeEventListener('visibilitychange', visible);
   }, []);
-  const [detailView, setDetailView] = useState('overview');
+  const [pageStatus, setPageStatus] = useState('all');
+  const [selectedView, setDetailView] = useState('auto');
+  const [execution, setExecution] = useState<Execution | null>(null);
+  const detailView =
+    selectedView === 'auto'
+      ? execution?.execution?.definition.measurementScope === 'CHECK_RESULTS'
+        ? 'checks'
+        : 'overview'
+      : selectedView;
   useEffect(() => {
     const desktop = window.matchMedia('(min-width: 1024px)');
     const restoreDesktopNavigation = () => {
@@ -189,6 +207,57 @@ function App() {
     return () => desktop.removeEventListener('change', restoreDesktopNavigation);
   }, []);
   const DetailPanel = run && moduleViews[run.experimentType]?.detail;
+  const metricContent = run && (
+    <>
+      <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}>
+        <h2 id="run-metrics">결과 요약</h2>
+        {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length > 0 && (
+          <Table
+            label="원본 metric 이름과 값"
+            headers={['측정값', '종류', '값']}
+            rows={[
+              ...Object.entries(run.summary.counters).map(([k, v]) => [k, 'counter', format(v)]),
+              ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
+            ]}
+          />
+        )}
+        <Raw label="결과 상세" value={run.summary.details} />
+      </section>
+      <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}>
+        <h2>관측 기록</h2>
+        {metrics.metrics.length === 0 && after === -1 && metrics.nextAfter === null ? (
+          <p>
+            이 페이지에 측정값이 없습니다. 검증 실험은 위의 검증 결과와 실행·검증 내보내기를
+            확인하세요.
+          </p>
+        ) : (
+          <>
+            <Table
+              label="원본 관측 · 한 페이지씩 조회"
+              headers={['순서 / 시각', '관측값']}
+              rows={metrics.metrics.map((m) => [
+                <>
+                  {m.sequence}
+                  <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
+                </>,
+                <pre>{format(m.point)}</pre>,
+              ])}
+            />
+            <div className="actions">
+              <button onClick={() => setAfter(-1)} disabled={loading}>
+                첫 관측
+              </button>
+              {metrics.nextAfter !== null && (
+                <button disabled={loading} onClick={() => setAfter(metrics.nextAfter!)}>
+                  다음 관측
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+    </>
+  );
   const groups = modules.length
     ? modules
     : [
@@ -208,49 +277,98 @@ function App() {
       </a>
       <div className="layout">
         <aside className="sidebar">
-          <a className="sidebar-brand" href="/app/runs">Engineering Lab<small>EXPERIMENT OBSERVATORY</small></a>
-          <details className="navigation-drawer" open onKeyDown={(event) => {
-            if (event.key === 'Escape' && window.innerWidth < 1024) {
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector('summary')?.focus();
-            }
-          }}>
+          <a className="sidebar-brand" href="/app/runs">
+            <CubeIcon width={24} height={24} aria-hidden="true" />
+            Engineering Lab<small>EXPERIMENT OBSERVATORY</small>
+          </a>
+          <details
+            className="navigation-drawer"
+            open
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && window.innerWidth < 1024) {
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector('summary')?.focus();
+              }
+            }}
+          >
             <summary>메뉴</summary>
             <nav aria-label="대시보드 탐색">
-              <a href="/app/experiments" aria-current={route.kind === 'execute' ? 'page' : undefined}>실험 실행</a>
-              <a href="/app/runs" aria-current={['list', 'detail'].includes(route.kind) ? 'page' : undefined}>실행 기록</a>
-              <a href="/app/compare" aria-current={route.kind === 'compare' ? 'page' : undefined}>Run 비교</a>
-              <a href="/app/tools/ingestion-db">현재 DB 조회</a>
-              <a href="/app/tools/io-echo">IO 단건 데모</a>
-              <a href="/app/settings">설정 이전</a>
+              <a
+                href="/app/experiments"
+                aria-current={route.kind === 'execute' ? 'page' : undefined}
+              >
+                <PlayIcon width={18} height={18} aria-hidden="true" />
+                실험 실행
+              </a>
+              <a
+                href="/app/runs"
+                aria-current={['list', 'detail'].includes(route.kind) ? 'page' : undefined}
+              >
+                <ReaderIcon width={18} height={18} aria-hidden="true" />
+                실행 기록
+              </a>
+              <a href="/app/compare" aria-current={route.kind === 'compare' ? 'page' : undefined}>
+                <BarChartIcon width={18} height={18} aria-hidden="true" />
+                Run 비교
+              </a>
+              <a href="/app/tools/ingestion-db">
+                <ArchiveIcon width={18} height={18} aria-hidden="true" />
+                현재 DB 조회
+              </a>
+              <a href="/app/tools/io-echo">
+                <LightningBoltIcon width={18} height={18} aria-hidden="true" />
+                IO 단건 데모
+              </a>
+              <a href="/app/settings">
+                <GearIcon width={18} height={18} aria-hidden="true" />
+                설정 이전
+              </a>
             </nav>
-          <p className="eyebrow">EXPERIMENT CATALOG</p>
-          <a href="/app/runs?experiment=">모든 실행</a>
-          {groups.map((group) => (
-            <section key={group.module.id}>
-              <h2>{group.module.title}</h2>
-              <small>{group.module.collection}</small>
-              {group.experiments.map((item) => (
-                <a
-                  key={item.id}
-                  aria-current={(route.query.get('experiment') ?? run?.experimentType) === item.id ? 'page' : undefined}
-                  href={'/app/experiments?experiment=' + encodeURIComponent(item.id)}
-                >
-                  {item.title}
-                </a>
-              ))}
-            </section>
-          ))}
+            <p className="eyebrow">EXPERIMENT CATALOG</p>
+            <a href="/app/runs?experiment=">모든 실행</a>
+            {groups.map((group) => (
+              <section className="catalog-group" key={group.module.id}>
+                <h2>{group.module.title}</h2>
 
-          <a href={new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href}>기존 실험 실행 ↗</a>
-          <p className="note">서버에 등록된 모듈만 표시됩니다.</p>
+                {group.experiments.map((item) => (
+                  <a
+                    key={item.id}
+                    aria-current={
+                      (route.query.get('experiment') ?? run?.experimentType) === item.id
+                        ? 'page'
+                        : undefined
+                    }
+                    href={'/app/experiments?experiment=' + encodeURIComponent(item.id)}
+                  >
+                    {item.title}
+                  </a>
+                ))}
+              </section>
+            ))}
+
+            <a
+              href={
+                new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href
+              }
+            >
+              기존 실험 실행 ↗
+            </a>
+            <p className="note">서버에 등록된 모듈만 표시됩니다.</p>
           </details>
-          <p className="connection-status">{bootstrapError ? 'API 연결 확인 필요' : loading ? 'API 확인 중' : 'API 조회 완료'}<small>등록된 기능과 기록된 환경을 표시합니다.</small></p>
+          <p className="connection-status">
+            {bootstrapError ? 'API 연결 확인 필요' : loading ? 'API 확인 중' : 'API 조회 완료'}
+            <small>등록된 기능과 기록된 환경을 표시합니다.</small>
+          </p>
         </aside>
         <main id="content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">ENGINEERING LAB / {run?.experimentType ?? "WORKSPACE"}</p>
+              <p className="eyebrow breadcrumb">
+                Engineering Lab <span>/</span>{' '}
+                {catalog.find((item) => item.id === run?.experimentType)?.title ??
+                  run?.experimentType ??
+                  'Workspace'}
+              </p>
               <h1>
                 {route.kind === 'settings'
                   ? '설정 이전'
@@ -269,10 +387,22 @@ function App() {
                               : '실행 기록'}
               </h1>
             </div>
-            <div className="heading-actions"><a className="primary-action" href="/app/experiments">새 실험 실행</a>
-            <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
-              새로고침
-            </button></div>
+            <div className="heading-actions">
+              {run && (
+                <a
+                  className="secondary-action"
+                  href={'/app/compare?baseline=' + encodeURIComponent(run.runId)}
+                >
+                  Run 비교
+                </a>
+              )}
+              <a className="primary-action" href="/app/experiments">
+                새 실험 실행
+              </a>
+              <button onClick={() => setRefresh((n) => n + 1)} disabled={loading}>
+                새로고침
+              </button>
+            </div>
           </div>
           {legacy && <p className="note">기존 API 호환 모드 · 공통 실행·조회 API를 사용합니다.</p>}
           <p role="status" className="status">
@@ -305,20 +435,54 @@ function App() {
           {route.kind === 'missing' && <a href="/app/runs">실행 기록으로 돌아가기</a>}
           {route.kind === 'list' && (
             <>
-              <p>입력과 환경을 확인하고, 같은 조건의 실행을 비교하세요.</p>
+              <div className="history-toolbar">
+                <form action="/app/runs">
+                  <label>
+                    실험 필터
+                    <select name="experiment" defaultValue={route.query.get('experiment') ?? ''}>
+                      <option value="">전체 실험</option>
+                      {catalog.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit">기록 조회</button>
+                </form>
+                <label>
+                  현재 페이지 상태
+                  <select value={pageStatus} onChange={(e) => setPageStatus(e.target.value)}>
+                    <option value="all">전체 상태</option>
+                    <option value="RUNNING">실행 중</option>
+                    <option value="SUCCEEDED">성공</option>
+                    <option value="FAILED">실패</option>
+                  </select>
+                </label>
+              </div>
+              <p className="note">입력과 환경을 확인하고, 같은 조건의 실행을 비교하세요.</p>
               <Table
                 label="저장된 실행 · 최신순"
                 headers={['시나리오 / Run ID', '실험', '상태', '생성 시각']}
-                rows={page.runs.map((r) => [
-                  <>
-                    <a href={runLink(r.runId)}>{r.scenarioId}</a>
-                    <small>{r.runId}</small>
-                  </>,
-                  r.experimentType,
-                  <Badge run={r} />,
-                  new Date(r.createdAtEpochMs).toLocaleString(),
-                ])}
+                rows={page.runs
+                  .filter((r) => pageStatus === 'all' || r.status === pageStatus)
+                  .map((r) => [
+                    <>
+                      <a href={runLink(r.runId)}>{r.scenarioId}</a>
+                      <small>{r.runId}</small>
+                    </>,
+                    r.experimentType,
+                    <Badge run={r} />,
+                    new Date(r.createdAtEpochMs).toLocaleString(),
+                  ])}
               />
+              {!loading &&
+                !error &&
+                pageStatus !== 'all' &&
+                page.runs.length > 0 &&
+                !page.runs.some((item) => item.status === pageStatus) && (
+                  <p>현재 페이지에 선택한 상태의 실행이 없습니다.</p>
+                )}
               {!loading && !error && !page.runs.length && (
                 <p>
                   이 페이지에 저장된 실행이 없습니다. 실험 실행 화면이나 CLI에서 실험을 실행하세요.
@@ -354,111 +518,123 @@ function App() {
           {route.kind === 'detail' && run && (
             <>
               <section className="run-strip" aria-label="선택한 실행">
-                <Badge run={run} /><h2>{run.scenarioId}</h2><span className="mono">{run.runId}</span>
-                <small>{run.experimentType}</small>
+                <Badge run={run} />
+                <h2>{run.scenarioId}</h2>
+                <span className="mono" title={run.runId}>
+                  {run.runId}
+                </span>
+                {run.completedAtEpochMs && run.startedAtEpochMs ? (
+                  <span className="duration">
+                    {((run.completedAtEpochMs - run.startedAtEpochMs) / 1000).toFixed(2)} s
+                  </span>
+                ) : null}
+                {execution?.execution && (
+                  <span className="badge">
+                    {execution.execution.evidenceComplete ? '증거 완료' : '부분 증거'}
+                  </span>
+                )}
               </section>
               <div className="result-tabs" aria-label="결과 보기">
-                {[['overview', '전체'], ['checks', '검증 결과'], ['metrics', '메트릭'], ['environment', '실행 환경'], ['artifacts', '아티팩트']].map(([id, title]) =>
-                  <button key={id} disabled={id === 'checks' && !features.checksRead} aria-pressed={detailView === id} onClick={() => setDetailView(id)}>{title}</button>)}
+                {[
+                  ['overview', '전체'],
+                  ['checks', '검증 결과'],
+                  ['metrics', '메트릭'],
+                  ['environment', '실행 환경'],
+                  ['artifacts', '아티팩트'],
+                ].map(([id, title]) => (
+                  <button
+                    key={id}
+                    disabled={id === 'checks' && !features.checksRead}
+                    aria-pressed={detailView === id}
+                    onClick={() => setDetailView(id)}
+                  >
+                    {title}
+                  </button>
+                ))}
               </div>
-              <Actions run={run} />
+              <div className="run-actions" hidden={!['overview', 'artifacts'].includes(detailView)}>
+                <Actions run={run} />
+              </div>
               {run.failureMessage && <p className="error">{run.failureMessage}</p>}
-              <section hidden={!['overview', 'environment'].includes(detailView)}><h2>가설</h2>
-              <p>
-                {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
-              </p>
+              <section className="hypothesis-panel" hidden={!['environment'].includes(detailView)}>
+                <h2>가설</h2>
+                <p>
+                  {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
+                </p>
               </section>
-              <section hidden={!['overview', 'metrics'].includes(detailView)}>{DetailPanel && <DetailPanel id={run.runId} status={run.status} />}</section>
+              <section hidden={!['overview', 'metrics'].includes(detailView)}>
+                {DetailPanel && <DetailPanel id={run.runId} status={run.status} />}
+              </section>
               {(features.executionEvidence || features.checksRead) && (
-                <WorkerEvidence view={detailView}
+                <WorkerEvidence
+                  view={detailView}
+                  onExecution={setExecution}
+                  metrics={metricContent}
                   key={run.runId}
                   run={run}
                   features={features}
                   pageSize={options.pageSize}
                 />
               )}
-              <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}><h2 id="run-metrics">결과 요약</h2>
-              {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length > 0 && (
-                <Table
-                  label="원본 metric 이름과 값"
-                  headers={['측정값', '종류', '값']}
-                  rows={[
-                    ...Object.entries(run.summary.counters).map(([k, v]) => [
-                      k,
-                      'counter',
-                      format(v),
-                    ]),
-                    ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
-                  ]}
+              {(!(features.executionEvidence || features.checksRead) ||
+                (detailView === 'overview' &&
+                  execution?.execution?.definition.kind !== 'IN_PROCESS')) &&
+                metricContent}
+              <RecentRuns run={run} />
+              <section
+                className="detail-panel"
+                hidden={!['overview', 'environment'].includes(detailView)}
+              >
+                <h2 id="run-environment">입력과 실행 환경</h2>
+                <Raw label="파라미터와 시나리오 정의" value={run.runMetadata.parameters} />
+                <Raw
+                  label="서버 JVM / 운영체제 / Git"
+                  value={{
+                    ...run.runMetadata.environment,
+                    git: run.runMetadata.git,
+                  }}
                 />
-              )}
-              <Raw label="결과 상세" value={run.summary.details} />
-              </section><section className="detail-panel" hidden={!['overview', 'environment'].includes(detailView)}><h2 id="run-environment">입력과 실행 환경</h2>
-              <Raw label="파라미터와 시나리오 정의" value={run.runMetadata.parameters} />
-              <Raw
-                label="서버 JVM / 운영체제 / Git"
-                value={{
-                  ...run.runMetadata.environment,
-                  git: run.runMetadata.git,
-                }}
-              />
-              </section><section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}><h2>관측 기록</h2>
-              {metrics.metrics.length === 0 && after === -1 && metrics.nextAfter === null ? (
-                <p>이 페이지에 측정값이 없습니다. 검증 실험은 위의 검증 결과와 실행·검증 내보내기를 확인하세요.</p>
-              ) : (
-                <>
+              </section>
+              <section
+                className="detail-panel"
+                hidden={!['overview', 'artifacts'].includes(detailView)}
+              >
+                <h2 id="run-artifacts">첨부 증거</h2>
+                <p className="note">
+                  다운로드 시 서버가 크기와 SHA-256을 검증합니다. 오류는 새 탭에 표시됩니다.
+                </p>
+                {!artifacts.length ? (
+                  <p>등록된 첨부 증거가 없습니다.</p>
+                ) : (
                   <Table
-                    label="원본 관측 · 한 페이지씩 조회"
-                    headers={['순서 / 시각', '관측값']}
-                    rows={metrics.metrics.map((m) => [
+                    label="첨부 파일과 무결성"
+                    headers={['경로', '크기 / SHA-256', '다운로드']}
+                    rows={artifacts.map((a) => [
+                      a.relativePath,
                       <>
-                        {m.sequence}
-                        <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
+                        {a.byteSize} bytes<small>{a.sha256}</small>
                       </>,
-                      <pre>{format(m.point)}</pre>,
+                      artifactReason(
+                        run,
+                        a,
+                        options.artifactDownloadMaxBytes,
+                        features.workerReportDownload,
+                      ) ?? (
+                        <a
+                          target="_blank"
+                          rel="noopener"
+                          href={apiUrl(
+                            `/runs/${encodeURIComponent(run.runId)}/artifacts/${encodeURIComponent(a.artifactId)}/download`,
+                          )}
+                        >
+                          {a.artifactId.startsWith('worker_')
+                            ? 'REPORT 다운로드 ↗'
+                            : '다운로드 ↗'}
+                        </a>
+                      ),
                     ])}
                   />
-                  <div className="actions">
-                    <button onClick={() => setAfter(-1)} disabled={loading}>
-                      첫 관측
-                    </button>
-                    {metrics.nextAfter !== null && (
-                      <button disabled={loading} onClick={() => setAfter(metrics.nextAfter!)}>
-                        다음 관측
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-              </section><section className="detail-panel" hidden={!['overview', 'artifacts'].includes(detailView)}><h2 id="run-artifacts">첨부 증거</h2>
-              <p className="note">
-                다운로드 시 서버가 크기와 SHA-256을 검증합니다. 오류는 새 탭에 표시됩니다.
-              </p>
-              {!artifacts.length ? (
-                <p>등록된 첨부 증거가 없습니다.</p>
-              ) : (
-                <Table
-                  label="첨부 파일과 무결성"
-                  headers={['경로', '크기 / SHA-256', '다운로드']}
-                  rows={artifacts.map((a) => [
-                    a.relativePath,
-                    <>
-                      {a.byteSize} bytes<small>{a.sha256}</small>
-                    </>,
-                    artifactReason(run, a, options.artifactDownloadMaxBytes, features.workerReportDownload) ?? (
-                      <a
-                        target="_blank"
-                        rel="noopener"
-                        href={apiUrl(
-                          `/runs/${encodeURIComponent(run.runId)}/artifacts/${encodeURIComponent(a.artifactId)}/download`,
-                        )}
-                      >
-                        {a.artifactId.startsWith('worker_') ? 'REPORT 다운로드 ↗' : '다운로드 ↗'}
-                      </a>
-                    ),
-                  ])}
-                />
-              )}
+                )}
               </section>
             </>
           )}

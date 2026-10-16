@@ -19,6 +19,7 @@
     "test:serve": "node --test server/serve.test.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-icons": "1.3.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

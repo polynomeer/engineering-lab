@@ -14,6 +14,7 @@ test('all deployed modules retain checks and downloadable reports', async ({ pag
   for (const entry of index.runs) {
     const snapshot = JSON.parse(readFileSync(resolve(directory, entry.name + '.json'), 'utf8'));
     await page.goto('/app/runs/' + encodeURIComponent(entry.runId));
+    await page.getByRole('button', { name: '전체', exact: true }).click();
     await expect(page.getByText(entry.expectedStatus === 'SUCCEEDED'
       ? '증거 수집 완료' : '증거 미완료 · 확인된 부분만 표시', { exact: true })).toBeVisible();
     const table = page.getByRole('table', { name: '기대값과 관측값' });

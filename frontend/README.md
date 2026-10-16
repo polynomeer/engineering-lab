@@ -121,3 +121,5 @@ CAREER_REOPEN_IDS=before-run-id,atomic-run-id npm run test:e2e -- --grep 'stored
 [디자인 명세](../docs/dashboard-visual-design.md)를 적용했습니다. 좌측 catalog 탐색과 Run 상세의 전체·검증 결과·메트릭·실행 환경·아티팩트 보기를 제공합니다. Worker 증거는 데스크톱에서 검증 결과와 환경을 나란히, 모바일에서는 검증 목록과 환경을 한 열로 표시합니다. 모바일 메뉴는 접을 수 있고 Escape로 닫으면 메뉴 버튼에 focus가 돌아옵니다. check 집계는 현재 페이지 범위이며 전체 통과 수로 해석하지 않습니다.
 
 `tests/design.spec.ts`는 결과 보기 전환 중 증거 유지, 모바일 메뉴 키보드 조작과 375/768/1024px 가로 넘침을 검증합니다. 캡처는 합성 응답을 사용하며 실제 측정값이 아닙니다.
+
+2026-10-16 보완: CHECK_RESULTS는 검증 결과를 우선하며 IN_PROCESS 실행은 원본 메트릭을 주 결과로 보여줍니다. 환경 inspector에서 증거·재현·export를 분리했고 같은 실험의 최근 5개를 조회해 2개 Run 비교로 연결합니다. 관련 기록 조회 실패는 상세 조회와 분리합니다. 탐색은 고정 버전 Radix 아이콘을 사용합니다.
