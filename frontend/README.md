@@ -123,3 +123,9 @@ CAREER_REOPEN_IDS=before-run-id,atomic-run-id npm run test:e2e -- --grep 'stored
 `tests/design.spec.ts`는 결과 보기 전환 중 증거 유지, 모바일 메뉴 키보드 조작과 375/768/1024px 가로 넘침을 검증합니다. 캡처는 합성 응답을 사용하며 실제 측정값이 아닙니다.
 
 2026-10-16 보완: CHECK_RESULTS는 검증 결과를 우선하며 IN_PROCESS 실행은 원본 메트릭을 주 결과로 보여줍니다. 환경 inspector에서 증거·재현·export를 분리했고 같은 실험의 최근 5개를 조회해 2개 Run 비교로 연결합니다. 관련 기록 조회 실패는 상세 조회와 분리합니다. 탐색은 고정 버전 Radix 아이콘을 사용합니다.
+
+## 메트릭 그래프
+
+메트릭 보기에서 현재 관측 페이지의 처리량·큐 점유율을 SVG 그래프로 표시합니다. Pipeline은 기록된 구간 처리량과 Raw/Mapped 비율, Queue는 인접 누적 소비 건수로 계산한 구간 평균과 깊이/용량 비율, IO는 전체 요청 누적 평균을 사용합니다. 값·시간·용량이 없으면 결측으로 남기며 그래프를 합성하지 않습니다. slider와 값 표로 키보드 조회를 지원하고 원본 표·관측 cursor를 유지합니다. 별도 전체 이력 수집이나 브라우저 누적은 추가하지 않습니다. 계산과 제한은 [디자인 명세](../docs/dashboard-visual-design.md#12-메트릭-그래프)를 참고하세요.
+
+`src/chartData.ts`는 단위와 계산·결측·시간 검증, `src/RunMetricCharts.tsx`는 그래프·표본 선택·값 표를 담당합니다. `chartData.test.ts`와 `tests/charts.spec.ts`가 reset·결측·용량 부재·한 점·페이지 이동·모바일 표시를 검증합니다.

@@ -1,3 +1,4 @@
+import { MetricCharts } from './RunMetricCharts';
 import {
   CubeIcon,
   PlayIcon,
@@ -210,18 +211,22 @@ function App() {
   const metricContent = run && (
     <>
       <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}>
-        <h2 id="run-metrics">결과 요약</h2>
-        {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length > 0 && (
-          <Table
-            label="원본 metric 이름과 값"
-            headers={['측정값', '종류', '값']}
-            rows={[
-              ...Object.entries(run.summary.counters).map(([k, v]) => [k, 'counter', format(v)]),
-              ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
-            ]}
-          />
-        )}
-        <Raw label="결과 상세" value={run.summary.details} />
+        <MetricCharts run={run} page={metrics} />
+        <details className="metric-source" open={detailView === 'overview'}>
+          <summary id="run-metrics">원본 메트릭 요약</summary>
+          {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length >
+            0 && (
+            <Table
+              label="원본 metric 이름과 값"
+              headers={['측정값', '종류', '값']}
+              rows={[
+                ...Object.entries(run.summary.counters).map(([k, v]) => [k, 'counter', format(v)]),
+                ...Object.entries(run.summary.gauges).map(([k, v]) => [k, 'gauge', format(v)]),
+              ]}
+            />
+          )}
+          <Raw label="결과 상세" value={run.summary.details} />
+        </details>
       </section>
       <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}>
         <h2>관측 기록</h2>
@@ -232,17 +237,20 @@ function App() {
           </p>
         ) : (
           <>
-            <Table
-              label="원본 관측 · 한 페이지씩 조회"
-              headers={['순서 / 시각', '관측값']}
-              rows={metrics.metrics.map((m) => [
-                <>
-                  {m.sequence}
-                  <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
-                </>,
-                <pre>{format(m.point)}</pre>,
-              ])}
-            />
+            <details className="metric-source" open={detailView === 'overview'}>
+              <summary>원본 관측값</summary>
+              <Table
+                label="원본 관측 · 한 페이지씩 조회"
+                headers={['순서 / 시각', '관측값']}
+                rows={metrics.metrics.map((m) => [
+                  <>
+                    {m.sequence}
+                    <small>{new Date(m.point.timestampEpochMs).toLocaleString()}</small>
+                  </>,
+                  <pre>{format(m.point)}</pre>,
+                ])}
+              />
+            </details>
             <div className="actions">
               <button onClick={() => setAfter(-1)} disabled={loading}>
                 첫 관측
@@ -562,7 +570,7 @@ function App() {
                   {run.runMetadata.parameters['scenario.hypothesis'] ?? '기록된 가설이 없습니다.'}
                 </p>
               </section>
-              <section hidden={!['overview', 'metrics'].includes(detailView)}>
+              <section hidden={detailView !== 'overview'}>
                 {DetailPanel && <DetailPanel id={run.runId} status={run.status} />}
               </section>
               {(features.executionEvidence || features.checksRead) && (
