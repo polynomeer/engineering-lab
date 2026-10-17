@@ -54,6 +54,8 @@ class RunRestartIntegrationTest {
             assertEquals(RunStatus.SUCCEEDED, store.find(excelId).orElseThrow().status());
             genericSaved = store.find(genericId).orElseThrow();
             excelSaved = store.find(excelId).orElseThrow();
+            assertNotNull(genericSaved.runMetadata().parameters().get(com.pnomeer.lab.registry.measurement.MeasurementContract.PARAMETER));
+            assertNotNull(excelSaved.runMetadata().parameters().get(com.pnomeer.lab.registry.measurement.MeasurementContract.PARAMETER));
             var runner = app.getBean(DurableExperimentRunner.class);
             runner.prepare(app.getBean(com.pnomeer.lab.experiments.concurrency.QueueContentionExperiment.class),
                     new QueueContentionScenario("not-dispatched", 1, 1, 1, 1, 0), "queued-before-restart");

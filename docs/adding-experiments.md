@@ -138,3 +138,8 @@ PatternContribution extraPatternClassification() {
 
 `StudyContribution` bean으로 구현 전략과 근거 문서, 기존 시나리오 파일을 연결한다.
 실행 JSON에 새 필드를 넣지 않는다. 모델·예시·상한·폐기 정책은 [등록 계약](study-catalog.md)을 따른다.
+
+## 공통 검증 성질과 측정 계약 (P4)
+
+[측정 계약과 비교 조건](measurement-contract.md)에서 선택 등록 bean, 실행 시점 snapshot, 신규 읽기 API,
+단위·환경·구간 불일치 및 과거 Run의 UNKNOWN 처리를 설명한다. 기존 실행/내보내기 계약은 유지한다.

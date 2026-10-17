@@ -142,3 +142,8 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 검증: `WorkerArtifactImporterTest`는 바이트 일치·원본 변경·경로/링크/종류 거부·해시/크기/개수/합계 상한·중복·등록 실패 정리를 확인한다. `LocalJvmExecutorTest`는 실제 Java 21 worker 보고서를 H2 참조와 함께 보존하고 재개방하며, 잘못된 해시가 성공이나 완료 증거로 처리되지 않음을 검증한다.
 
 D6 관리 REPORT 다운로드와 관측 capability·접수 예산의 현재 계약은 [통합 운영 가이드](dashboard-operations.md)를 따른다. 위 capability 도입 시점 설명 이후 LOCAL_JVM/CONTAINER 등록은 활성화한 worker를 반영하며 workerReportDownload=true를 제공한다.
+
+## 공통 검증 성질과 측정 계약 (P4)
+
+[측정 계약과 비교 조건](measurement-contract.md)에서 선택 등록 bean, 실행 시점 snapshot, 신규 읽기 API,
+단위·환경·구간 불일치 및 과거 Run의 UNKNOWN 처리를 설명한다. 기존 실행/내보내기 계약은 유지한다.

@@ -26,6 +26,7 @@ class ScenarioApiIntegrationTest {
     @Autowired ModuleCatalogController modules;
     @Autowired PatternCatalogController patterns;
     @Autowired StudyCatalogController studies;
+    @Autowired MeasurementController measurements;
     @Autowired ExecutionEvidenceController executionEvidence;
     @Autowired RunStore store;
     @Autowired IngestionService ingestion;
@@ -38,7 +39,7 @@ class ScenarioApiIntegrationTest {
             "measurement":{"mode":"SINGLE_PASS"}}
             """;
     @BeforeEach void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence, patterns, studies).setControllerAdvice(new ScenarioExceptionHandler()).build();
+        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence, patterns, studies, measurements).setControllerAdvice(new ScenarioExceptionHandler()).build();
     }
     @Test void exposesModuleOwnershipWithoutChangingExperimentIds() throws Exception {
         mvc.perform(get("/modules")).andExpect(status().isOk())
@@ -60,6 +61,16 @@ class ScenarioApiIntegrationTest {
         assertEquals(a.runMetadata().parameters().get("scenario.definition.sha256"), b.runMetadata().parameters().get("scenario.definition.sha256"));
         assertTrue(a.runMetadata().parameters().get("scenario.definition").contains("api-definition"));
         assertEquals("SINGLE_PASS", a.runMetadata().parameters().get("measurement.mode"));
+        var contractKey = com.pnomeer.lab.registry.measurement.MeasurementContract.PARAMETER;
+        assertTrue(com.pnomeer.lab.registry.measurement.MeasurementContract.read(a.runMetadata().parameters().get(contractKey), a.experimentType()).isPresent());
+        assertEquals(a.runMetadata().parameters().get(contractKey), b.runMetadata().parameters().get(contractKey));
+        mvc.perform(get("/dashboard/v1/measurement-catalog")).andExpect(status().isOk()).andExpect(jsonPath("$.contracts.length()").value(3));
+        mvc.perform(get("/dashboard/v1/comparison-assessment").param("baseline", first).param("candidate", second))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.schemaVersion").value(1))
+                .andExpect(jsonPath("$.baselineContract.experimentId").value("concurrency.queue-contention"))
+                .andExpect(jsonPath("$.measures[0].baselineValue").isNumber());
+        mvc.perform(get("/dashboard/v1/comparison-assessment").param("baseline", "missing").param("candidate", second)).andExpect(status().isNotFound());
+        assertEquals(a,store.find(first).orElseThrow());
         mvc.perform(get("/dashboard/v1/runs/" + first + "/execution")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.execution.definition.moduleId").value("concurrency"))
                 .andExpect(jsonPath("$.execution.definition.kind").value("IN_PROCESS"))

@@ -19,6 +19,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     private final Supplier<GitProvenance> provenance;
     private final MetricWriterOptions options;
     private final int previewLimit;
+    private final java.util.function.Function<String, Map<String, String>> measurementMetadata;
 
     public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns) {
@@ -81,6 +82,14 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
             long interval, int samples, boolean traceEnabled, int spans, JfrRecorder jfr, RunLogRecorder logs,
             Map<String, String> modules, List<? extends WorkerRegistration> workers, WorkerStorageBudget budget) {
+        return configured(store, provenance, options, previewLimit, maxActiveRuns, jvmProbe, interval, samples,
+                traceEnabled, spans, jfr, logs, modules, workers, budget, id -> Map.of());
+    }
+    public static DurableExperimentRunner configured(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, int previewLimit, int maxActiveRuns, Supplier<MetricPoint> jvmProbe,
+            long interval, int samples, boolean traceEnabled, int spans, JfrRecorder jfr, RunLogRecorder logs,
+            Map<String, String> modules, List<? extends WorkerRegistration> workers, WorkerStorageBudget budget,
+            java.util.function.Function<String, Map<String, String>> measurementMetadata) {
         var registrations = new HashMap<String, ExperimentExecutors.Registration>();
         var bindings = new HashMap<String, ExperimentExecutors.Binding>();
         var definitions = new HashMap<String, RunExecution.Definition>();
@@ -100,7 +109,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             }
         }
         return new DurableExperimentRunner(store, provenance, options, new ExperimentExecutors("IN_PROCESS",
-                registrations, bindings), previewLimit, maxActiveRuns, definitions);
+                registrations, bindings), previewLimit, maxActiveRuns, definitions, measurementMetadata);
     }
 
     DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
@@ -116,6 +125,13 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, ExperimentExecutors executors, int previewLimit, int maxActiveRuns,
             Map<String, RunExecution.Definition> definitions) {
+        this(store, provenance, options, executors, previewLimit, maxActiveRuns, definitions, id -> Map.of());
+    }
+    DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
+            MetricWriterOptions options, ExperimentExecutors executors, int previewLimit, int maxActiveRuns,
+            Map<String, RunExecution.Definition> definitions,
+            java.util.function.Function<String, Map<String, String>> measurementMetadata) {
+        this.measurementMetadata = Objects.requireNonNull(measurementMetadata);
         this.definitions = Map.copyOf(definitions);
         this.executors = Objects.requireNonNull(executors);
         this.admission = new ExecutionAdmission(maxActiveRuns);
@@ -132,6 +148,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         parameters.put("evidence.dead-letter.mode", "DATABASE_V1");
         parameters.put("evidence.dead-letter.maxRecordBytes", String.valueOf(DeadLetter.MAX_BYTES));
         parameters.putAll(executor.parameters());
+        parameters.putAll(measurementMetadata.apply(experiment.type()));
         var metadata = new RunMetadata(id, parameters, RunEnvironment.capture(), provenance.get());
         var definition = definitions.get(experiment.type());
         return admission.submit(() -> definition == null ? store.create(experiment.type(), scenario.scenarioId(), metadata)

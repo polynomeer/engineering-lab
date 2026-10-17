@@ -9,7 +9,7 @@
 | P1 | 완료 | 불변 분류 metadata, 확장 등록, 유효성/상한 검사, 읽기 전용 pattern-catalog API | 기본/전체/미분류 catalog 및 오류·HTTP·기존 전체 회귀 통과 |
 | P2 | 완료 | 분야·패턴 탐색, 프로젝트 출처 필터, 기존 URL과 새 API 없는 서버 fallback | 구형/신형 서버 브라우저 회귀, 16개 실험 접근 가능 |
 | P3 | 완료 | Strategy/Case study/Scenario 관계, 프리셋·설명 등록 계약, 패턴 의미 버전/폐기 정책 | 기존 JSON/hash 불변; BEFORE/AFTER의 구체적 전략·사례 근거 표시 |
-| P4 | 대기 | 공통 검증 성질·측정 범위·비교 가능 조건 모델 | 단위/환경/측정 범위 불일치 비교를 경고; 구형 증거 fallback |
+| P4 | 완료 | 공통 검증 성질·측정 범위·비교 가능 조건 모델 | 단위/환경/측정 범위 불일치 비교를 경고; 구형 증거 fallback |
 | P5 | 대기 | Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출 | 기존 처리 결과·메모리 상한·backpressure·오류·재시도·종료 보존 |
 | P6 | 대기 | 추가 사례로 패턴 재사용 검증 및 확장 가이드 갱신 | 중앙 controller/frontend 분기 없이 등록; 출처·한계 유지 |
 | P7 | 대기 | 전체 인수·문서/캡처·릴리스·운영 전환 | 기본/Career 정상·실패·재시작·artifact 호환, 기존 Run 보존, 백업 검증 |
@@ -69,3 +69,20 @@ P1 종료 시 화면은 기존 모듈 탐색을 유지한다. 코드 이동·범
   P2/P3 브라우저 14개: 전체 16개 링크·필터·fallback, 실제 정의 다운로드·모바일·폐기 표시 확인.
 - Career의 소스/빌드·실제 worker 실행·운영 배포는 변경하지 않았다. 다음 단계는 P4의
   공통 검증 성질·측정 범위·비교 가능 조건 모델이다.
+
+## P4 완료 기록 — 2026-10-17
+
+- [측정 계약](measurement-contract.md): 16개 실험에 공통 검증 성질·측정 대상·단위·구간·필수 조건·한계를 등록했다.
+  성질은 검증 목표이며 CHECK 통과나 성능 우위를 자동 판정하지 않는다.
+- 신규 Run에 16 KiB 이하 버전형 계약 snapshot을 기록한다. 기존 scenario JSON/hash·DB schema·
+  worker protocol·기존 비교/export 구조를 유지하며 과거 Run은 백필하지 않는다.
+- `/dashboard/v1/measurement-catalog`, `/dashboard/v1/comparison-assessment`를 추가했다.
+  조건·단위·범위·의미·구간 불일치와 계약/증거/환경 미기록을 구분한다. worker 측정에는 실제
+  worker 환경·Git·artifact만 사용한다. 외부 의존 환경 미기록은 명시적으로 UNKNOWN이다.
+- 대시보드에 양쪽 계약·조건별 판정·검증 목표·JSON 다운로드와 오류 재시도/404 fallback을 구현했다.
+  구형 요약 표의 단위가 현재 카탈로그 참고값임을 표시했다.
+- 프런트엔드 단위 34개, typecheck/build, 실제 서버 및 mock fallback 브라우저 25개 통과.
+  추가로 P4 6개를 재검증하며 375px·가로 화면·200% 글자·reduced-motion·키보드 확인 및 캡처를 완료했다.
+- Java 25 루트 `./gradlew test`: 411개, 실패·오류·건너뜀 0. 등록 상한/충돌/확장, 단위·구간·worker 환경,
+  미기록·실패·CHECK 전용 판정, HTTP와 저장 기록 재시작 호환성을 확인했다. Career 소스/빌드·운영 배포는 변경하지 않았다.
+- 다음 단계는 P5의 Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출이다.

@@ -8,6 +8,8 @@ P1은 `registry/pattern/`의 분류 등록과 `/dashboard/v1/pattern-catalog` �
 `/app/catalog` 탐색과 404 fallback을 제공하며 기존 실행·기록 URL을 그대로 연결한다.
 P3 `registry/pattern/Study*`, `BuiltInStudies`, `StudyDetails.tsx`는 [전략·사례·시나리오 계약](study-catalog.md)을 구현한다.
 시나리오 원본은 `processResources`로 패키징하며 기존 정의/hash를 바꾸지 않는다.
+P4 `registry/measurement/`, `ComparisonAssessment`, `MeasurementController`, `ComparisonAssessment.tsx`는
+[측정 계약](measurement-contract.md)을 구현한다. 신규 Run metadata에 계약을 저장하며 과거 Run에는 백필하지 않는다.
 
 ## 현재 구조
 

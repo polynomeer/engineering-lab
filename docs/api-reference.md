@@ -8,6 +8,8 @@
 
 | Method | 경로 | 용도 |
 | --- | --- | --- |
+| GET | `/dashboard/v1/measurement-catalog` | 현재 공통 검증 성질·측정 계약 ([P4 계약](measurement-contract.md)) |
+| GET | `/dashboard/v1/comparison-assessment?baseline=…&candidate=…` | Run에 저장된 계약·단위·환경·구간의 비교 조건 판정 |
 | GET | `/dashboard/v1/study-catalog` | 전략·사례·기존 시나리오 프리셋과 패턴 의미 버전 ([계약](study-catalog.md)) |
 | GET | `/dashboard/v1/pattern-catalog` | 현재 활성 실험의 분야·패턴 분류와 출처 (P1 신규) |
 | GET | `/modules` | 등록된 모듈의 id/title/collection과 소유 실험 descriptor 목록 |

@@ -1,3 +1,4 @@
+import { ComparisonAssessment } from './ComparisonAssessment';
 import { PatternExplorer } from './PatternExplorer';
 import { MetricCharts } from './RunMetricCharts';
 import {
@@ -674,6 +675,7 @@ function App() {
               </form>
               {comparison && (
                 <>
+                  <ComparisonAssessment key={comparison.baseline.runId + ':' + comparison.candidate.runId} baseline={comparison.baseline.runId} candidate={comparison.candidate.runId} />
                   <ul className="warning">
                     {comparison.cautions.map((c) => (
                       <li key={c}>{c}</li>

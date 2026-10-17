@@ -1346,3 +1346,9 @@ form {
 .study-details dd { margin:0 0 16px; color:var(--muted); }
 .study-details dt { font-weight:600; }
 .study-details pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+
+.measurement-assessment { margin-block: 1.5rem; padding: 1rem; border: 1px solid var(--border); background: var(--panel); overflow-wrap: anywhere; }
+.measurement-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.measurement-sides dd { margin-inline-start: 1rem; }
+.measurement-assessment summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
+@media (max-width: 700px) { .measurement-sides { grid-template-columns: minmax(0, 1fr); } }

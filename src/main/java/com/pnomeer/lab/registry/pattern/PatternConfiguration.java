@@ -7,6 +7,13 @@ import java.util.List;
 
 @Configuration
 public class PatternConfiguration {
+    @Bean public com.pnomeer.lab.registry.measurement.MeasurementContribution builtInMeasurements() {
+        return com.pnomeer.lab.registry.measurement.BuiltInMeasurements.contribution();
+    }
+    @Bean public com.pnomeer.lab.registry.measurement.MeasurementCatalog measurementCatalog(ExperimentCatalog active,
+            List<com.pnomeer.lab.registry.measurement.MeasurementContribution> contributions) {
+        return new com.pnomeer.lab.registry.measurement.MeasurementCatalog(active, contributions);
+    }
     @Bean public StudyContribution builtInStudies() { return BuiltInStudies.contribution(); }
     @Bean public StudyCatalog studyCatalog(ExperimentCatalog active, PatternCatalog patterns, List<StudyContribution> contributions) {
         return new StudyCatalog(active, patterns, contributions);
