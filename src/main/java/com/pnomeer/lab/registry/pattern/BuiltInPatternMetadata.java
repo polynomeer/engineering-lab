@@ -1,0 +1,113 @@
+package com.pnomeer.lab.registry.pattern;
+
+import java.util.List;
+import static com.pnomeer.lab.registry.pattern.PatternContribution.*;
+
+/** Initial semantic map. Existing experiment identity, execution and measurement remain unchanged. */
+public final class BuiltInPatternMetadata {
+    private BuiltInPatternMetadata() {}
+    public static PatternContribution contribution() {
+        return new PatternContribution(List.of(
+                new Category("concurrency", "동시성과 조정"),
+                new Category("data-processing", "데이터 처리와 자원 관리"),
+                new Category("persistence", "데이터 저장과 트랜잭션"),
+                new Category("reliability", "신뢰성과 실패 처리"),
+                new Category("io-execution", "I/O와 실행 모델"),
+                new Category("security-session", "보안과 세션 상태"),
+                new Category("architecture-validation", "아키텍처와 검증")
+        ), List.of(
+                new Pattern("bounded-queue", "concurrency", "Bounded queue / backpressure",
+                        "생산 속도가 소비 속도를 초과한다.",
+                        "대기 발생, 큐 상한, 처리 건수와 누락 여부를 확인한다.",
+                        "큐 크기만으로 전체 프로세스 메모리 상한을 보장하지 않는다."),
+                new Pattern("staged-pipeline", "data-processing", "Staged processing pipeline",
+                        "입력·변환·저장 단계의 처리 비용이 다르다.",
+                        "단계별 처리량과 행 보존, 실패 전달을 확인한다.",
+                        "병렬화의 성능 우위는 입력과 병목에 따라 달라진다."),
+                new Pattern("chunked-write", "data-processing", "Chunked writes",
+                        "행별 저장 또는 전체 적재가 자원을 과도하게 사용한다.",
+                        "청크 크기, 부분 flush, 저장 건수와 실패 경계를 확인한다.",
+                        "이미 커밋한 청크를 전체 작업 실패 시 자동으로 되돌리는 보장이 아니다."),
+                new Pattern("streaming", "data-processing", "Streaming processing",
+                        "전체 파일을 메모리에 적재하기 어렵다.",
+                        "입력을 점진적으로 소비하고 결과·오류 행을 보존하는지 확인한다.",
+                        "라이브러리 내부 버퍼와 임시 디스크 사용량은 별도 고려한다."),
+                new Pattern("atomic-update", "concurrency", "Atomic shared-state update",
+                        "읽기와 쓰기 사이에 다른 요청이 상태를 변경한다.",
+                        "경쟁 요청의 결과와 최종 상태가 정의된 불변 조건을 만족하는지 확인한다.",
+                        "채번과 토큰 교체는 서로 다른 상태·정합성 계약이다."),
+                new Pattern("mutual-exclusion", "concurrency", "Mutual exclusion and ownership",
+                        "공유 자원의 동시 변경과 잘못된 잠금 해제가 발생한다.",
+                        "배타 접근, 소유권과 TTL 등 해당 구현의 계약을 확인한다.",
+                        "소유권·TTL CHECK만으로 모든 경쟁 조건 또는 fencing을 증명하지 않는다."),
+                new Pattern("dependency-rules", "architecture-validation", "Executable dependency rules",
+                        "계층 간 의존성이 설계 방향을 위반한다.",
+                        "같은 규칙으로 정상 코드와 위반 fixture를 검사한다.",
+                        "검사한 규칙 밖의 아키텍처 품질은 보장하지 않는다."),
+                new Pattern("layered-validation", "architecture-validation", "Layered validation",
+                        "잘못된 입력이 후속 도메인 처리로 전파된다.",
+                        "입력·매핑·도메인 검증과 거절 이후 단계 미실행을 확인한다.",
+                        "입력 거절은 기대한 동작이면 CHECK 성공일 수 있다."),
+                new Pattern("indexed-delete", "persistence", "Indexed bulk deletion",
+                        "대량 삭제의 탐색 비용이 커진다.",
+                        "같은 데이터와 삭제 조건에서 인덱스 적용 결과를 확인한다.",
+                        "현재 AFTER는 청크화도 함께 적용하므로 인덱스 단독 효과로 해석하지 않는다."),
+                new Pattern("transaction-chunking", "persistence", "Transaction chunking",
+                        "단일 대량 트랜잭션이 긴 작업 구간을 만든다.",
+                        "총시간과 최대 단일 삭제 단계 시간을 구분해 관측한다.",
+                        "단계 시간은 실제 잠금 점유 시간의 직접 측정이 아니며 총시간 감소를 보장하지 않는다."),
+                new Pattern("bounded-parallelism", "data-processing", "Bounded parallel processing",
+                        "동시 작업 제출이 무제한으로 쌓일 수 있다.",
+                        "실제 in-flight 상한과 제출 대기, 처리 건수를 확인한다.",
+                        "bounded in-flight window와 bounded queue는 같은 구현이 아니다."),
+                new Pattern("heap-working-set", "data-processing", "Working-set reduction",
+                        "처리 중 유지하는 객체 수가 heap 사용량을 증가시킨다.",
+                        "같은 입력·JVM 조건에서 전체 적재와 분할 처리의 heap 표본을 비교한다.",
+                        "표본은 실제 최고점·live set·RSS가 아니며 항상 성능이 좋아지는 것은 아니다."),
+                new Pattern("guarded-state-transition", "concurrency", "Guarded state transition",
+                        "동시 요청이 허용되지 않은 상태 전이를 수행한다.",
+                        "경쟁 요청 중 허용된 전이와 최종 상태를 확인한다.",
+                        "전체 서비스의 선형화 가능성이나 모든 장애 시점을 증명하지 않는다."),
+                new Pattern("idempotent-processing", "reliability", "Idempotent request processing",
+                        "중복 요청이 같은 부작용을 반복한다.",
+                        "순차·동시 중복과 실패 후 재시도 결과를 확인한다.",
+                        "현재 합성 리스너 검증은 실제 broker ACK·DLQ 또는 crash exactly-once 보장이 아니다."),
+                new Pattern("session-rotation", "security-session", "Session token rotation",
+                        "교체된 토큰의 재사용과 동시 갱신이 발생한다.",
+                        "이전 토큰 무효화, 갱신 승자와 사용자·기기 결합을 확인한다.",
+                        "검증한 세션 계약 이외의 전체 인증 보안을 보장하지 않는다."),
+                new Pattern("scoped-transfer", "persistence", "Scoped relationship transfer",
+                        "관계 변경이 다른 소유자의 데이터에 영향을 준다.",
+                        "명시적 확인, 대상 범위와 비대상 관계 보존을 확인한다.",
+                        "현재 업무 모델의 규칙이며 임의 도메인의 이관을 자동 지원하지 않는다."),
+                new Pattern("post-commit-delivery", "reliability", "Post-commit side effects",
+                        "업무 커밋과 외부 전달의 성공 여부가 다를 수 있다.",
+                        "커밋 결과, 외부 호출·재시도·소진 후 부분 증거를 구분한다.",
+                        "현재 외부 서비스는 bounded stub이며 durable outbox나 crash 복구 보장이 아니다."),
+                new Pattern("io-execution-model", "io-execution", "I/O execution models",
+                        "연결 처리 방식에 따라 스레드·대기 비용이 달라진다.",
+                        "같은 부하에서 blocking·virtual thread·selector의 결과와 측정을 비교한다.",
+                        "일반 네트워크나 모든 하드웨어에서의 성능 우위를 보장하지 않는다.")
+        ), List.of(
+                binding("pipeline.excel-ingestion", "data-processing", "staged-pipeline", "bounded-queue", "chunked-write"),
+                binding("concurrency.queue-contention", "concurrency", "bounded-queue"),
+                binding("io.endpoint-comparison", "io-execution", "io-execution-model"),
+                binding("career.mcp-platform.sequence", "concurrency", "atomic-update", "mutual-exclusion"),
+                binding("career.mcp-platform.architecture", "architecture-validation", "dependency-rules"),
+                binding("career.mcp-platform.validation", "architecture-validation", "layered-validation"),
+                binding("career.equity-system.deletion", "persistence", "indexed-delete", "transaction-chunking"),
+                binding("career.equity-system.redis-lock", "concurrency", "mutual-exclusion"),
+                binding("career.equity-system.registration", "data-processing", "staged-pipeline", "bounded-parallelism", "bounded-queue", "chunked-write"),
+                binding("career.batch-excel.batch-memory", "data-processing", "heap-working-set", "chunked-write"),
+                binding("career.batch-excel.excel-memory", "data-processing", "heap-working-set", "streaming"),
+                binding("career.mds-distribution.settlement-guard", "concurrency", "guarded-state-transition"),
+                binding("career.mds-distribution.idempotency", "reliability", "idempotent-processing"),
+                binding("career.creator-studio.session-rotation", "security-session", "session-rotation", "atomic-update"),
+                binding("career.creator-studio.mapping-integrity", "persistence", "scoped-transfer", "guarded-state-transition"),
+                binding("career.creator-studio.post-commit", "reliability", "post-commit-delivery")
+        ));
+    }
+    private static Binding binding(String experiment, String category, String... patterns) {
+        return new Binding(experiment, new Classification(category, List.of(patterns)));
+    }
+}

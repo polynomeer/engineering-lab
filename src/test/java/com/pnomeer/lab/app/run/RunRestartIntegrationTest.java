@@ -33,6 +33,7 @@ class RunRestartIntegrationTest {
     @Test
     void realApplicationRestartPreservesGenericAndExcelApisAndRecoversQueuedRuns() throws Exception {
         String genericId, excelId;
+        StoredRun genericSaved, excelSaved;
         try (var app = start()) {
             var generic = app.getBean(ExperimentJobService.class);
             genericId = generic.startQueueContentionJob(new QueueContentionScenario("restart", 2, 1, 1, 8, 0));
@@ -51,6 +52,8 @@ class RunRestartIntegrationTest {
             var store = app.getBean(RunStore.class);
             awaitCompleted(store, genericId); awaitCompleted(store, excelId);
             assertEquals(RunStatus.SUCCEEDED, store.find(excelId).orElseThrow().status());
+            genericSaved = store.find(genericId).orElseThrow();
+            excelSaved = store.find(excelId).orElseThrow();
             var runner = app.getBean(DurableExperimentRunner.class);
             runner.prepare(app.getBean(com.pnomeer.lab.experiments.concurrency.QueueContentionExperiment.class),
                     new QueueContentionScenario("not-dispatched", 1, 1, 1, 1, 0), "queued-before-restart");
@@ -59,6 +62,10 @@ class RunRestartIntegrationTest {
         }
         try (var app = start()) {
             var store = app.getBean(RunStore.class);
+            MockMvcBuilders.standaloneSetup(app.getBean(PatternCatalogController.class)).build()
+                    .perform(get("/dashboard/v1/pattern-catalog")).andExpect(status().isOk());
+            assertEquals(genericSaved, store.find(genericId).orElseThrow());
+            assertEquals(excelSaved, store.find(excelId).orElseThrow());
             assertEquals(RunStatus.INTERRUPTED, store.find("queued-before-restart").orElseThrow().status());
             var generic = app.getBean(ExperimentJobService.class).getJob(genericId);
             assertEquals(ExperimentStatus.SUCCEEDED, generic.getStatus());

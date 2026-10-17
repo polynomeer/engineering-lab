@@ -24,6 +24,7 @@ class ScenarioApiIntegrationTest {
     @Autowired ScenarioRunController controller;
     @Autowired ExperimentCatalogController catalog;
     @Autowired ModuleCatalogController modules;
+    @Autowired PatternCatalogController patterns;
     @Autowired ExecutionEvidenceController executionEvidence;
     @Autowired RunStore store;
     @Autowired IngestionService ingestion;
@@ -36,7 +37,7 @@ class ScenarioApiIntegrationTest {
             "measurement":{"mode":"SINGLE_PASS"}}
             """;
     @BeforeEach void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence).setControllerAdvice(new ScenarioExceptionHandler()).build();
+        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence, patterns).setControllerAdvice(new ScenarioExceptionHandler()).build();
     }
     @Test void exposesModuleOwnershipWithoutChangingExperimentIds() throws Exception {
         mvc.perform(get("/modules")).andExpect(status().isOk())
@@ -63,6 +64,21 @@ class ScenarioApiIntegrationTest {
                 .andExpect(jsonPath("$.execution.definition.kind").value("IN_PROCESS"))
                 .andExpect(jsonPath("$.execution.phase").value("FINALIZING"))
                 .andExpect(jsonPath("$.execution.evidenceComplete").value(true));
+    }
+    @Test void patternDiscoveryPreservesLegacyCatalogsAndStoredScenarioIdentity() throws Exception {
+        String experimentsBefore = mvc.perform(get("/experiments")).andReturn().getResponse().getContentAsString();
+        String modulesBefore = mvc.perform(get("/modules")).andReturn().getResponse().getContentAsString();
+        var before = completed(submit(QUEUE));
+        mvc.perform(get("/dashboard/v1/pattern-catalog")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.schemaVersion").value(1))
+                .andExpect(jsonPath("$.experiments.length()").value(3))
+                .andExpect(jsonPath("$.experiments[0].experimentId").value("concurrency.queue-contention"));
+        assertEquals(before, store.find(before.runId()).orElseThrow());
+        var repeated = completed(submit(QUEUE));
+        assertEquals(before.runMetadata().parameters().get("scenario.definition.sha256"),
+                repeated.runMetadata().parameters().get("scenario.definition.sha256"));
+        assertEquals(experimentsBefore, mvc.perform(get("/experiments")).andReturn().getResponse().getContentAsString());
+        assertEquals(modulesBefore, mvc.perform(get("/modules")).andReturn().getResponse().getContentAsString());
     }
     @Test void invalidDefinitionsDoNotCreateRuns() throws Exception {
         int before = store.list(null, Long.MAX_VALUE, 500).size();

@@ -8,6 +8,7 @@
 
 | Method | 경로 | 용도 |
 | --- | --- | --- |
+| GET | `/dashboard/v1/pattern-catalog` | 현재 활성 실험의 분야·패턴 분류와 출처 (P1 신규) |
 | GET | `/modules` | 등록된 모듈의 id/title/collection과 소유 실험 descriptor 목록 |
 | GET | `/experiments` | 실험 ID·입력 종류·파라미터 schema |
 | GET | `/experiments/{experimentId}` | 특정 실험 schema |
@@ -34,6 +35,27 @@ curl --fail --silent --show-error \
 202 응답은 `{runId, experimentType, scenarioId, definitionSha256}`, Location은 `/runs/{runId}`입니다. 정의/hash 검증 실패는 Run 생성 전에 거부합니다. 같은 정의를 다시 제출하면 새 Run을 만듭니다. 정의 크기 기본 64 KiB, 입력 기본 50 MiB이며 multipart 요청 한도도 적용합니다.
 
 CLI는 이 API의 클라이언트입니다. 오프라인 `validate`, 실행 대기·종료 코드·timeout은 [시나리오 가이드](scenarios.md)를 참고합니다.
+
+### 패턴 카탈로그 (P1)
+
+`GET /dashboard/v1/pattern-catalog`은 `schemaVersion: 1`, `categories`, `patterns`,
+`experiments`를 반환합니다. 각 목록과 `patternIds`는 ID 순서로 정렬됩니다.
+
+- category: `id`, `title`.
+- pattern: `id`, `categoryId`, `title`, `problem`, `verification`, `limitations`.
+- experiment: `experimentId`, `sourceModuleId`, `sourceCollection`, `classification`.
+  분류는 `{categoryId, patternIds}`이며 등록되지 않은 분류는 `null`입니다.
+
+예를 들어 `pipeline.excel-ingestion`의 출처는 `pipeline` / `engineering`, 대표 분야는
+`data-processing`, 연결 패턴은 `bounded-queue`, `chunked-write`, `staged-pipeline`입니다.
+초기 사전은 7개 분야·18개 패턴입니다. 기본 구성의 활성 실험은 3개이며 Career를 모두
+등록하면 16개입니다. 정의 사전에는 비활성 실험과 관련된 패턴도 포함됩니다.
+
+이 API는 실행 가능 여부를 보장하지 않습니다. 기존 dashboard readiness 응답을 확인합니다.
+분류는 현재 카탈로그 해석이며 과거 Run에 저장된 정보가 아닙니다. 기존 descriptor,
+시나리오 hash, Run/export 형식은 바꾸지 않습니다. v0.1.0 서버에는 이 API가 없으므로
+새 클라이언트는 404일 때 기존 `/modules` 탐색으로 돌아가야 합니다(P2 구현 예정).
+자세한 계약은 [패턴 플랫폼 설계](pattern-platform-design.md)를 참고합니다.
 
 ## 2. Run 상태와 페이지 조회
 

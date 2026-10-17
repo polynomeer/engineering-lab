@@ -102,3 +102,34 @@ Batch/Excel 연동 예제는 [Memory worker](batch-memory-worker.md)를 참고�
 DB를 사용하는 CHECK 전용 시나리오는 [MDS worker](mds-worker.md)를 참고한다. 기대한 업무 실패의 상태 검증과 최종 업무 완료 여부를 별도 CHECK로 기록하며, 인프라 예외를 정상 중복으로 처리하지 않는다.
 
 비동기 외부 연동의 CHECK는 [Creator worker](creator-worker.md)를 참고한다. worker 전용 bounded stub과 실제 executor drain으로 호출 결과를 관측하며, 업무 commit과 외부 전달 성공을 별도 CHECK로 기록한다.
+
+## 패턴 분류 추가 (P1)
+
+실행 등록과 분류 등록은 독립적이다. 기존 experiment ID와 descriptor의 category/collection은
+바꾸지 않는다. 신뢰된 서버 `@Configuration`에 `PatternContribution` bean을 추가한다.
+예를 들어 기존 `bounded-queue` 패턴으로 신규 실험을 분류할 때:
+
+```java
+@Bean
+PatternContribution extraPatternClassification() {
+    return new PatternContribution(List.of(), List.of(), List.of(
+        new PatternContribution.Binding("example.queue-pressure",
+            new PatternContribution.Classification("concurrency", List.of("bounded-queue")))));
+}
+```
+
+`PatternContribution`은 `com.pnomeer.lab.registry.pattern`에 있다. 위 예제는 분류만
+등록하며, 실제 실험은 앞서 설명한 provider/실행 등록 절차가 필요하다. 새 분야와 패턴은
+같은 contribution의 `Category`와 `Pattern` 목록에 추가한다. 패턴은 문제·검증 성질·한계를
+함께 설명한다. 이미 등록된 정의를 재선언하지 않는다.
+
+중복 ID/연결, 잘못된 참조와 문자열, 전체 분야 128개·패턴 1,024개·연결 4,096개 초과는
+시작 시 거부한다. contribution 최대 256개, 실험당 패턴 최대 32개다. ID는 소문자 영문으로
+시작하며 소문자·숫자·점·하이픈으로 최대 100자, 제목은 200자, 설명 필드는 각각 1,000자다.
+대표 분야는 연결된 패턴 중 하나의 분야와 일치해야 한다. 비활성 실험의 분류도 검증한다.
+미분류 실험은 정상 등록되고 새 API에서 `classification: null`로 반환된다.
+분류로 executor/worker를 선택하거나 과거 실행 기록을 수정하지 않는다.
+
+검증 예제: `PatternCatalogTest`, `PatternCatalogControllerTest`, `ScenarioApiIntegrationTest`,
+`RunRestartIntegrationTest`. 화면의 패턴 탐색과 전략·사례 모델은
+[단계별 계획](pattern-platform-plan.md)의 P2/P3 범위다.

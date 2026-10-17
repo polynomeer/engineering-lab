@@ -2,6 +2,10 @@
 
 이 문서는 코드 위치와 작업 검증을 위한 안내다. 작업·커밋 규칙의 기준은 루트 [AGENTS.md](../AGENTS.md)이며, 작업에 필요한 부분만 읽는다.
 
+패턴 중심 개편은 [설계](pattern-platform-design.md)와 [단계별 계획](pattern-platform-plan.md)을 따른다.
+P1은 `registry/pattern/`의 분류 등록과 `/dashboard/v1/pattern-catalog` 읽기 API이며,
+기존 실행 ID·저장 형식·worker·화면은 유지한다.
+
 ## 현재 구조
 
 루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.
