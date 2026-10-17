@@ -1,3 +1,4 @@
+import { PatternExplorer } from './PatternExplorer';
 import { MetricCharts } from './RunMetricCharts';
 import {
   CubeIcon,
@@ -301,6 +302,9 @@ function App() {
           >
             <summary>메뉴</summary>
             <nav aria-label="대시보드 탐색">
+              <a href="/app/catalog" aria-current={route.kind === 'catalog' ? 'page' : undefined}>
+                <CubeIcon width={18} height={18} aria-hidden="true" />패턴 탐색
+              </a>
               <a
                 href="/app/experiments"
                 aria-current={route.kind === 'execute' ? 'page' : undefined}
@@ -378,7 +382,7 @@ function App() {
                   'Workspace'}
               </p>
               <h1>
-                {route.kind === 'settings'
+                {route.kind === 'catalog' ? '패턴 탐색' : route.kind === 'settings'
                   ? '설정 이전'
                   : route.kind === 'database'
                     ? '현재 DB 조회'
@@ -420,7 +424,7 @@ function App() {
                 ? '이 브라우저에 저장된 설정 관리'
                 : route.kind === 'database' || route.kind === 'echo'
                   ? '현재 서버의 도구 · Run 증거와 별도'
-                  : route.kind === 'execute'
+                  : route.kind === 'execute' || route.kind === 'catalog'
                     ? '서버에 등록된 실험과 입력 범위'
                     : '저장소에서 조회한 실행 증거'}
           </p>
@@ -430,6 +434,7 @@ function App() {
               <button onClick={() => setRefresh((n) => n + 1)}>다시 시도</button>
             </div>
           )}
+          {route.kind === 'catalog' && <PatternExplorer catalog={catalog} modules={modules} query={route.query} refresh={refresh} />}
           {route.kind === 'settings' && <SettingsPage catalog={catalog} />}
           {route.kind === 'database' && <DatabaseTool />}
           {route.kind === 'echo' && <IoEchoTool />}

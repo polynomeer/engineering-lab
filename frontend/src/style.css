@@ -1326,3 +1326,17 @@ form {
 .chart-data summary { display: list-item; padding: 10px 0; }
 .chart-stream-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .chart-stream-controls span { color: var(--muted); font-size: 12px; }
+
+/* Pattern discovery shares the existing dashboard palette and control focus states. */
+.pattern-filters { display:flex; flex-wrap:wrap; gap:16px; align-items:end; }
+.pattern-filters label { flex:1 1 180px; min-width:0; }
+.pattern-filters select { width:100%; min-height:44px; }
+.pattern-results { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:16px; }
+.pattern-result, .pattern-definition { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:20px; min-width:0; }
+.pattern-definition { margin-top:24px; }
+.pattern-result h2 { margin:8px 0; }
+.pattern-result code { overflow-wrap:anywhere; }
+.pattern-result ul { padding-left:20px; }
+.pattern-result li a { display:inline-flex; align-items:center; min-height:44px; }
+.pattern-definition dd { margin:0 0 16px; color:var(--muted); }
+.pattern-definition dt { font-weight:600; }

@@ -129,3 +129,22 @@ CAREER_REOPEN_IDS=before-run-id,atomic-run-id npm run test:e2e -- --grep 'stored
 메트릭 보기에서 실행 중에는 cursor 이후 관측을 약 2초 간격으로 읽어 처리량·큐 점유율 SVG 그래프를 갱신합니다. Pipeline은 기록된 구간 처리량과 Raw/Mapped 비율, Queue는 인접 누적 소비 건수로 계산한 구간 평균과 깊이/용량 비율, IO는 전체 요청 누적 평균을 사용합니다. 값·시간·용량이 없으면 결측으로 남기며 그래프를 합성하지 않습니다. slider와 값 표로 키보드 조회를 지원하고 원본 표·관측 cursor를 유지합니다. 최근 1,000개만 보유하며 중복 sequence를 제거합니다. 숨긴 탭에서는 조회를 멈추고 복귀하면 이어 읽습니다. 오류 시 기존 그래프를 유지하고 재시도하며, 종료 후 마지막 관측까지 읽으면 조회를 멈춥니다. 현재 관측 페이지 보기로 전환하면 원본 페이지를 확인할 수 있습니다. 계산과 제한은 [디자인 명세](../docs/dashboard-visual-design.md#12-메트릭-그래프)를 참고하세요.
 
 `src/chartData.ts`는 단위와 계산·결측·시간 검증, `src/RunMetricCharts.tsx`는 그래프·표본 선택·값 표를 담당합니다. `chartData.test.ts`와 `tests/charts.spec.ts`가 reset·결측·용량 부재·한 점·페이지 이동·모바일 표시를 검증합니다.
+
+## 패턴 탐색 (P2)
+
+`/app/catalog`은 기존 실행·기록 화면에 연결되는 분야/패턴/프로젝트 출처 탐색이다.
+`PatternExplorer.tsx`는 요청 lifecycle과 필터 UI, `patternCatalog.ts`는 v1 검증과
+`/experiments` 기준 결합을 담당한다. 새 API 요청은 탐색 화면에서만 수행한다.
+404/지원하지 않는 버전은 모듈 탐색, 5xx/네트워크/손상된 v1은 명시적 오류와 재시도다.
+필터는 URL에 저장하며 기존 브라우저 저장 설정과 Run 데이터는 수정하지 않는다.
+
+```bash
+DASHBOARD_URL=http://127.0.0.1:5173 LEGACY_URL=http://127.0.0.1:8080 npm run test:e2e -- tests/patterns.spec.ts tests/dashboard.spec.ts tests/design.spec.ts tests/execution.spec.ts
+```
+
+`patterns.spec.ts`는 P1 정의와 16개 연결의 fixture에 합성 descriptor를 붙여 전체 링크·필터·오류를
+검증한다. 실제 worker 13개 실행 검증은 아니다. 마지막 테스트는 연결된 실제 API를 사용한다.
+구형 v0.1.0 API에 연결한 별도 frontend에서는
+`EXPECT_PATTERN_LEGACY=1 npm run test:e2e -- tests/patterns.spec.ts --grep 'actual API'`로
+404 fallback과 기존 deep link를 검증한다. 새 API에서 `PATTERN_SCREENSHOTS=1`을 지정하면
+실제 기본 catalog의 문서 캡처를 갱신한다. 두 서버는 각각 임시 저장소를 사용한다.

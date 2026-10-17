@@ -133,6 +133,7 @@ export function parseRoute(path: string, search: string) {
       return { kind: 'missing' as const, query };
     }
   }
+  if (path === '/app/catalog') return { kind: 'catalog' as const, query };
   if (path === '/app/settings') return { kind: 'settings' as const, query };
   if (path === '/app/tools/ingestion-db') return { kind: 'database' as const, query };
   if (path === '/app/tools/io-echo') return { kind: 'echo' as const, query };

@@ -4,7 +4,8 @@
 
 패턴 중심 개편은 [설계](pattern-platform-design.md)와 [단계별 계획](pattern-platform-plan.md)을 따른다.
 P1은 `registry/pattern/`의 분류 등록과 `/dashboard/v1/pattern-catalog` 읽기 API이며,
-기존 실행 ID·저장 형식·worker·화면은 유지한다.
+기존 실행 ID·저장 형식·worker는 유지한다. P2 `frontend/src/PatternExplorer.tsx`는
+`/app/catalog` 탐색과 404 fallback을 제공하며 기존 실행·기록 URL을 그대로 연결한다.
 
 ## 현재 구조
 

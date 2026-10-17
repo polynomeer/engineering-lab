@@ -30,7 +30,7 @@ export function ExecutionPage({
       <form action="/app/experiments">
         <label>
           실험 선택
-          <select name="experiment" defaultValue={experiment ?? ''} required>
+          <select name="experiment" key={experiment + ":" + catalog.map(d => d.id).join(",")} defaultValue={experiment ?? ''} required>
             <option value="" disabled>
               실험을 선택하세요
             </option>

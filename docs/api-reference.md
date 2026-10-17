@@ -54,7 +54,7 @@ CLI는 이 API의 클라이언트입니다. 오프라인 `validate`, 실행 대�
 이 API는 실행 가능 여부를 보장하지 않습니다. 기존 dashboard readiness 응답을 확인합니다.
 분류는 현재 카탈로그 해석이며 과거 Run에 저장된 정보가 아닙니다. 기존 descriptor,
 시나리오 hash, Run/export 형식은 바꾸지 않습니다. v0.1.0 서버에는 이 API가 없으므로
-새 클라이언트는 404일 때 기존 `/modules` 탐색으로 돌아가야 합니다(P2 구현 예정).
+새 클라이언트는 404일 때 기존 `/modules` 탐색으로 돌아갑니다(P2 `/app/catalog`).
 자세한 계약은 [패턴 플랫폼 설계](pattern-platform-design.md)를 참고합니다.
 
 ## 2. Run 상태와 페이지 조회
