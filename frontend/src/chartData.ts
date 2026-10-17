@@ -63,7 +63,7 @@ export function metricCharts(run: Run, input: MetricPage['metrics']): ChartModel
     );
   // Choose one clock for the entire displayed window. Do not switch origins per point.
   const elapsedClock =
-    pipeline &&
+    (pipeline || queue) &&
     observations.length > 0 &&
     observations.every(({ point }) => value(point, 'time.elapsedMs') !== null);
   let lastTime = -1;

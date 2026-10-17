@@ -1324,3 +1324,5 @@ form {
 @media(max-width:600px) { .time-chart text { font-size: 30px; } }
 .chart-data { padding: 0; border: 0; margin-top: 8px; }
 .chart-data summary { display: list-item; padding: 10px 0; }
+.chart-stream-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.chart-stream-controls span { color: var(--muted); font-size: 12px; }

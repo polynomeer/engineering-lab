@@ -28,6 +28,14 @@ describe('metric graph semantics', () => {
     expect(rate.rows.map((row) => row.values)).toEqual([[null], [20]]);
     expect(queue.rows.map((row) => row.values)).toEqual([[0], [50]]);
   });
+  it('uses queue monotonic elapsed time when wall clock moves backwards', () => {
+    const [rate] = metricCharts(run, [
+      sample(0, 1000, {}, { 'items.consumed': 0, 'time.elapsedMs': 0 }),
+      sample(1, 900, {}, { 'items.consumed': 10, 'time.elapsedMs': 250 }),
+    ]);
+    expect(rate.rows[1].seconds).toBe(0.25);
+    expect(rate.rows[1].values).toEqual([40]);
+  });
   it('does not derive rates across resets, missing counts, duplicate or reversed clocks', () => {
     const [rate] = metricCharts(run, [
       sample(0, 1000, { 'queue.depth': 0 }, { 'items.consumed': 5 }),

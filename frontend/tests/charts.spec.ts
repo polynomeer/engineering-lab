@@ -171,3 +171,51 @@ test('queue rate is an interval calculation and absent capacity never becomes ze
     page.getByText('유효한 값이 한 개여서 점으로 표시합니다.', { exact: false }),
   ).toBeVisible();
 });
+
+test('active graphs follow new sequences, retain data on failure and drain final observations', async ({ page }) => {
+  const id = 'live-queue';
+  let status = 'RUNNING';
+  let count = 3;
+  let fail = false;
+  const cursors: number[] = [];
+  await page.route('**/api/experiments', r => r.fulfill({ json: [] }));
+  await page.route('**/api/modules', r => r.fulfill({ json: [] }));
+  await page.route('**/api/runs/ui/options', r => r.fulfill({ json: { pageSize: 20 } }));
+  await page.route('**/api/dashboard/v1/capabilities', r => r.fulfill({ status: 404 }));
+  await page.route('**/api/runs/' + id, r => r.fulfill({ json: {
+    ...evidence.run, runId: id, status, startedAtEpochMs: 1000,
+    runMetadata: { ...evidence.run.runMetadata, parameters: { queueCapacity: '4' } },
+  } }));
+  await page.route('**/api/runs/' + id + '/artifacts', r => r.fulfill({ json: [] }));
+  await page.route('**/api/runs/' + id + '/metrics?*', r => {
+    const after = Number(new URL(r.request().url()).searchParams.get('after'));
+    cursors.push(after);
+    if (fail && after >= 2) return r.fulfill({ status: 503, body: 'temporarily unavailable' });
+    return r.fulfill({ json: { metrics: Array.from({ length: count }, (_, i) => ({
+      sequence: i, point: { timestampEpochMs: 1000 + i * 250,
+        counters: { 'items.consumed': i * 10, 'time.elapsedMs': i * 250 },
+        gauges: { 'queue.depth': i % 5 }, labels: {} },
+    })).filter(row => row.sequence > after), nextAfter: null } });
+  });
+  await page.goto('/app/runs/' + id);
+  await page.getByRole('button', { name: '메트릭', exact: true }).click();
+  const slider = page.getByRole('slider', { name: '처리량 추이 관측 지점 선택' });
+  await expect(slider).toHaveAttribute('max', '2');
+  fail = true;
+  await expect(page.locator('.metric-charts [role="alert"]')).toBeVisible({ timeout: 7000 });
+  await expect(slider).toHaveAttribute('max', '2');
+  fail = false; count = 7;
+  await page.getByRole('button', { name: '메트릭 다시 조회', exact: true }).click();
+  await expect(slider).toHaveAttribute('max', '6');
+  expect(cursors).toContain(2);
+  count = 9; status = 'SUCCEEDED';
+  await expect(page.getByText('수집 완료 · 최종 구간', { exact: true })).toBeVisible({ timeout: 8000 });
+  await expect(slider).toHaveAttribute('max', '8');
+  await expect(page.getByRole('img', { name: '처리량 추이', exact: true }).locator('path').first()).toHaveAttribute('d', /M.*L.*L/);
+  await page.screenshot({ path: '../docs/images/24-live-metric-charts.png', fullPage: true });
+  const finalReads = cursors.filter(cursor => cursor >= 8).length;
+  await page.waitForTimeout(2300);
+  expect(cursors.filter(cursor => cursor >= 8)).toHaveLength(finalReads);
+  await page.getByRole('button', { name: '현재 관측 페이지 보기', exact: true }).click();
+  await expect(page.getByText('현재 관측 페이지', { exact: false })).toContainText('9개 표본');
+});

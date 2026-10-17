@@ -102,3 +102,7 @@ XLSX fixture는 기존 TestWorkbookGenerator로 만든 header + 5개의 합성 �
 `ExperimentDescriptors`에 설명/schema를, `RegistryConfiguration`에 명시적 typed factory를 추가한다. `ExperimentRegistry`는 중복 ID를 거부한다. 공통 POST/CLI 전송 코드에는 분기를 추가하지 않는다. CLI의 offline validator도 같은 descriptor를 사용한다. 새 input 종류나 measurement mode는 실행 의미·검증·API를 함께 구현한 후 허용한다.
 
 검증은 `./gradlew test`로 수행한다. parser/schema/hash 테스트, 잘못된 정의의 Run 미생성, Excel별 설정과 hash, 실제 HTTP 서버를 통한 세 예제 CLI 실행, timeout/실패/응답 제한을 포함한다.
+
+### Queue 메트릭 수집 주기
+
+`lab.queue.metric-interval-ms`는 실행 중 관측 간격(기본 250ms, 범위 10..60000ms)입니다. 시작·종료 외에도 소비 건수, 현재 큐 깊이, monotonic 경과 시간을 기록합니다. 저장 지연은 실제 간격을 늘릴 수 있습니다. `lab.queue.worker-shutdown-timeout-ms`는 각 작업 풀의 종료 대기 상한(기본 5000ms, 범위 10..60000ms)입니다. 브라우저는 약 2초마다 새 관측을 읽고 최근 1,000개만 보유합니다. 기존 완료 Run에는 과거 표본을 추가하지 않습니다.

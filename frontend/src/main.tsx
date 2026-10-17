@@ -211,7 +211,7 @@ function App() {
   const metricContent = run && (
     <>
       <section className="detail-panel" hidden={!['overview', 'metrics'].includes(detailView)}>
-        <MetricCharts run={run} page={metrics} />
+        <MetricCharts run={run} page={metrics} pageSize={options.pageSize} />
         <details className="metric-source" open={detailView === 'overview'}>
           <summary id="run-metrics">원본 메트릭 요약</summary>
           {Object.keys(run.summary.counters).length + Object.keys(run.summary.gauges).length >

@@ -25,6 +25,9 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  queue:
+    metric-interval-ms: 250
+    worker-shutdown-timeout-ms: 5000
   worker-storage:
     max-bytes: 1073741824
     reservation-bytes: 134217728

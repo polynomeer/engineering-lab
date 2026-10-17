@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
-import type { MetricPage, Run } from './api';
+import { terminal, type MetricPage, type Run } from './api';
+import { useMetricStream } from './useMetricStream';
 import { Table } from './components';
 import { CHART_POINT_LIMIT, chartPath, metricCharts, type ChartModel } from './chartData';
 
@@ -157,8 +158,12 @@ function TimeChart({ model }: { model: ChartModel }) {
     </section>
   );
 }
-export function MetricCharts({ run, page }: { run: Run; page: MetricPage }) {
-  const models = metricCharts(run, page.metrics);
+export function MetricCharts({ run, page, pageSize = 20 }: { run: Run; page: MetricPage; pageSize?: number }) {
+  const supported = ['pipeline.excel-ingestion', 'concurrency.queue-contention', 'io.endpoint-comparison'].includes(run.experimentType);
+  const [following, setFollowing] = useState(() => !terminal(run));
+  const stream = useMetricStream(run, following && supported, pageSize);
+  const displayed = following ? stream.metrics : page.metrics;
+  const models = metricCharts(run, displayed);
   if (!models.length)
     return (
       <p className="note">
@@ -167,14 +172,17 @@ export function MetricCharts({ run, page }: { run: Run; page: MetricPage }) {
     );
   return (
     <section className="metric-charts" aria-label="메트릭 그래프">
-      <p className="note chart-window">
-        현재 관측 페이지 · {page.metrics.length}개 표본 (그래프 최대{' '}
-        {CHART_POINT_LIMIT.toLocaleString()}개) · 전체 Run의 시계열이 아닙니다. 아래 관측 페이지
-        버튼으로 구간을 이동하세요.
-      </p>
+      <div className="chart-stream-controls">
+        <button aria-pressed={following} onClick={() => setFollowing(value => !value)}>{following ? '현재 관측 페이지 보기' : terminal(run) ? '기록된 구간 따라 읽기' : '실시간 따라가기'}</button>
+        {following && <span>{terminal(run) && stream.caughtUp && !stream.error ? '수집 완료 · 최종 구간' : stream.busy ? '새 관측 읽는 중…' : '실시간 따라가는 중 · 약 2초 간격'}</span>}
+      </div>
+      {following && stream.error && <p className="error" role="alert">새 관측 조회 실패 · 마지막 데이터를 유지합니다. {stream.error} <button onClick={stream.retry}>메트릭 다시 조회</button></p>}
+      <p className="note chart-window">{following
+        ? `최근 관측 창 · ${displayed.length}개 보유 (최대 ${CHART_POINT_LIMIT.toLocaleString()}개) · 오래된 관측은 제거합니다.${stream.updatedAt ? ' 마지막 갱신 ' + new Date(stream.updatedAt).toLocaleTimeString() : ''}`
+        : `현재 관측 페이지 · ${page.metrics.length}개 표본 (그래프 최대 ${CHART_POINT_LIMIT.toLocaleString()}개) · 전체 Run의 시계열이 아닙니다. 아래 관측 페이지 버튼으로 구간을 이동하세요.`}</p>
       {models.map((model) => (
         <TimeChart
-          key={run.runId + model.title + (page.metrics[0]?.sequence ?? 'empty')}
+          key={run.runId + model.title + (following ? 'live' : (displayed[0]?.sequence ?? 'empty'))}
           model={model}
         />
       ))}
