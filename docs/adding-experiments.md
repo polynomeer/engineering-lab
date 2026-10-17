@@ -133,3 +133,8 @@ PatternContribution extraPatternClassification() {
 검증 예제: `PatternCatalogTest`, `PatternCatalogControllerTest`, `ScenarioApiIntegrationTest`,
 `RunRestartIntegrationTest`. 화면의 패턴 탐색과 전략·사례 모델은
 [단계별 계획](pattern-platform-plan.md)의 P2/P3 범위다.
+
+## 전략·사례·시나리오 설명 등록 (P3)
+
+`StudyContribution` bean으로 구현 전략과 근거 문서, 기존 시나리오 파일을 연결한다.
+실행 JSON에 새 필드를 넣지 않는다. 모델·예시·상한·폐기 정책은 [등록 계약](study-catalog.md)을 따른다.

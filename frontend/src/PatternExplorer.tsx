@@ -1,3 +1,4 @@
+import { StudyDetails, useStudies } from './StudyDetails';
 import React, { useEffect, useState } from 'react';
 import { ApiError, get, type Descriptor, type Module } from './api';
 import { discover, parsePatternCatalog, type PatternCatalog } from './patternCatalog';
@@ -5,6 +6,7 @@ import { discover, parsePatternCatalog, type PatternCatalog } from './patternCat
 export function PatternExplorer({ catalog, modules, query, refresh }: {
   catalog: Descriptor[]; modules: Module[]; query: URLSearchParams; refresh: number;
 }) {
+  const studies = useStudies(refresh);
   const [metadata, setMetadata] = useState<PatternCatalog | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'legacy' | 'unsupported' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -44,6 +46,8 @@ export function PatternExplorer({ catalog, modules, query, refresh }: {
       <button onClick={() => setRetry(n => n + 1)}>분류 다시 시도</button>
       <p>아래 모듈 목록에서 실험을 열 수 있습니다. 분야·패턴 필터는 적용하지 않습니다.</p>
     </div>}
+    {studies.message && <p role={studies.failed ? 'alert' : 'status'}>{studies.message}
+      {studies.failed && <button onClick={studies.retry}>사례 다시 시도</button>}</p>}
     <form action="/app/catalog" className="pattern-filters">
       <label>분야<select name="category" defaultValue={category} disabled={!metadata} key={'category-' + state}>
         <option value="">모든 분야</option>
@@ -65,7 +69,11 @@ export function PatternExplorer({ catalog, modules, query, refresh }: {
     </form>
     {metadata && <p className="note">분야는 대표 분야 기준입니다. 분류는 현재 기준이며, 실행 당시 기록이나 실행 준비 상태를 뜻하지 않습니다.</p>}
     {selectedPattern && <section className="pattern-definition" aria-label="선택한 패턴 설명">
-      <h2>{selectedPattern.title}</h2><dl>
+      <h2>{selectedPattern.title}</h2>
+      {studies.catalog?.patterns.filter(p => p.patternId === selectedPattern.id).map(p => <p key={p.patternId}>
+        의미 버전 {p.semanticVersion} · {p.status === 'ACTIVE' ? '사용 중' : '폐기 예정'}
+        {p.replacementPatternId && <> · 대체 후보: <code>{p.replacementPatternId}</code> (자동 치환하지 않음)</>}
+      </p>)}<dl>
         <dt>문제</dt><dd>{selectedPattern.problem}</dd>
         <dt>검증할 성질</dt><dd>{selectedPattern.verification}</dd>
         <dt>적용 한계</dt><dd>{selectedPattern.limitations}</dd>
@@ -82,6 +90,7 @@ export function PatternExplorer({ catalog, modules, query, refresh }: {
           <ul aria-label={e.experiment.title + ' 패턴'}>{e.classification?.patternIds.map(id => <li key={id}>
             <a href={'/app/catalog?pattern=' + encodeURIComponent(id)}>{metadata.patterns.find(p => p.id === id)?.title}</a>
           </li>)}</ul></>}
+        {studies.catalog?.studies.filter(s => s.experimentId === e.experiment.id).map(s => <StudyDetails key={s.experimentId} study={s} />)}
         <div className="actions">
           <a href={'/app/experiments?experiment=' + encodeURIComponent(e.experiment.id)}>실험 설정</a>
           <a href={'/app/runs?experiment=' + encodeURIComponent(e.experiment.id)}>실행 기록</a>

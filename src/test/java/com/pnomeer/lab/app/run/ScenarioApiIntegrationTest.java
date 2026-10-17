@@ -25,6 +25,7 @@ class ScenarioApiIntegrationTest {
     @Autowired ExperimentCatalogController catalog;
     @Autowired ModuleCatalogController modules;
     @Autowired PatternCatalogController patterns;
+    @Autowired StudyCatalogController studies;
     @Autowired ExecutionEvidenceController executionEvidence;
     @Autowired RunStore store;
     @Autowired IngestionService ingestion;
@@ -37,7 +38,7 @@ class ScenarioApiIntegrationTest {
             "measurement":{"mode":"SINGLE_PASS"}}
             """;
     @BeforeEach void setup() {
-        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence, patterns).setControllerAdvice(new ScenarioExceptionHandler()).build();
+        mvc = MockMvcBuilders.standaloneSetup(controller, catalog, modules, executionEvidence, patterns, studies).setControllerAdvice(new ScenarioExceptionHandler()).build();
     }
     @Test void exposesModuleOwnershipWithoutChangingExperimentIds() throws Exception {
         mvc.perform(get("/modules")).andExpect(status().isOk())
@@ -73,6 +74,7 @@ class ScenarioApiIntegrationTest {
                 .andExpect(jsonPath("$.schemaVersion").value(1))
                 .andExpect(jsonPath("$.experiments.length()").value(3))
                 .andExpect(jsonPath("$.experiments[0].experimentId").value("concurrency.queue-contention"));
+        mvc.perform(get("/dashboard/v1/study-catalog")).andExpect(status().isOk()).andExpect(jsonPath("$.studies.length()").value(3));
         assertEquals(before, store.find(before.runId()).orElseThrow());
         var repeated = completed(submit(QUEUE));
         assertEquals(before.runMetadata().parameters().get("scenario.definition.sha256"),

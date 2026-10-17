@@ -86,8 +86,8 @@ public final class BuiltInPatternMetadata {
                         "현재 외부 서비스는 bounded stub이며 durable outbox나 crash 복구 보장이 아니다."),
                 new Pattern("io-execution-model", "io-execution", "I/O execution models",
                         "연결 처리 방식에 따라 스레드·대기 비용이 달라진다.",
-                        "같은 부하에서 blocking·virtual thread·selector의 결과와 측정을 비교한다.",
-                        "일반 네트워크나 모든 하드웨어에서의 성능 우위를 보장하지 않는다.")
+                        "같은 입력에서 virtual-thread sleep과 Reactor delay의 결과와 측정을 비교한다.",
+                        "현재 등록 실험은 합성 대기 비교이며 실제 HTTP·selector 서버의 부하나 네트워크 성능을 측정하지 않는다.")
         ), List.of(
                 binding("pipeline.excel-ingestion", "data-processing", "staged-pipeline", "bounded-queue", "chunked-write"),
                 binding("concurrency.queue-contention", "concurrency", "bounded-queue"),

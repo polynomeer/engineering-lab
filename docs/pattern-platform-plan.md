@@ -8,7 +8,7 @@
 | P0 | 완료 | 개념·16개 실험 지도·호환/측정/배포 원칙 문서화 | 설계와 단계별 검증 기준 연결 |
 | P1 | 완료 | 불변 분류 metadata, 확장 등록, 유효성/상한 검사, 읽기 전용 pattern-catalog API | 기본/전체/미분류 catalog 및 오류·HTTP·기존 전체 회귀 통과 |
 | P2 | 완료 | 분야·패턴 탐색, 프로젝트 출처 필터, 기존 URL과 새 API 없는 서버 fallback | 구형/신형 서버 브라우저 회귀, 16개 실험 접근 가능 |
-| P3 | 대기 | Strategy/Case study/Scenario 관계, 프리셋·설명 등록 계약, 패턴 의미 버전/폐기 정책 | 기존 JSON/hash 불변; BEFORE/AFTER의 구체적 전략·사례 근거 표시 |
+| P3 | 완료 | Strategy/Case study/Scenario 관계, 프리셋·설명 등록 계약, 패턴 의미 버전/폐기 정책 | 기존 JSON/hash 불변; BEFORE/AFTER의 구체적 전략·사례 근거 표시 |
 | P4 | 대기 | 공통 검증 성질·측정 범위·비교 가능 조건 모델 | 단위/환경/측정 범위 불일치 비교를 경고; 구형 증거 fallback |
 | P5 | 대기 | Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출 | 기존 처리 결과·메모리 상한·backpressure·오류·재시도·종료 보존 |
 | P6 | 대기 | 추가 사례로 패턴 재사용 검증 및 확장 가이드 갱신 | 중앙 controller/frontend 분기 없이 등록; 출처·한계 유지 |
@@ -52,3 +52,20 @@ P1 종료 시 화면은 기존 모듈 탐색을 유지한다. 코드 이동·범
 - 375/768px·가로 화면·키보드·reduced-motion·200% 텍스트 크기를 확인하고 실제 API 캡처를
   [사용 가이드](standalone-dashboard.md)에 추가했다. 루트 `./gradlew test` 통과(395개 결과 재사용, UP-TO-DATE).
 - 다음 단계는 P3의 Strategy/Case study/Scenario 등록 계약이다. 운영 배포는 교체하지 않았다.
+
+## P3 완료 기록 — 2026-10-17
+
+- [전략·사례·시나리오 계약](study-catalog.md)을 작성하고 `StudyContribution` 확장 bean과
+  `/dashboard/v1/study-catalog`를 구현했다. 기존 16개 실험과 40개 시나리오를 연결했다.
+- 구체적인 BEFORE/AFTER 구현과 입력·경쟁·실패 조건을 구분했다. IO의 실제 구현 확인에 따라
+  설명을 virtual-thread sleep / Reactor delay 합성 비교로 정정했다.
+- 원본 시나리오를 classpath에 패키징하고 기존 parser로 canonical JSON/hash를 생성한다.
+  기존 실행 정의·ID·Run 저장·worker 계약은 변경하지 않았다.
+- 패턴 의미 버전과 ACTIVE/DEPRECATED·대체 후보를 등록하고 누락 참조·순환을 거부한다.
+  과거 Run을 수정하거나 대체 후보로 자동 치환하지 않는다.
+- 탐색 카드에서 근거·전략·시나리오와 JSON 다운로드를 제공한다. 구형 API와 오류는 기존 탐색을
+  유지한다. 정의 저장은 자동 실행/폼 적용과 구분한다.
+- 루트 테스트 400개(실패/건너뜀 0), frontend 단위 33개와 typecheck/build 통과.
+  P2/P3 브라우저 14개: 전체 16개 링크·필터·fallback, 실제 정의 다운로드·모바일·폐기 표시 확인.
+- Career의 소스/빌드·실제 worker 실행·운영 배포는 변경하지 않았다. 다음 단계는 P4의
+  공통 검증 성질·측정 범위·비교 가능 조건 모델이다.

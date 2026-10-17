@@ -53,3 +53,5 @@
 - [v0.1.0 운영 전환 기록](releases/v0.1.0-deployment.md): 기존 데이터 보존, 전체 모듈 인수, 예약 백업과 자원 복구
 - [패턴 중심 플랫폼 설계](pattern-platform-design.md): 분류·패턴·사례 관계와 기존 실행 호환 정책
 - [패턴 중심 플랫폼 작업 계획](pattern-platform-plan.md): P0–P7 단계와 완료 기준
+
+- [전략·사례·시나리오 등록 계약 (P3)](study-catalog.md)

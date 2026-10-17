@@ -285,3 +285,11 @@ tasks.register('creatorContainerTest', Test) {
     systemProperty 'lab.creator.evidence', file('build/verification/d5-5').absolutePath
     outputs.upToDateWhen { false }
 }
+
+// Package existing declarations unchanged; the explanatory catalog never modifies scenario JSON/hash.
+tasks.named('processResources') {
+    from('experiments') {
+        include '**/*.json', '**/*.yaml'
+        into 'experiments'
+    }
+}

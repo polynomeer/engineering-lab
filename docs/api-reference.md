@@ -8,6 +8,7 @@
 
 | Method | 경로 | 용도 |
 | --- | --- | --- |
+| GET | `/dashboard/v1/study-catalog` | 전략·사례·기존 시나리오 프리셋과 패턴 의미 버전 ([계약](study-catalog.md)) |
 | GET | `/dashboard/v1/pattern-catalog` | 현재 활성 실험의 분야·패턴 분류와 출처 (P1 신규) |
 | GET | `/modules` | 등록된 모듈의 id/title/collection과 소유 실험 descriptor 목록 |
 | GET | `/experiments` | 실험 ID·입력 종류·파라미터 schema |

@@ -6,6 +6,8 @@
 P1은 `registry/pattern/`의 분류 등록과 `/dashboard/v1/pattern-catalog` 읽기 API이며,
 기존 실행 ID·저장 형식·worker는 유지한다. P2 `frontend/src/PatternExplorer.tsx`는
 `/app/catalog` 탐색과 404 fallback을 제공하며 기존 실행·기록 URL을 그대로 연결한다.
+P3 `registry/pattern/Study*`, `BuiltInStudies`, `StudyDetails.tsx`는 [전략·사례·시나리오 계약](study-catalog.md)을 구현한다.
+시나리오 원본은 `processResources`로 패키징하며 기존 정의/hash를 바꾸지 않는다.
 
 ## 현재 구조
 

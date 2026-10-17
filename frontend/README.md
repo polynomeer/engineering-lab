@@ -148,3 +148,12 @@ DASHBOARD_URL=http://127.0.0.1:5173 LEGACY_URL=http://127.0.0.1:8080 npm run tes
 `EXPECT_PATTERN_LEGACY=1 npm run test:e2e -- tests/patterns.spec.ts --grep 'actual API'`로
 404 fallback과 기존 deep link를 검증한다. 새 API에서 `PATTERN_SCREENSHOTS=1`을 지정하면
 실제 기본 catalog의 문서 캡처를 갱신한다. 두 서버는 각각 임시 저장소를 사용한다.
+
+## 전략·사례·시나리오 (P3)
+
+`StudyDetails.tsx`는 독립 study API를 한 번 조회하고 탐색 카드에 설명/JSON 다운로드를 제공한다.
+404/미지원 버전은 기존 탐색을 유지하고 다른 오류는 명시적으로 표시·재시도한다.
+프리셋 JSON을 자동 실행하거나 기존 저장 설정에 덮어쓰지 않는다. `studies.test.ts`와
+`tests/studies.spec.ts`가 계약·다운로드 동일성·오류 복구·폐기 표시를 검증한다.
+`DASHBOARD_URL=<새 API에 연결한 frontend> npm run test:e2e -- tests/studies.spec.ts tests/patterns.spec.ts`
+로 실행한다. 상세 모델과 상한은 [P3 계약](../docs/study-catalog.md)을 따른다.

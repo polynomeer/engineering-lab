@@ -1340,3 +1340,9 @@ form {
 .pattern-result li a { display:inline-flex; align-items:center; min-height:44px; }
 .pattern-definition dd { margin:0 0 16px; color:var(--muted); }
 .pattern-definition dt { font-weight:600; }
+
+.study-details { margin:16px 0; }
+.study-details summary { min-height:44px; padding:10px 0; cursor:pointer; }
+.study-details dd { margin:0 0 16px; color:var(--muted); }
+.study-details dt { font-weight:600; }
+.study-details pre { white-space:pre-wrap; overflow-wrap:anywhere; }
