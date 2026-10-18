@@ -44,3 +44,22 @@ frontend 단위 34건, typecheck/production build, 정적 서버 1건 통과.
 분야·경험 분리와 기존 패턴/사례/기록 회귀 21건 및 기존 모바일 디자인 회귀 1건 통과.
 루트 `./gradlew test` 성공(416개 기존 결과 재사용, 공통 배치 3건 포함 검증).
 Career 구현·worker·저장 schema·기존 Run은 변경하지 않는다.
+
+## 운영 반영 기록 — 2026-10-18
+
+운영 디렉터리는 `.lab/deployments/catalog-navigation-20261018`이며 API 18088,
+프론트엔드 4188 포트를 사용한다. UI는 `18146b6` 빌드로 교체했고 controller와
+worker는 기존 v0.2.0 산출물을 유지했다. `deployment.json`의 `baseRelease`와
+`frontendRevision`에 각각 기반 릴리스와 UI commit·파일 해시를 기록했다.
+이 변경은 새 버전 태그나 원격 push를 포함하지 않는다.
+
+- 운영 브라우저 검증 3건으로 탐색·모바일 메뉴와 기존 17개 인수 Run의 REPORT 다운로드를 확인했다.
+- 전환 및 최종 재시작 후 기존 Run 73개의 원문·artifact·export 해시가 모두 일치했다.
+- 백업은 `.lab/backups/catalog-navigation-20261018`에 매일 03:00, 최근 7개 보존으로 등록했다.
+  예약 작업 수동 기동과 최종 설정 백업 모두 성공했으며 서비스가 자동 복귀했다.
+- 복원 시 비활성화된 시작 시 복구 설정은 컨테이너 정리 journal 37개가 모두 완료됐음을
+  확인한 뒤 기존 운영값(`recover-on-startup=true`, 6개 worker)으로 되돌렸다.
+- 이전 `.lab/deployments/v0.2.0-20261018`과 백업은 보존했고 임시 검증 서버는 종료했다.
+
+운영 디렉터리·서비스 변경은 [상시 실행](local-service.md)과
+[백업·복원](local-backup.md) 절차를 따른다.
