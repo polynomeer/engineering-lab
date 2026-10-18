@@ -29,4 +29,26 @@ create table if not exists lab_series_baseline (
     pinned_at bigint not null,
     primary key(experiment_type, scenario_id)
 );
+-- A sweep runs one series per parameter combination of the same base definition.
+create table if not exists lab_sweep (
+    seq bigint generated always as identity unique,
+    sweep_id varchar(100) primary key,
+    experiment_type varchar(200) not null,
+    scenario_id varchar(200) not null,
+    grid_json clob not null,
+    repetitions integer not null check (repetitions between 1 and 50),
+    warmup integer not null check (warmup between 0 and 10),
+    status varchar(30) not null,
+    created_at bigint not null,
+    completed_at bigint not null default 0,
+    failure_message varchar(1000)
+);
+create index if not exists lab_sweep_type_seq on lab_sweep(experiment_type, seq);
+create table if not exists lab_sweep_point (
+    sweep_id varchar(100) not null references lab_sweep(sweep_id),
+    position integer not null check (position >= 0 and position < 24),
+    series_id varchar(100) not null unique references lab_series(series_id),
+    parameters_json clob not null,
+    primary key(sweep_id, position)
+);
 update lab_schema set version=4 where id=1 and version=3;

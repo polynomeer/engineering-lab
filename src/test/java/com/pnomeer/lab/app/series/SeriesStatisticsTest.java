@@ -40,5 +40,6 @@ class SeriesStatisticsTest {
                 SeriesStatistics.separation(slow, SeriesStatistics.of(List.of(300.0, 310.0))));
         assertEquals(200.0, SeriesStatistics.medianChange(slow, SeriesStatistics.of(List.of(315.0, 315.0, 315.0))), 1e-9);
         assertNull(SeriesStatistics.medianChange(SeriesStatistics.of(List.of(0.0)), fast));
+        assertEquals(0.0, SeriesStatistics.medianChange(SeriesStatistics.of(List.of(0.0)), SeriesStatistics.of(List.of(0.0))));
     }
 }

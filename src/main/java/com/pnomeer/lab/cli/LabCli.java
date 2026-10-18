@@ -20,7 +20,8 @@ public final class LabCli {
     private static final int DOCUMENT_LIMIT = 65536, INPUT_LIMIT = 52428800, RESPONSE_LIMIT = 1048576;
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String USAGE = "lab list [--server URL] | validate FILE | run FILE [--server URL] [--repeat N [--warmup M]] "
-            + "[--wait [--timeout-seconds N] [--check-baseline [--tolerance-pct P]]] | baseline SERIES_ID [--server URL]";
+            + "[--wait [--timeout-seconds N] [--check-baseline [--tolerance-pct P]]] | baseline SERIES_ID [--server URL] "
+            + "| sweep FILE --grid NAME=V1,V2 [--grid ...] [--repeat N] [--warmup M] [--server URL] [--wait [--timeout-seconds N]]";
     /** Exit codes: 0 success, 1 failed run or error, 2 wait timeout, 3 regression, 4 no baseline or too few repetitions. */
     static final int EXIT_REGRESSION = 3, EXIT_INCONCLUSIVE = 4;
 
@@ -33,7 +34,7 @@ public final class LabCli {
             ScenarioDocuments documents = new ScenarioDocuments(DOCUMENT_LIMIT);
             ScenarioDefinition definition = null;
             Path input = null;
-            if (options.command.equals("run") || options.command.equals("validate")) {
+            if (options.command.equals("run") || options.command.equals("validate") || options.command.equals("sweep")) {
                 Path path = options.file.toRealPath();
                 try (var stream = Files.newInputStream(path)) { definition = documents.read(stream, ScenarioDocuments.format(path.toString())); }
                 ExperimentCatalog.load().get(definition.experiment()).validate(definition);
@@ -56,6 +57,7 @@ public final class LabCli {
                 return 0;
             }
             String canonical = documents.canonical(definition);
+            if (options.command.equals("sweep")) return sweep(client, options, canonical, input, out, err);
             HttpRequest.BodyPublisher body;
             String contentType;
             if (input == null) {
@@ -142,6 +144,58 @@ public final class LabCli {
         };
     }
 
+    private static int sweep(HttpClient client, Options options, String canonical, Path input, PrintStream out, PrintStream err) throws Exception {
+        String grid = JSON.writeValueAsString(options.grid);
+        URI submit = options.server.resolve("/run-sweeps?repetitions=" + (options.repeat == null ? 3 : options.repeat) + "&warmup=" + options.warmup);
+        HttpRequest.BodyPublisher body;
+        String contentType;
+        if (input == null) {
+            body = HttpRequest.BodyPublishers.ofString("{\"definition\":" + canonical + ",\"grid\":" + grid + "}", StandardCharsets.UTF_8);
+            contentType = "application/json";
+        } else {
+            String boundary = "lab-" + UUID.randomUUID();
+            contentType = "multipart/form-data; boundary=" + boundary;
+            body = HttpRequest.BodyPublishers.concat(
+                    HttpRequest.BodyPublishers.ofString("--" + boundary + "\r\nContent-Disposition: form-data; name=\"scenario\"; filename=\"scenario.json\"\r\nContent-Type: application/json\r\n\r\n" + canonical
+                            + "\r\n--" + boundary + "\r\nContent-Disposition: form-data; name=\"grid\"\r\nContent-Type: application/json\r\n\r\n" + grid
+                            + "\r\n--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"input.xlsx\"\r\nContent-Type: application/octet-stream\r\n\r\n", StandardCharsets.UTF_8),
+                    HttpRequest.BodyPublishers.ofFile(input),
+                    HttpRequest.BodyPublishers.ofString("\r\n--" + boundary + "--\r\n"));
+        }
+        Map<?, ?> submission = object(request(client, submit, body, contentType, Duration.ofSeconds(30)));
+        String sweepId = UUID.fromString((String)submission.get("sweepId")).toString();
+        out.println(JSON.writeValueAsString(submission));
+        if (!options.waitForCompletion) return 0;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(options.timeoutSeconds);
+        while (true) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) { err.println("Wait timed out; sweep continues: " + sweepId); return 2; }
+            Map<?, ?> view = object(request(client, options.server.resolve("/run-sweeps/" + sweepId), null, null,
+                    Duration.ofNanos(Math.min(remaining, TimeUnit.SECONDS.toNanos(30)))));
+            String status = (String)object(view.get("sweep")).get("status");
+            if (Set.of("SUCCEEDED", "FAILED", "INTERRUPTED").contains(status)) {
+                out.println(JSON.writeValueAsString(view));
+                return status.equals("SUCCEEDED") ? 0 : 1;
+            }
+            if (!Set.of("QUEUED", "RUNNING").contains(status)) throw new IOException("Unexpected sweep status: " + status);
+            Thread.sleep(Math.max(1, Math.min(500, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()))));
+        }
+    }
+
+    /** {@code name=1,2,4}: integers and true/false keep their type, anything else is a string. */
+    static Map.Entry<String, List<Object>> gridEntry(String spec) {
+        int equals = spec.indexOf('=');
+        if (equals < 1 || equals == spec.length() - 1) throw new ScenarioException("--grid needs NAME=V1,V2");
+        var values = new ArrayList<Object>();
+        for (String raw : spec.substring(equals + 1).split(",", -1)) {
+            String value = raw.strip();
+            if (value.isEmpty()) throw new ScenarioException("--grid has an empty value: " + spec);
+            values.add(value.matches("-?\\d{1,18}") ? (Object) Long.parseLong(value)
+                    : value.equals("true") || value.equals("false") ? (Object) Boolean.parseBoolean(value) : value);
+        }
+        return Map.entry(spec.substring(0, equals).strip(), List.copyOf(values));
+    }
+
     static Path verifyInput(Path directory, ScenarioDefinition.Input input) throws Exception {
         Path root = directory.toRealPath(), file = root.resolve(input.file()).toRealPath();
         if (!file.startsWith(root) || !Files.isRegularFile(file)) throw new ScenarioException("Input must be a regular file inside the scenario directory");
@@ -202,9 +256,9 @@ public final class LabCli {
     }
 
     private record Options(String command, Path file, String seriesId, URI server, boolean waitForCompletion, int timeoutSeconds,
-            Integer repeat, int warmup, boolean checkBaseline, double tolerancePct) {
+            Integer repeat, int warmup, boolean checkBaseline, double tolerancePct, Map<String, List<Object>> grid) {
         static Options parse(String[] args) {
-            if (args.length == 0 || !Set.of("run", "validate", "list", "baseline").contains(args[0])) throw new ScenarioException(USAGE);
+            if (args.length == 0 || !Set.of("run", "validate", "list", "baseline", "sweep").contains(args[0])) throw new ScenarioException(USAGE);
             String command = args[0]; int index = 1; Path file = null; String seriesId = null;
             if (!command.equals("list")) {
                 if (args.length <= index || args[index].startsWith("--")) throw new ScenarioException(USAGE);
@@ -212,24 +266,31 @@ public final class LabCli {
             }
             URI server = URI.create("http://localhost:8080"); boolean wait = false; int timeout = 120;
             Integer repeat = null; int warmup = 0; boolean check = false; double tolerance = 5.0;
+            var grid = new LinkedHashMap<String, List<Object>>();
             Set<String> seen = new HashSet<>();
             while (index < args.length) {
                 String key = args[index++];
-                if (!seen.add(key)) throw new ScenarioException("Duplicate option: " + key);
-                if (key.equals("--wait") && command.equals("run")) { wait = true; continue; }
+                if (!key.equals("--grid") && !seen.add(key)) throw new ScenarioException("Duplicate option: " + key);
+                boolean runs = command.equals("run") || command.equals("sweep");
+                if (key.equals("--wait") && runs) { wait = true; continue; }
                 if (key.equals("--check-baseline") && command.equals("run")) { check = true; continue; }
                 if (index >= args.length) throw new ScenarioException(USAGE);
                 String value = args[index++];
                 if (key.equals("--server") && !command.equals("validate")) server = URI.create(value);
-                else if (key.equals("--timeout-seconds") && command.equals("run")) timeout = Integer.parseInt(value);
-                else if (key.equals("--repeat") && command.equals("run")) repeat = Integer.parseInt(value);
-                else if (key.equals("--warmup") && command.equals("run")) warmup = Integer.parseInt(value);
+                else if (key.equals("--timeout-seconds") && runs) timeout = Integer.parseInt(value);
+                else if (key.equals("--repeat") && runs) repeat = Integer.parseInt(value);
+                else if (key.equals("--warmup") && runs) warmup = Integer.parseInt(value);
+                else if (key.equals("--grid") && command.equals("sweep")) {
+                    var entry = gridEntry(value);
+                    if (grid.put(entry.getKey(), entry.getValue()) != null) throw new ScenarioException("Duplicate grid parameter: " + entry.getKey());
+                }
                 else if (key.equals("--tolerance-pct") && command.equals("run")) tolerance = Double.parseDouble(value);
                 else throw new ScenarioException("Unsupported option: " + key);
             }
             if (seen.contains("--timeout-seconds") && !wait) throw new ScenarioException("--timeout-seconds requires --wait");
             if (timeout < 1 || timeout > 3600) throw new ScenarioException("timeout must be between 1 and 3600 seconds");
-            if (seen.contains("--warmup") && repeat == null) throw new ScenarioException("--warmup requires --repeat");
+            if (seen.contains("--warmup") && repeat == null && !command.equals("sweep")) throw new ScenarioException("--warmup requires --repeat");
+            if (command.equals("sweep") && grid.isEmpty()) throw new ScenarioException("sweep needs at least one --grid NAME=V1,V2");
             if (repeat != null && (repeat < 1 || repeat > 50 || warmup < 0 || warmup > 10))
                 throw new ScenarioException("--repeat must be 1..50 and --warmup 0..10");
             if (check && (repeat == null || !wait)) throw new ScenarioException("--check-baseline requires --repeat and --wait");
@@ -238,7 +299,7 @@ public final class LabCli {
             if (!("http".equals(server.getScheme()) || "https".equals(server.getScheme())) || server.getHost() == null
                     || server.getUserInfo() != null || server.getQuery() != null || server.getFragment() != null
                     || !(server.getPath().isEmpty() || server.getPath().equals("/"))) throw new ScenarioException("--server requires an HTTP(S) origin URL");
-            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance);
+            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance, grid);
         }
     }
 }

@@ -25,7 +25,7 @@ class RunSeriesApiIntegrationTest {
         return """
             {"schemaVersion":1,"experiment":"concurrency.queue-contention",
             "scenario":{"id":"series-capacity-%d","hypothesis":"Capacity changes producer waiting"},
-            "parameters":{"queueCapacity":%d,"producerThreads":1,"consumerThreads":1,"itemsPerProducer":20,"consumerDelayMs":0},
+            "parameters":{"queueCapacity":%d,"producerThreads":1,"consumerThreads":1,"itemsPerProducer":20,"consumerDelayMs":1},
             "measurement":{"mode":"SINGLE_PASS"}}
             """.formatted(capacity, capacity);
     }

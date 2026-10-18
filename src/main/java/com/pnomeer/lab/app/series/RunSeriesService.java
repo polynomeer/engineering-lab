@@ -42,8 +42,7 @@ public class RunSeriesService {
     public RunSeries submit(ScenarioDefinition definition, InputPayload input, int repetitions, int warmup) {
         RunSeries series;
         try {
-            series = seriesStore.createSeries(UUID.randomUUID().toString(), definition.experiment(), definition.scenario().id(),
-                    documents.hash(definition), repetitions, warmup);
+            series = create(definition, repetitions, warmup);
         } catch (RuntimeException ex) {
             closeQuietly(input, ex);
             throw ex;
@@ -57,7 +56,13 @@ public class RunSeriesService {
         return series;
     }
 
-    void coordinate(RunSeries series, ScenarioDefinition definition, InputPayload input) {
+    RunSeries create(ScenarioDefinition definition, int repetitions, int warmup) {
+        return seriesStore.createSeries(UUID.randomUUID().toString(), definition.experiment(), definition.scenario().id(),
+                documents.hash(definition), repetitions, warmup);
+    }
+
+    /** Runs the series on the calling thread and returns its final status. Closes {@code input}. */
+    RunStatus coordinate(RunSeries series, ScenarioDefinition definition, InputPayload input) {
         String id = series.seriesId();
         try (input) {
             seriesStore.startSeries(id);
@@ -70,18 +75,22 @@ public class RunSeriesService {
                 if (status != RunStatus.SUCCEEDED && !warmup) failedMeasured++;
                 log.info("series_id={} stage=series position={} run_id={} warmup={} status={}", id, position, runId, warmup, status);
             }
-            seriesStore.completeSeries(id, failedMeasured == 0 ? RunStatus.SUCCEEDED : RunStatus.FAILED,
+            var status = failedMeasured == 0 ? RunStatus.SUCCEEDED : RunStatus.FAILED;
+            seriesStore.completeSeries(id, status,
                     failedMeasured == 0 ? null : failedMeasured + " of " + series.repetitions() + " measured repetitions did not succeed");
+            return status;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             finish(id, RunStatus.INTERRUPTED, "Series interrupted before all repetitions finished");
+            return RunStatus.INTERRUPTED;
         } catch (RuntimeException | java.io.IOException ex) {
             log.warn("series_id={} stage=series reason={}", id, ex.getMessage());
             finish(id, RunStatus.FAILED, "Series stopped: " + ex.getMessage());
+            return RunStatus.FAILED;
         }
     }
 
-    private InputPayload copy(InputPayload input) throws java.io.IOException {
+    InputPayload copy(InputPayload input) throws java.io.IOException {
         // Each run owns and deletes its own staged copy; the series keeps the original until it ends.
         return input == null ? null : InputPayload.stage(input.openStream(), scenarioProperties.maxInputBytes());
     }

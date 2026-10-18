@@ -73,4 +73,27 @@ class RunSeriesStoreTest {
             assertThrows(IllegalArgumentException.class, () -> store.pinBaseline("missing"));
         }
     }
+
+    @Test void recordsSweepPointsInOrderAndInterruptsUnfinishedSweeps() {
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            var grid = new java.util.LinkedHashMap<String, java.util.List<Object>>();
+            grid.put("queueCapacity", java.util.List.of(1, 4));
+            grid.put("mode", java.util.List.of("A", "B"));
+            var sweep = store.createSweep("w1", "queue", "cap", grid, 3, 1);
+            assertEquals(java.util.List.of("queueCapacity", "mode"), java.util.List.copyOf(sweep.grid().keySet()));
+            store.createSeries("p0", "queue", "cap.p0", "a".repeat(64), 3, 1);
+            store.createSeries("p1", "queue", "cap.p1", "b".repeat(64), 3, 1);
+            assertThrows(IllegalStateException.class, () -> store.addSweepPoint("w1", new RunSweep.Point(0, "p0", java.util.Map.of("queueCapacity", 1))));
+            store.startSweep("w1");
+            store.addSweepPoint("w1", new RunSweep.Point(1, "p1", java.util.Map.of("queueCapacity", 4)));
+            store.addSweepPoint("w1", new RunSweep.Point(0, "p0", java.util.Map.of("queueCapacity", 1)));
+            assertEquals(java.util.List.of("p0", "p1"), store.sweepPoints("w1").stream().map(RunSweep.Point::seriesId).toList());
+            assertEquals(4, store.sweepPoints("w1").get(1).parameters().get("queueCapacity"));
+            assertEquals(1, store.listSweeps("queue", 10).size());
+        }
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            assertEquals(3, store.recoverInterruptedSeries()); // the running sweep and its two queued series
+            assertEquals(RunStatus.INTERRUPTED, store.findSweep("w1").orElseThrow().status());
+        }
+    }
 }

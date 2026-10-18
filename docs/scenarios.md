@@ -102,6 +102,15 @@ stdout은 JSON lines다. validate는 검증 결과/hash, list는 catalog 배열�
 
 종료 코드: 0 통과, 1 실패한 Run·묶음 또는 오류, 2 대기 timeout, 3 회귀, 4 판정 불가(기준선 없음 또는 어느 쪽이든 성공한 측정 반복 3회 미만).
 
+### 파라미터 스윕
+
+```bash
+# queueCapacity 1·4·16 각각을 측정 3회씩 실행한다
+./gradlew -q lab --args='sweep experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --grid queueCapacity=1,4,16 --repeat 3 --wait'
+```
+
+`--grid NAME=V1,V2`를 여러 번 주면 조합을 만든다. 정수와 `true`/`false`는 그 타입으로, 나머지는 문자열로 보낸다. `--repeat` 기본값은 3이다. `--wait`이면 스윕 상세를 한 줄 더 출력하며, 모든 점의 묶음이 성공하면 0, 아니면 1을 반환한다.
+
 CLI 문서/파일 한도는 각각 64 KiB/50 MiB이고 서버가 더 작은 한도를 설정하면 서버가 거부한다. XLSX는 8 KiB 버퍼로 hash를 검증한 뒤 multipart로 스트리밍 전송한다. input symlink가 시나리오 디렉터리 밖을 가리키면 거부한다. 서버 응답은 1 MiB로 제한하고, connect timeout은 5초, HTTP 요청 전체의 대기는 최대 30초 또는 남은 --wait 시간 중 짧은 값이다. HTTP redirect는 따라가지 않는다.
 
 ## Git 관리 예제

@@ -19,6 +19,14 @@ public interface RunSeriesStore {
     Optional<RunSeries> baseline(String experimentType, String scenarioId);
     /** Pinned baselines, most recently pinned first. */
     List<RunSeries> baselines(int limit);
-    /** Marks unfinished series INTERRUPTED after a restart; never resumes them. */
+    RunSweep createSweep(String sweepId, String experimentType, String scenarioId, java.util.Map<String, List<Object>> grid, int repetitions, int warmup);
+    void startSweep(String sweepId);
+    void addSweepPoint(String sweepId, RunSweep.Point point);
+    void completeSweep(String sweepId, RunStatus status, String failure);
+    Optional<RunSweep> findSweep(String sweepId);
+    /** Ordered by position. */
+    List<RunSweep.Point> sweepPoints(String sweepId);
+    List<RunSweep> listSweeps(String experimentType, int limit);
+    /** Marks unfinished series and sweeps INTERRUPTED after a restart; never resumes them. */
     int recoverInterruptedSeries();
 }

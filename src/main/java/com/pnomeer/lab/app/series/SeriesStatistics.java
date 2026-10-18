@@ -45,7 +45,8 @@ public record SeriesStatistics(int count, Double min, Double max, Double mean, D
 
     /** Relative change of the candidate median over the baseline median, in percent. */
     public static Double medianChange(SeriesStatistics baseline, SeriesStatistics candidate) {
-        if (baseline.median == null || candidate.median == null || baseline.median == 0) return null;
+        if (baseline.median == null || candidate.median == null) return null;
+        if (baseline.median == 0) return candidate.median == 0 ? 0.0 : null; // a change from zero has no relative size
         return (candidate.median - baseline.median) / Math.abs(baseline.median) * 100;
     }
 }

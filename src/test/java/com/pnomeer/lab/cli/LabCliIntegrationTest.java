@@ -101,6 +101,17 @@ class LabCliIntegrationTest {
         assertEquals(1, run("run", file, "--warmup", "1").code); // --warmup needs --repeat
         assertEquals(1, run("run", file, "--repeat", "3", "--check-baseline").code); // the check needs --wait
     }
+    @Test void sweepsAGridAndWaitsForEveryPoint() throws Exception {
+        var sweep = run("sweep", "experiments/concurrency/queue-contention/scenarios/small-buffer.yaml", "--server", "http://localhost:" + port,
+                "--grid", "queueCapacity=1,4", "--repeat", "3", "--wait", "--timeout-seconds", "120");
+        assertEquals(0, sweep.code, sweep.err);
+        var lines = sweep.out.lines().toList();
+        assertEquals(2, lines.size());
+        Map<?, ?> view = json.readValue(lines.get(1), Map.class);
+        var points = (List<?>)view.get("points");
+        assertEquals(2, points.size());
+        assertEquals(4, ((Map<?, ?>)((Map<?, ?>)points.get(1)).get("parameters")).get("queueCapacity"));
+    }
     private void verifyDownload(ArtifactReference reference) throws Exception {
         try (var client = java.net.http.HttpClient.newHttpClient()) {
             var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port

@@ -27,6 +27,16 @@ class LabCliTest {
         assertThrows(ScenarioException.class, () -> LabCli.verifyInput(directory,
                 new ScenarioDefinition.Input("escape.xlsx", ScenarioDocuments.sha256(new byte[]{1,2,3}))));
     }
+    @Test void parsesSweepGridsWithTypedValuesAndRejectsMalformedOnes() {
+        assertEquals(java.util.Map.entry("queueCapacity", java.util.List.<Object>of(1L, 4L, 16L)), LabCli.gridEntry("queueCapacity=1,4,16"));
+        assertEquals(java.util.List.<Object>of(true, "PIPELINE", -2L), LabCli.gridEntry("x=true, PIPELINE ,-2").getValue());
+        assertThrows(ScenarioException.class, () -> LabCli.gridEntry("=1"));
+        assertThrows(ScenarioException.class, () -> LabCli.gridEntry("name="));
+        assertThrows(ScenarioException.class, () -> LabCli.gridEntry("name=1,,2"));
+        assertEquals(1, invoke("sweep", SCENARIO)); // needs a grid
+        assertEquals(1, invoke("sweep", SCENARIO, "--grid", "a=1", "--grid", "a=2")); // duplicate parameter
+        assertEquals(1, invoke("sweep", SCENARIO, "--grid", "a=1", "--check-baseline")); // run-only option
+    }
     @Test void reportsFailedRunsAndTimeoutWithoutResubmitting() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         String id = UUID.randomUUID().toString();

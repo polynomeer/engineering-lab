@@ -98,6 +98,19 @@ curl --fail --silent --show-error -H 'Content-Type: application/yaml' \
   'http://localhost:8080/run-series?repetitions=5&warmup=1'
 ```
 
+### 파라미터 스윕(sweep)
+
+| Method | 경로 | 설명 |
+| --- | --- | --- |
+| POST | `/run-sweeps?repetitions=3&warmup=0` | JSON `{"definition": <시나리오 문서>, "grid": {"queueCapacity": [1, 4, 16]}}`. Excel은 multipart `scenario`·`grid`(JSON)·`file`. 202와 `sweepId` |
+| GET | `/run-sweeps?experimentType=...&limit=20` | 최신순 스윕 목록 |
+| GET | `/run-sweeps/{sweepId}` | `sweep`(grid·상태)과 `points`(position·parameters·각 점의 묶음 상세와 measure 통계) |
+
+- grid의 모든 조합을 하나씩 반복 묶음으로 실행한다. 순서는 마지막 키가 가장 빨리 바뀐다. 각 점의 시나리오 ID는 `<id>.p<N>`이다.
+- grid는 파라미터 1–4개, 값은 각각 1–12개(문자열·불리언·정수, 중복 금지)다. 점은 최대 24개, 전체 Run(점 × (반복 + warmup))은 최대 300개다.
+- 실행 전에 모든 점의 정의를 검증하며 하나라도 범위를 벗어나면 400으로 거절하고 아무것도 실행하지 않는다.
+- 스윕 하나의 점들과 다른 묶음은 같은 직렬 실행기를 공유한다. 묶음 실행 중 접수한 스윕은 대기열에서 기다린다.
+
 `summary`는 `counters`, `gauges`, `details` map이며 필드는 실험군마다 다릅니다. `runMetadata`는 `runId`, `parameters`, `environment`, `git`을 담습니다. 시각의 `*EpochMs`는 epoch milliseconds입니다.
 
 | 상태 | 의미 |

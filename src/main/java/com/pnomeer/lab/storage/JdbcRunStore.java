@@ -181,8 +181,71 @@ public final class JdbcRunStore implements RunStore, RunSeriesStore, AutoCloseab
 
     @Override
     public int recoverInterruptedSeries() {
-        return jdbc.update("update lab_series set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before the series finished' where status in ('QUEUED','RUNNING')",
-                System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        return transactions.execute(tx -> jdbc.update("update lab_sweep set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before the sweep finished' where status in ('QUEUED','RUNNING')", now)
+                + jdbc.update("update lab_series set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before the series finished' where status in ('QUEUED','RUNNING')", now));
+    }
+
+    @Override
+    public RunSweep createSweep(String id, String type, String scenario, java.util.Map<String, List<Object>> grid, int repetitions, int warmup) {
+        if (repetitions < 1 || repetitions > RunSeries.MAX_REPETITIONS || warmup < 0 || warmup > RunSeries.MAX_WARMUP)
+            throw new IllegalArgumentException("Invalid sweep repetitions");
+        String encoded = boundedEncode(grid, 65536);
+        jdbc.update("insert into lab_sweep(sweep_id,experiment_type,scenario_id,grid_json,repetitions,warmup,status,created_at) values(?,?,?,?,?,?,'QUEUED',?)",
+                id, type, scenario, encoded, repetitions, warmup, System.currentTimeMillis());
+        return findSweep(id).orElseThrow();
+    }
+
+    @Override
+    public void startSweep(String id) {
+        requireTransition(jdbc.update("update lab_sweep set status='RUNNING' where sweep_id=? and status='QUEUED'", id), id);
+    }
+
+    @Override
+    public void addSweepPoint(String id, RunSweep.Point point) {
+        String encoded = boundedEncode(point.parameters(), 65536);
+        transactions.executeWithoutResult(tx -> {
+            var sweep = jdbc.query("select * from lab_sweep where sweep_id=? for update", this::readSweep, id).stream().findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown sweep: " + id));
+            if (sweep.status() != RunStatus.RUNNING) throw new IllegalStateException("Sweep is not running: " + id);
+            jdbc.update("insert into lab_sweep_point(sweep_id,position,series_id,parameters_json) values(?,?,?,?)",
+                    id, point.position(), point.seriesId(), encoded);
+        });
+    }
+
+    @Override
+    public void completeSweep(String id, RunStatus status, String failure) {
+        if (status != RunStatus.SUCCEEDED && status != RunStatus.FAILED && status != RunStatus.INTERRUPTED)
+            throw new IllegalArgumentException("Sweep completion needs a terminal status");
+        String message = failure == null ? null : failure.length() > 1000 ? failure.substring(0, 1000) : failure;
+        requireTransition(jdbc.update("update lab_sweep set status=?, completed_at=?, failure_message=? where sweep_id=? and status in ('QUEUED','RUNNING')",
+                status.name(), System.currentTimeMillis(), message, id), id);
+    }
+
+    @Override
+    public Optional<RunSweep> findSweep(String id) {
+        return jdbc.query("select * from lab_sweep where sweep_id=?", this::readSweep, id).stream().findFirst();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<RunSweep.Point> sweepPoints(String id) {
+        return jdbc.query("select * from lab_sweep_point where sweep_id=? order by position", (row, n) -> new RunSweep.Point(row.getInt("position"),
+                row.getString("series_id"), json.readValue(row.getString("parameters_json"), java.util.LinkedHashMap.class)), id);
+    }
+
+    @Override
+    public List<RunSweep> listSweeps(String type, int limit) {
+        checkLimit(limit);
+        if (type == null) return jdbc.query("select * from lab_sweep order by seq desc limit ?", this::readSweep, limit);
+        return jdbc.query("select * from lab_sweep where experiment_type=? order by seq desc limit ?", this::readSweep, type, limit);
+    }
+
+    @SuppressWarnings("unchecked")
+    private RunSweep readSweep(ResultSet row, int n) throws SQLException {
+        return new RunSweep(row.getLong("seq"), row.getString("sweep_id"), row.getString("experiment_type"), row.getString("scenario_id"),
+                json.readValue(row.getString("grid_json"), java.util.LinkedHashMap.class), row.getInt("repetitions"), row.getInt("warmup"),
+                RunStatus.valueOf(row.getString("status")), row.getLong("created_at"), row.getLong("completed_at"), row.getString("failure_message"));
     }
 
     private RunSeries readSeries(ResultSet row, int n) throws SQLException {

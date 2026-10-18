@@ -120,12 +120,13 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 
 ## v4 반복 묶음(series) 저장 계약
 
-`lab_series`, `lab_series_run`, `lab_series_baseline`을 추가했다. 같은 정의를 여러 번 실행한 묶음과 그 구성원을 저장한다. 각 반복은 일반 Run이며 `lab_run`·metadata는 바꾸지 않는다. 묶음 정보를 Run parameter에 넣지 않으므로 기존 Run 비교가 반복 번호를 조건 차이로 보지 않는다.
+`lab_series`, `lab_series_run`, `lab_series_baseline`, `lab_sweep`, `lab_sweep_point`를 추가했다. 같은 정의를 여러 번 실행한 묶음과 그 구성원을 저장한다. 각 반복은 일반 Run이며 `lab_run`·metadata는 바꾸지 않는다. 묶음 정보를 Run parameter에 넣지 않으므로 기존 Run 비교가 반복 번호를 조건 차이로 보지 않는다.
 
 - 묶음은 실험·시나리오·정의 SHA-256, 측정 반복 수(1–50), warmup 수(0–10), 상태, 생성·종료 시각, 실패 사유(최대 1,000자)를 저장한다.
 - 구성원은 `(series_id, position)`이 기본 키이고 `run_id`는 한 묶음에만 속한다. position은 warmup부터 0으로 시작하며 `warmup + repetitions`보다 작아야 한다. RUNNING 묶음에만 추가할 수 있다.
 - 상태는 Run과 같은 값이다. 모든 측정 반복이 성공하면 SUCCEEDED, 하나라도 아니면 FAILED다. 재시작 시 미종료 묶음은 INTERRUPTED가 되며 자동으로 이어 실행하지 않는다.
 - `lab_series_baseline`은 (실험, 시나리오 ID)마다 기준선 묶음 하나를 가리킨다. 성공한 묶음만 지정할 수 있고 다시 지정하면 교체된다.
+- `lab_sweep`은 기준 정의의 grid(최대 64 KiB JSON)와 반복 설정을, `lab_sweep_point`는 점 번호(0–23)·묶음 ID·덮어쓴 파라미터를 저장한다. 재시작 시 미종료 스윕도 INTERRUPTED가 된다.
 - 통계는 저장하지 않고 조회 때 계산한다. 반복 Run에 기록된 측정 계약의 measure 값을, 성공한 비-warmup Run에서만 읽는다.
 
 ## v4 이행
