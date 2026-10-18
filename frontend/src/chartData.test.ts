@@ -128,4 +128,16 @@ describe('metric graph semantics', () => {
     expect(charts[0].unit).toBe('requests/s');
     expect(charts[0].description).toContain('누적 평균');
   });
+  it('adds wait and process-heap charts only when a pipeline window recorded them', () => {
+    const pipeline = { ...run, experimentType: 'pipeline.excel-ingestion' } as Run;
+    const withResources = metricCharts(pipeline, [
+      sample(0, 1000, { 'queue.raw.enqueueWaitMs': 0.5, 'resource.heapUsedMb': 40, 'resource.peakHeapMb': 42, 'resource.heapMaxMb': 128, 'time.elapsedMs': 0 }, { 'throughput.producedPerSec': 10 }),
+      sample(1, 1500, { 'queue.raw.enqueueWaitMs': 2, 'resource.heapUsedMb': 55, 'resource.peakHeapMb': 55, 'resource.heapMaxMb': 128, 'time.elapsedMs': 500 }, { 'throughput.producedPerSec': 12 }),
+    ]);
+    expect(withResources.map((m) => m.title)).toEqual(['처리량 추이', '큐 점유율', '큐 평균 put 대기', '힙 사용량']);
+    expect(withResources[2].rows.map((r) => r.values)).toEqual([[0.5, null], [2, null]]);
+    expect(withResources[3].description).toContain('최대 128 MiB');
+    const legacy = metricCharts(pipeline, [sample(0, 1000, { 'queue.raw.size': 1 }, { 'throughput.producedPerSec': 1 })]);
+    expect(legacy.map((m) => m.title)).toEqual(['처리량 추이', '큐 점유율']);
+  });
 });

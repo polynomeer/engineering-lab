@@ -75,12 +75,12 @@ function Queue({ node }: { node: FlowQueue }) {
       </span>
       <small className="flow-wait">
         {node.waitMs === null
-          ? 'put 대기 미기록'
+          ? '평균 put 대기 미기록'
           : waiting
-            ? `backpressure · put 대기 ${number(node.waitMs, 1)} ms`
+            ? `backpressure · 평균 put 대기 ${number(node.waitMs, 1)} ms`
             : node.waitMs > 0
-              ? 'put 대기 1 ms 미만'
-              : 'put 대기 없음'}
+              ? '평균 put 대기 1 ms 미만'
+              : '평균 put 대기 없음'}
       </small>
     </div>
   );

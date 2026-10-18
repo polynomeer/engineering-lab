@@ -243,6 +243,13 @@ Cursor는 API의 nextAfter 의미를 따른다. metric이 비어도 다음 curso
 | Queue Contention | 인접 누적 items.consumed 증가량 ÷ 관측 시간 차이, items/s | 당시 queue.depth ÷ 기록된 queueCapacity × 100 |
 | IO Comparison | 기록된 전체 요청의 실행 시작 이후 누적 평균, requests/s | 큐 기록이 없어 표시하지 않음 |
 
+Excel Pipeline은 2026-10-18부터 두 그래프를 더 보여준다. 해당 값을 기록하지 않은 과거 Run에는 빈 패널 대신 그래프를 생략한다.
+
+| 그래프 | 계열 | 의미와 한계 |
+| --- | --- | --- |
+| 큐 평균 put 대기 (ms) | `queue.raw/mapped.enqueueWaitMs` | Run 시작 이후 enqueue 1건당 평균 대기(RUN_MEAN). 구간 값이 아니며, 계속 오르면 backpressure가 누적되는 중이다. 파이프라인 흐름 패널도 같은 값을 `평균 put 대기`로 표시한다 |
+| 힙 사용량 (MiB) | `resource.heapUsedMb`, `resource.peakHeapMb`, 최대는 `resource.heapMaxMb` | 프로세스 전체 힙이며 이 Run만의 사용량이 아니다. 관측 최대는 관측 시점 사이의 피크를 놓칠 수 있다. 메모리 상한 검증은 독립 JVM benchmark(`pipelineBenchmark`)를 기준으로 한다 |
+
 활성 Run은 **실시간 따라가기**를 기본으로 사용한다. cursor 이후 새 관측을 약 2초 간격으로 읽고 sequence로 중복을 제거하며 최근 1,000개만 보유한다. 한 번에 최대 10페이지(페이지당 최대 100개)를 읽고 다음 주기로 넘긴다. 숨긴 탭에서는 조회를 중단하고 복귀 시 이어 읽는다. 오류 시 기존 데이터를 유지하고 최대 15초 간격으로 재시도한다. 종료 상태를 받으면 남은 페이지를 읽은 뒤 멈춘다. 원본 페이지 조회와 cursor는 독립적으로 유지하고 버튼으로 현재 페이지 보기로 전환한다. 완료된 Run은 기본적으로 현재 페이지를 표시하며 기록된 구간 따라 읽기를 선택할 수 있다. 창 첫 표본의 Queue 구간 처리량은 이전 누적값이 없어 계산하지 않는다. 과거 Run에 없는 표본은 소급 생성하지 않는다.
 
 Queue 실험은 기본 250ms마다 coordinator에서 직렬로 관측하며 시작·최종 표본도 기록한다. monotonic `time.elapsedMs`로 처리량을 계산하고, 예전 기록은 epoch 시간으로 계산한다. 수집 callback 실패는 실행 실패로 전달하고 작업 풀을 종료한다. `lab.queue.metric-interval-ms`(기본 250), `lab.queue.worker-shutdown-timeout-ms`(기본 5000)는 각각 10..60000ms 범위이며 유효 수집 간격을 표본 label과 summary에 남긴다. 수집·저장 비용에 따라 실제 간격은 늘어날 수 있다.

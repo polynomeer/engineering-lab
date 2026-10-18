@@ -175,7 +175,41 @@ export function metricCharts(run: Run, input: MetricPage['metrics']): ChartModel
           ],
     })),
   };
-  return io ? [throughput] : [throughput, occupancy];
+  if (io) return [throughput];
+  if (!pipeline) return [throughput, occupancy];
+  const extra = (title: string, unit: string, description: string, series: ChartSeries[]): ChartModel => ({
+    title,
+    unit,
+    description: description + ' · ' + clockNote,
+    series,
+    rows: observations.map(({ sequence, point }, index) => ({
+      sequence,
+      seconds: times[index],
+      values: series.map((s) => value(point, s.key)),
+    })),
+  });
+  const wait = extra(
+    '큐 평균 put 대기',
+    'ms',
+    'Run 시작 이후 enqueue 1건당 평균 대기(누적 평균) · 구간 값이 아니며 오르면 backpressure가 쌓이는 중',
+    [
+      { key: 'queue.raw.enqueueWaitMs', label: 'Raw queue' },
+      { key: 'queue.mapped.enqueueWaitMs', label: 'Mapped queue' },
+    ],
+  );
+  const lastMax = [...observations].reverse().map(({ point }) => value(point, 'resource.heapMaxMb')).find((v) => v !== null);
+  const heap = extra(
+    '힙 사용량',
+    'MiB',
+    '프로세스 전체 힙 · 이 Run만의 사용량이 아님' + (lastMax ? ` · 최대 ${Math.round(lastMax).toLocaleString()} MiB` : ''),
+    [
+      { key: 'resource.heapUsedMb', label: '사용 중' },
+      { key: 'resource.peakHeapMb', label: '관측 최대' },
+    ],
+  );
+  // Older runs never recorded these keys; omit the chart rather than show an empty panel.
+  const recorded = (model: ChartModel) => model.rows.some((row) => row.values.some((v) => v !== null));
+  return [throughput, occupancy, ...[wait, heap].filter(recorded)];
 }
 
 /** A missing/invalid sample starts a new segment rather than interpolating a gap. */
