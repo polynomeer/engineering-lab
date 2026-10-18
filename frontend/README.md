@@ -45,21 +45,16 @@ npm test
 npm run build
 ```
 
-브라우저 테스트는 **실행 중인 API와 frontend**가 필요합니다. 전용 임시 DB를 사용하세요. 테스트는 실제 Run을 생성하고 보존합니다.
+브라우저 테스트는 한 명령으로 실행합니다. Playwright가 임시 저장소(`$TMPDIR/lab-dashboard-e2e-*`)를 쓰는 API(127.0.0.1:18080)와 Vite(127.0.0.1:4180)를 띄우고, 끝나면 종료합니다. 사용자 `.lab` DB는 건드리지 않습니다. 두 포트가 비어 있어야 합니다.
 
 ```bash
-# 저장소 루트의 별도 터미널: 사용자 DB 대신 임시 DB
-./gradlew bootRun --args='--server.port=18080 --server.address=127.0.0.1 --lab.storage.root=/tmp/lab-dashboard-e2e'
-
-# frontend/의 별도 터미널
-LAB_API_TARGET=http://127.0.0.1:18080 VITE_LEGACY_BASE=http://127.0.0.1:18080 npm run dev
-
-# frontend/ 테스트 터미널: Chromium 최초 설치가 필요할 수 있음
+# frontend/에서 실행. Chromium 최초 설치가 필요할 수 있음
 npx playwright install chromium
 npm run test:e2e
 ```
 
-다른 frontend 주소는 `DASHBOARD_URL=http://127.0.0.1:4173 npm run test:e2e`로 지정합니다.
+포트는 `E2E_API_PORT`, `E2E_WEB_PORT`로 바꿉니다. API 포트를 바꾸면 기존 화면 테스트용 `LEGACY_URL`도 함께 지정합니다. 직접 띄운 서버를 쓰려면 `DASHBOARD_URL=http://127.0.0.1:5173 npm run test:e2e`처럼 지정합니다. 이때 Playwright는 서버를 시작하지 않습니다. Career worker·Docker가 필요한 테스트는 해당 환경 변수가 없으면 건너뜁니다.
+
 기본 screenshot은 무시되는 `test-results/`에 저장됩니다. 문서 캡처를 갱신할 때만
 `DOC_SCREENSHOTS=1 npm run test:e2e`를 사용하고 변경 이미지를 검토합니다.
 
