@@ -1,0 +1,66 @@
+name: Release
+
+# Pushing a vMAJOR.MINOR.PATCH tag verifies the tagged source and prepares a draft release.
+# Publishing the draft and the operational rollout stay manual (docs/releases/).
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Verify and package the tagged source
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend checks and build
+        working-directory: frontend
+        run: |
+          npx --yes npm@11.6.0 ci
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Root tests
+        run: ./gradlew test
+      - name: Browser tests
+        working-directory: frontend
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Package
+        run: |
+          ./gradlew bootJar bootDashboardJar
+          mkdir -p dist
+          cp build/libs/engineering-lab-*.jar dist/
+          tar -C frontend -czf "dist/engineering-lab-frontend-${GITHUB_REF_NAME}.tar.gz" dist server/serve.mjs package.json
+          (cd dist && sha256sum * > SHA256SUMS)
+          cat dist/SHA256SUMS
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="docs/releases/${GITHUB_REF_NAME}.md"
+          if [ -f "$notes" ]; then flag=(--notes-file "$notes"); else flag=(--notes "No release record found at $notes."); fi
+          gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag --title "Engineering Lab $GITHUB_REF_NAME" "${flag[@]}"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-test-results
+          path: |
+            build/reports/tests/test/
+            frontend/test-results/

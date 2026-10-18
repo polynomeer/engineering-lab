@@ -91,7 +91,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 개발 중에는 대상 테스트를 좁힐 수 있지만, 커밋 전에는 전체 `./gradlew test`를 실행한다.
 
-CI는 `.github/workflows/ci.yml`(push·PR: 루트 테스트, frontend 단위·빌드, 브라우저 테스트)와 `career-lab.yml`(매일 03:00 KST, Docker 기반 Career 테스트)이다. 로컬 브라우저 테스트는 `frontend/`에서 `npm run test:e2e` 한 번으로 임시 저장소 API와 Vite를 함께 띄운다.
+CI는 `.github/workflows/ci.yml`(push·PR: 루트 테스트, frontend 단위·빌드, 브라우저 테스트), `career-lab.yml`(매일 03:00 KST, Docker 기반 Career 테스트), `release.yml`(`v*.*.*` 태그: 재검증 후 초안 Release)이다. 로컬 브라우저 테스트는 `frontend/`에서 `npm run test:e2e` 한 번으로 임시 저장소 API와 Vite를 함께 띄운다.
 
 ```bash
 ./gradlew test --tests 'com.pnomeer.lab.experiments.pipeline.*'
