@@ -292,9 +292,11 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
             <legend>파라미터 스윕 (선택)</legend>
             {sweepRows.map((row, i) => (
               <div className="sweep-row" key={i}>
-                <label>
-                  스윕 파라미터 {i + 1}
+                {/* Explicit labels: a wrapping label would absorb the option texts into the name. */}
+                <span className="sweep-field">
+                  <label htmlFor={`sweep-parameter-${i}`}>스윕 파라미터 {i + 1}</label>
                   <select
+                    id={`sweep-parameter-${i}`}
                     value={row.parameter}
                     onChange={(e) =>
                       setSweepRows(sweepRows.map((r, j) => (j === i ? { ...r, parameter: e.target.value } : r)))
@@ -307,17 +309,18 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
                         <option key={key}>{key}</option>
                       ))}
                   </select>
-                </label>
-                <label>
-                  스윕 값 {i + 1}
+                </span>
+                <span className="sweep-field">
+                  <label htmlFor={`sweep-values-${i}`}>스윕 값 {i + 1}</label>
                   <input
+                    id={`sweep-values-${i}`}
                     value={row.values}
                     placeholder="예: 1, 4, 16"
                     onChange={(e) =>
                       setSweepRows(sweepRows.map((r, j) => (j === i ? { ...r, values: e.target.value } : r)))
                     }
                   />
-                </label>
+                </span>
               </div>
             ))}
             <small>
