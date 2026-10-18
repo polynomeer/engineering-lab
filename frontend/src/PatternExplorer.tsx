@@ -37,7 +37,12 @@ export function PatternExplorer({ catalog, modules, query, refresh, resource, ca
   const entries = career ? allEntries.filter(e => e.sourceCollection === 'career') : allEntries;
   const category = query.get('category') ?? '', pattern = query.get('pattern') ?? '', source = query.get('source') ?? '';
   const sources = [...new Map(entries.map(e => [e.sourceModuleId, e.sourceTitle])).entries()].filter(([id]) => id);
-  const visible = entries.filter(e => (!source || e.sourceModuleId === source) && (!metadata ||
+  const [search, setSearch] = useState('');
+  const term = search.trim().toLowerCase();
+  const matches = (e: (typeof entries)[number]) => !term || [e.experiment.title, e.experiment.id, e.sourceTitle,
+    ...(e.classification?.patternIds.map(id => metadata?.patterns.find(p => p.id === id)?.title ?? id) ?? [])]
+    .some(value => value.toLowerCase().includes(term));
+  const visible = entries.filter(e => matches(e) && (!source || e.sourceModuleId === source) && (!metadata ||
     ((!category || (category === 'unclassified' ? !e.classification : e.classification?.categoryId === category))
     && (!pattern || e.classification?.patternIds.includes(pattern)))));
   const selectedPattern = metadata?.patterns.find(p => p.id === pattern);
@@ -71,6 +76,11 @@ export function PatternExplorer({ catalog, modules, query, refresh, resource, ca
     </div>}
     {studies.message && <p role={studies.failed ? 'alert' : 'status'}>{studies.message}
       {studies.failed && <button onClick={studies.retry}>사례 다시 시도</button>}</p>}
+    <label className="catalog-search">
+      <span>실험 검색</span>
+      <input type="search" value={search} onChange={event => setSearch(event.target.value)}
+        placeholder="실험 이름, 패턴, 모듈 ID로 검색" />
+    </label>
     <form action={base} className="pattern-filters">
       <label>분야<select name="category" defaultValue={category} disabled={!metadata} key={'category-' + state}>
         <option value="">모든 분야</option>
@@ -103,14 +113,14 @@ export function PatternExplorer({ catalog, modules, query, refresh, resource, ca
       </dl>
     </section>}
     {unknown && <p role="alert">알 수 없는 분야 또는 패턴입니다. 필터를 초기화하거나 다시 선택하세요.</p>}
-    <p role="status">{visible.length}개 실험 · 등록된 전체 {entries.length}개</p>
+    <p role="status">{visible.length}개 실험 · 등록된 전체 {entries.length}개{term && ' · 검색어는 현재 화면에만 적용'}</p>
     {visible.length === 0 && <p>조건에 맞는 실험이 없습니다. 필터를 초기화하거나 서버의 실험 등록을 확인하세요.</p>}
     {sections.filter(group => group.items.length > 0).map(group => <section key={group.id} className="catalog-section" aria-label={group.title}>
       <h2>{group.title} <small>{group.items.length}개 실험</small></h2>
       <div className="pattern-results">
       {group.items.map(e => <article key={e.experiment.id} className="pattern-result">
         {career && <p className="eyebrow">{e.sourceTitle}</p>}
-        <h2>{e.experiment.title}</h2><code>{e.experiment.id}</code>
+        <div className="pattern-result-title"><h2>{e.experiment.title}</h2><code>{e.experiment.id}</code></div>
         {metadata && <><p>{metadata.categories.find(c => c.id === e.classification?.categoryId)?.title ?? '미분류'}</p>
           <ul aria-label={e.experiment.title + ' 패턴'}>{e.classification?.patternIds.map(id => <li key={id}>
             <a href={base + '?pattern=' + encodeURIComponent(id)}>{metadata.patterns.find(p => p.id === id)?.title}</a>

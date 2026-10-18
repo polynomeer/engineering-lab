@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { apiUrl, get, terminal, type Run } from './api';
 import { moduleViews } from './moduleViews';
 import { CopyValue, Raw, Table } from './components';
+import { checkOverview } from './runInsights';
 
 export type Execution = {
   available: boolean;
@@ -187,6 +188,8 @@ export function WorkerEvidence({
     };
     // Poll after the evidence request finishes, independently of the Run overview poll.
   }, [run.runId, run.status, features, after, revision, pageSize, onExecution]);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'FAIL' | 'PASS'>('all');
+  const overview = checks?.available ? checkOverview(checks.checks) : null;
   const evidence = execution?.execution;
   const showMetrics =
     view === 'metrics' ||
@@ -313,21 +316,59 @@ export function WorkerEvidence({
                         PASS는 기록된 기대값 충족을 뜻합니다. 의도한 이상 현상을 재현한 경우에도
                         PASS일 수 있습니다.
                       </p>
-                      {checks.checks.length > 0 && (
-                        <p className="check-summary">
-                          현재 페이지 · {checks.checks.filter((c) => c.status === 'PASS').length}{' '}
-                          PASS · {checks.checks.filter((c) => c.status === 'FAIL').length} FAIL
-                        </p>
+                      {overview && checks.checks.length > 0 && (
+                        <div className="check-overview">
+                          <p className="check-summary">
+                            현재 페이지 · {overview.passed} PASS · {overview.failed} FAIL
+                          </p>
+                          <div
+                            className="check-ratio"
+                            role="img"
+                            aria-label={`현재 페이지 PASS ${overview.passed}, FAIL ${overview.failed}, 기타 ${overview.other}`}
+                          >
+                            {overview.failed > 0 && (
+                              <i className="ratio-fail" style={{ flexGrow: overview.failed }} />
+                            )}
+                            {overview.other > 0 && (
+                              <i className="ratio-other" style={{ flexGrow: overview.other }} />
+                            )}
+                            {overview.passed > 0 && (
+                              <i className="ratio-pass" style={{ flexGrow: overview.passed }} />
+                            )}
+                          </div>
+                          <div className="check-filters" role="group" aria-label="현재 페이지 판정 필터">
+                            {(
+                              [
+                                ['all', '전체', checks.checks.length],
+                                ['FAIL', 'FAIL', overview.failed],
+                                ['PASS', 'PASS', overview.passed],
+                              ] as const
+                            ).map(([id, label, n]) => (
+                              <button
+                                key={id}
+                                className={'chip chip-' + id.toLowerCase()}
+                                aria-pressed={statusFilter === id}
+                                onClick={() => setStatusFilter(id)}
+                              >
+                                {label} {n}
+                              </button>
+                            ))}
+                            <span className="note">실패 먼저 정렬</span>
+                          </div>
+                          {overview.shared && <p className="check-shared note">{overview.shared}</p>}
+                        </div>
                       )}
                       <div className="worker-checks">
                         <Table
                           label="기대값과 관측값"
                           headers={['검증 / 설명', '판정', '기대값', '관측값']}
-                          rows={checks.checks.map((c) => [
-                            <>
+                          rows={(overview?.ordered ?? [])
+                            .filter((c) => statusFilter === 'all' || c.status === statusFilter)
+                            .map((c) => [
+                            <span className={c.status === 'FAIL' ? 'check-id check-fail' : 'check-id'}>
                               {c.checkId}
-                              <small>{c.description}</small>
-                            </>,
+                              {!overview?.shared && <small>{c.description}</small>}
+                            </span>,
                             <span
                               className={
                                 'badge ' +

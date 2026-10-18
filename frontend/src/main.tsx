@@ -12,6 +12,7 @@ import {
 } from '@radix-ui/react-icons';
 import { WorkerEvidence, type Execution } from './WorkerEvidence';
 import { RecentRuns } from './RecentRuns';
+import { ComparisonOverview, KpiStrip, PipelineFlowPanel } from './RunOverview';
 import { capabilities as parseCapabilities } from './capabilities';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -292,12 +293,14 @@ function App() {
           >
             <summary>메뉴</summary>
             <nav aria-label="대시보드 탐색">
+              <p className="nav-heading" aria-hidden="true">탐색</p>
               <a href="/app/catalog" aria-current={route.kind === 'catalog' ? 'page' : undefined}>
                 <CubeIcon width={18} height={18} aria-hidden="true" />분야별 카탈로그
               </a>
               <a href="/app/career" aria-current={route.kind === 'career' ? 'page' : undefined}>
                 <ArchiveIcon width={18} height={18} aria-hidden="true" />경험 사례
               </a>
+              <p className="nav-heading" aria-hidden="true">실행</p>
               <a
                 href="/app/experiments"
                 aria-current={route.kind === 'execute' ? 'page' : undefined}
@@ -344,7 +347,11 @@ function App() {
               </nav>
             </details>
           </details>
-          <p className="connection-status">
+          <p
+            className={
+              'connection-status ' + (bootstrapError ? 'is-error' : loading ? 'is-pending' : 'is-ok')
+            }
+          >
             {bootstrapError ? 'API 연결 확인 필요' : loading ? 'API 확인 중' : 'API 조회 완료'}
             <small>등록된 기능과 기록된 환경을 표시합니다.</small>
           </p>
@@ -510,20 +517,45 @@ function App() {
               <section className="run-strip" aria-label="선택한 실행">
                 <Badge run={run} />
                 <h2>{run.scenarioId}</h2>
-                <span className="mono" title={run.runId}>
-                  {run.runId}
+                <span className="strip-field">
+                  <small>Run ID</small>
+                  <span className="mono" title={run.runId}>
+                    {run.runId}
+                  </span>
                 </span>
+                {execution?.execution && (
+                  <span className="strip-field">
+                    <small>실행 종류</small>
+                    <span className="mono">{execution.execution.definition.kind}</span>
+                  </span>
+                )}
                 {run.completedAtEpochMs && run.startedAtEpochMs ? (
-                  <span className="duration">
-                    {((run.completedAtEpochMs - run.startedAtEpochMs) / 1000).toFixed(2)} s
+                  <span className="strip-field">
+                    <small>경과 시간</small>
+                    <span className="duration">
+                      {((run.completedAtEpochMs - run.startedAtEpochMs) / 1000).toFixed(2)} s
+                    </span>
                   </span>
                 ) : null}
+                {run.startedAtEpochMs > 0 && (
+                  <span className="strip-field">
+                    <small>시작</small>
+                    <span className="mono">{new Date(run.startedAtEpochMs).toLocaleString()}</span>
+                  </span>
+                )}
                 {execution?.execution && (
-                  <span className="badge">
+                  <span
+                    className={
+                      'badge evidence-badge ' +
+                      (execution.execution.evidenceComplete ? 'is-complete' : 'is-partial')
+                    }
+                  >
                     {execution.execution.evidenceComplete ? '증거 완료' : '부분 증거'}
                   </span>
                 )}
               </section>
+              <KpiStrip run={run} />
+              <PipelineFlowPanel run={run} page={metrics} />
               <div className="result-tabs" aria-label="결과 보기">
                 {[
                   ['overview', '전체'],
@@ -651,6 +683,7 @@ function App() {
               </form>
               {comparison && (
                 <>
+                  <ComparisonOverview comparison={comparison} />
                   <ComparisonAssessment key={comparison.baseline.runId + ':' + comparison.candidate.runId} baseline={comparison.baseline.runId} candidate={comparison.candidate.runId} />
                   <ul className="warning">
                     {comparison.cautions.map((c) => (
