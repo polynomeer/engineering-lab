@@ -58,7 +58,7 @@ npm run test:e2e
 기본 screenshot은 무시되는 `test-results/`에 저장됩니다. 문서 캡처를 갱신할 때만
 `DOC_SCREENSHOTS=1 npm run test:e2e`를 사용하고 변경 이미지를 검토합니다.
 
-루트의 `./gradlew test`도 커밋 전 필수입니다. CI에서도 전용 API 저장소/포트로 위 순서를 수행하고 브라우저 테스트 후 프로세스를 종료합니다. Java 테스트만 실행할 때는 Node 설치가 필요하지 않습니다.
+루트의 `./gradlew test`도 커밋 전 필수입니다. GitHub Actions(`.github/workflows/ci.yml`)가 push·PR마다 루트 테스트, 위 단위 검증, 브라우저 테스트를 실행합니다. Java 테스트만 실행할 때는 Node 설치가 필요하지 않습니다.
 
 ## 구조와 경계
 
