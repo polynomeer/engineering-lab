@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "experiment": "examples.batched-checksum",
+  "scenario": {
+    "id": "partial-batch",
+    "hypothesis": "Batch size preserves generated row count and checksum; injected failure stops subsequent writes"
+  },
+  "parameters": {
+    "rows": 23,
+    "batchSize": 8,
+    "seed": 7,
+    "failBatch": 0
+  },
+  "measurement": {
+    "mode": "SINGLE_PASS"
+  }
+}

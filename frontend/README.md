@@ -157,3 +157,17 @@ DASHBOARD_URL=http://127.0.0.1:5173 LEGACY_URL=http://127.0.0.1:8080 npm run tes
 `tests/studies.spec.ts`가 계약·다운로드 동일성·오류 복구·폐기 표시를 검증한다.
 `DASHBOARD_URL=<새 API에 연결한 frontend> npm run test:e2e -- tests/studies.spec.ts tests/patterns.spec.ts`
 로 실행한다. 상세 모델과 상한은 [P3 계약](../docs/study-catalog.md)을 따른다.
+
+## P6 선택 사례 재사용 검증
+
+`lab.examples.checksum.enabled=true`로 실행한 임시 API에 frontend를 연결한 뒤 실행합니다.
+기본 비활성 서버의 전체 UI suite에서는 이 선택 사례 테스트를 건너뜁니다.
+
+```bash
+CHECKSUM_E2E=1 DASHBOARD_URL=http://127.0.0.1:15178 LEGACY_URL=http://127.0.0.1:18095 \
+  npm run test:e2e -- tests/checksum-extension.spec.ts tests/measurement.spec.ts tests/dashboard.spec.ts
+```
+
+`CHECKSUM_E2E=1`은 검증 대상 서버가 활성화됐다는 명시적 조건이며, 실제 활성화하지 않은 서버에서는
+테스트가 실패해야 합니다. 추가 UI 분기 없이 패턴 탐색, 사례 설명, generic form의 세 시나리오,
+기록/비교/export와 모바일 폭을 검증합니다. [참조 사례](../experiments/examples/batched-checksum/README.md)를 참고하세요.

@@ -25,6 +25,9 @@ pipeline:
     offer-timeout-ms: 200
 
 lab:
+  examples:
+    checksum:
+      enabled: false
   queue:
     metric-interval-ms: 250
     worker-shutdown-timeout-ms: 5000

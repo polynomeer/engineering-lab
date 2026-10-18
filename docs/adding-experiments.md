@@ -13,7 +13,7 @@
 | run | 한 번 실행한 결과와 영속 증거 | UUID |
 | executor | 실행 환경; 그룹과 독립 | IN_PROCESS, LOCAL_JVM, CONTAINER |
 
-Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 앞으로 engineering 실험도 다른 JDK/외부 인프라가 필요하면 worker 실행을 선택할 수 있도록 설계한다. 현재 sequence는 서버 설정으로 LOCAL_JVM 또는 CONTAINER worker를 등록할 수 있다. architecture/validation은 [전용 checks CONTAINER worker](mcp-checks-worker.md)로 등록한다. equity-system의 세 실험은 [equity CONTAINER worker](equity-worker.md)와 실행별 MySQL/Redis 자원을 사용한다. 나머지 Career 시나리오에는 별도의 driver와 등록이 필요하다.
+Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 앞으로 engineering 실험도 다른 JDK/외부 인프라가 필요하면 worker 실행을 선택할 수 있도록 설계한다. 현재 sequence는 서버 설정으로 LOCAL_JVM 또는 CONTAINER worker를 등록할 수 있다. architecture/validation은 [전용 checks CONTAINER worker](mcp-checks-worker.md)로 등록한다. equity-system의 세 실험은 [equity CONTAINER worker](equity-worker.md)와 실행별 MySQL/Redis 자원을 사용한다. batch-excel·mds-distribution·creator-studio도 각자의 opt-in CONTAINER worker 등록을 제공한다. 새 Career 사례는 해당 모듈의 driver와 등록 계약을 확장한다.
 
 ## 현재 구현: 내장 실험 추가
 
@@ -149,3 +149,47 @@ PatternContribution extraPatternClassification() {
 Java 21 `pipeline-support`는 루트와 Career에서 동일한 bounded batch 코드를 사용한다.
 새 사례는 [공통 계약](pipeline-contract.md)에 따라 flush 시점·입력 소유권·실패/중단 정책을 먼저
 정의한다. 라이브러리가 자동으로 retry, DLQ, transaction, streaming 입력을 제공하지는 않는다.
+
+## P6: 패턴 재사용 사례로 확장 경계 검증
+
+완전한 참조 구현은 [Batched checksum](../experiments/examples/batched-checksum/README.md)이다.
+`lab.examples.checksum.enabled` 기본값은 false다. true이면 Spring이 모듈·실행 binding·분류·사례·측정
+contribution을 함께 등록한다. 기존 16개 provider와 조합하면 17개이며, 기본 서버는 3개를 유지한다.
+
+| 등록 책임 | 추가 사례의 구현 | 기존 공통 처리 |
+| --- | --- | --- |
+| 실험 ID·입력 범위·metric 단위 | `ChecksumConfiguration.checksumModule` | ExperimentCatalog / schema 폼 |
+| 실행 factory·typed scenario | `checksumRegistration` | ExperimentRegistry / ScenarioRunService |
+| 분야·다중 패턴 연결 | `checksumPatterns` | PatternCatalog / PatternExplorer |
+| 사례 출처·한계·전략·프리셋 | `checksumStudies` | StudyCatalog / StudyDetails |
+| 검증 성질·측정 구간·필수 조건 | `checksumMeasurements` | MeasurementCatalog / ComparisonAssessment |
+| 실제 처리 | `BatchedChecksumExperiment` + P5 `BoundedBatch` | admission·Run 저장·bounded metric writer·export |
+
+### 새 사례 체크리스트
+
+1. **문제와 출처**: 기존 패턴으로 표현 가능한지 먼저 확인한다. 업무 사실, 합성 재현, 새 설계를
+   명시적으로 구분하고 한계 문구를 작성한다. 비슷한 출처 이름으로 새 패턴을 만들지 않는다.
+2. **독립 등록**: 선택 모듈은 같은 조건 아래 metadata와 실행 binding을 함께 등록한다.
+   `ExperimentModule` Spring bean은 서버용이다. 기본 오프라인 CLI에도 필요하면 trusted provider jar와
+   ServiceLoader 등록 방식을 사용한다. 같은 provider를 Spring과 ServiceLoader에 중복 등록하지 않는다.
+3. **안정된 계약**: experiment ID와 parameter 의미를 보존한다. scenario 원본을 `experiments/`에 둬
+   processResources와 StudyCatalog의 canonical/hash 검증을 재사용한다. 프리셋에 연결한 전략이 실제
+   실행 방식인지 확인한다. 실패 주입값은 전략과 구분한다.
+4. **재사용 한계**: queue/in-flight/배치 상한·소유권·입력 보관량을 구분한다. 공통 primitive는
+   `pipeline-support`에서 가져오되 transaction·retry·DLQ·시간 flush 정책은 사례 책임이다.
+   새 사례에 없는 기능을 공통 코드가 제공한다고 표시하지 않는다.
+5. **증거 의미**: metric 이름 충돌, 단위·scope·semantics를 확인한다. 필요한 조건은
+   MeasurementContract.requiredParameters에 선언한다. 새 Property ID를 추가할 수 있지만 기존
+   ID를 재사용할 때 meaning/evidence를 임의 변경하면 안 된다. 누적 timeline은 합산하지 않는다.
+6. **성공·실패 검증**: 최소/최대 입력, 부분 배치, 동일 입력 결과, 실패 전파, 중단을 검증한다.
+   성공한 이전 배치의 증거와 실패 Run의 비어 있는 최종 summary를 혼동하지 않는다.
+7. **범용 API/UI**: 패턴 탐색→사례→schema 폼→접수→기록→비교→export를 실제 서버에서 검증한다.
+   중앙 controller/frontend에 ID 분기가 필요하다면 등록 계약의 부족인지 먼저 검토한다.
+8. **기록 수명**: 활성화된 상태에서 만든 Run이 모듈 비활성화·서버 재시작 후에도 조회/비교되어야 한다.
+   과거 Run에 현재 metadata를 소급 적용하지 않는다. 기존 기본 카탈로그/시나리오 회귀도 실행한다.
+9. **검증·커밋**: `./gradlew test` 필수. Career 소스/빌드 변경 시 Docker `./scripts/career-lab.sh test`를
+   먼저 순차 실행한다. 문서·설정 기본값·사용 예제를 함께 갱신하고 작업 단위로 커밋한다.
+
+P6에서는 중앙 registry/controller, frontend 제품 코드, 기존 패턴/사례/측정 사전을 수정하지 않고
+새 패키지·contribution·시나리오·설정 기본값만 추가했다. 추가 사례는 DB 성능/무결성의 일반적 증명이
+아닌 배치 패턴 재사용 증거다. 전체 모듈의 운영 인수와 릴리스는 P7에 남는다.

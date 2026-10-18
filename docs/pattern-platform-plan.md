@@ -11,7 +11,7 @@
 | P3 | 완료 | Strategy/Case study/Scenario 관계, 프리셋·설명 등록 계약, 패턴 의미 버전/폐기 정책 | 기존 JSON/hash 불변; BEFORE/AFTER의 구체적 전략·사례 근거 표시 |
 | P4 | 완료 | 공통 검증 성질·측정 범위·비교 가능 조건 모델 | 단위/환경/측정 범위 불일치 비교를 경고; 구형 증거 fallback |
 | P5 | 완료 | Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출 | 기존 처리 결과·메모리 상한·backpressure·오류·재시도·종료 보존 |
-| P6 | 대기 | 추가 사례로 패턴 재사용 검증 및 확장 가이드 갱신 | 중앙 controller/frontend 분기 없이 등록; 출처·한계 유지 |
+| P6 | 완료 | 추가 사례로 패턴 재사용 검증 및 확장 가이드 갱신 | 중앙 controller/frontend 분기 없이 등록; 출처·한계 유지 |
 | P7 | 대기 | 전체 인수·문서/캡처·릴리스·운영 전환 | 기본/Career 정상·실패·재시작·artifact 호환, 기존 Run 보존, 백업 검증 |
 
 ## P1 범위와 검증 단위
@@ -102,3 +102,20 @@ P1 종료 시 화면은 기존 모듈 탐색을 유지한다. 코드 이동·범
 - Java 25 `./gradlew test bootJar`: 루트 411개 + 공유 라이브러리 3개, 실패·오류·건너뜀 0.
   제한 힙·성능·시간/종료 flush·retry/DLQ/Run 호환 회귀 및 root jar 라이브러리 포함을 확인했다.
 - Career 테스트 로그의 컨테이너 20개가 모두 제거됐음을 확인했다. 운영 배포와 기존 컨테이너는 변경하지 않았다.
+
+## P6 완료 기록 — 2026-10-18
+
+- 선택 활성화 `examples.batched-checksum`을 추가해 `chunked-write`·`streaming`과 P5 BoundedBatch를 재사용한다.
+- 독립 module/registration/pattern/study/measurement bean으로 등록한다. 중앙 registry/controller/frontend 분기는 추가하지 않는다.
+- 행별/부분 배치/실패 주입 프리셋과 출처·한계를 명시하고 추가 사례 1개 + 기존 16개 조합을 검증한다.
+- 활성화 실행·API·export와 비활성화 재시작 후 Run/측정 계약 보존을 검증하고 확장 체크리스트를 갱신한다.
+
+- Java 25 `./gradlew test`: 루트 416개 + 공통 라이브러리 3개, 실패·오류·건너뜀 0.
+  기존 16개 provider와 새 사례를 함께 구성한 17개 계약, 최대 입력·부분 배치·실패·중단,
+  실제 HTTP 접수/증거/export 및 비활성화 재시작 후 저장 계약 보존을 확인했다.
+- frontend 단위 34개, typecheck/build 통과. 선택 사례·기존 기록·측정 비교의 브라우저 12개 통과.
+  UI 테스트의 입력 누락과 구형 화면 포트 설정을 수정해 해당 항목을 재검증했다.
+- 기본 활성 실험은 3개, Career 전체는 기존 16개를 유지하며 새 사례는 opt-in이다.
+  중앙 registry/controller/frontend 제품 코드와 기존 패턴/사례/측정 사전을 수정하지 않았다.
+- 임시 API/frontend를 종료했다. Career 구현/빌드와 운영 배포는 변경하지 않았다.
+  다음 단계는 P7의 전체 인수·문서/캡처·릴리스·운영 전환이다.

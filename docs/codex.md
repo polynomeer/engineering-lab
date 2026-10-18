@@ -14,6 +14,10 @@ P4 `registry/measurement/`, `ComparisonAssessment`, `MeasurementController`, `Co
 P5 `career-lab/pipeline-support`의 Java 21 `BoundedBatch`를 Excel/Equity가 공유한다.
 [파이프라인 계약](pipeline-contract.md)을 읽고 양쪽 wrapper 테스트를 순서대로 실행한다.
 
+P6 `experiments/examples/ChecksumConfiguration`은 선택 활성화 등록의 참조 구현이다.
+[확장 체크리스트](adding-experiments.md#p6-패턴-재사용-사례로-확장-경계-검증)와
+[합성 checksum 사례](../experiments/examples/batched-checksum/README.md)를 따른다.
+
 ## 현재 구조
 
 루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.

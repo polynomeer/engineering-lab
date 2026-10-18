@@ -22,6 +22,7 @@
 | Equity 삭제·잠금·등록 worker 실행·측정·복구 | [Equity worker](equity-worker.md) |
 | 공통 검증 성질·측정 범위·비교 가능 조건 | [P4 측정 계약](measurement-contract.md) |
 | Excel/Equity 공통 처리 계약·재사용 경계 | [P5 파이프라인 계약](pipeline-contract.md) |
+| 패턴 재사용 확장 참조 사례 | [Batched checksum](../experiments/examples/batched-checksum/README.md) |
 | 새 실험·모듈 추가 | [확장 가이드](adding-experiments.md) |
 | 독립 프론트엔드·Career Lab 연동 (설계안) | [통합 설계](dashboard-integration-design.md), [이행 계획](dashboard-integration-plan.md) |
 | 기능 경계·실행 모델 설계 | [플랫폼 설계](experiment-platform-design.md) |
