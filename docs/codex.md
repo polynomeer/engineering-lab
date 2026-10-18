@@ -18,6 +18,9 @@ P6 `experiments/examples/ChecksumConfiguration`은 선택 활성화 등록의 �
 [확장 체크리스트](adding-experiments.md#p6-패턴-재사용-사례로-확장-경계-검증)와
 [합성 checksum 사례](../experiments/examples/batched-checksum/README.md)를 따른다.
 
+P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-deployment.md)을 따른다.
+운영 배포는 소스 편집만으로 바뀌지 않으며, 백업·별도 인수·고정 산출물 교체가 필요하다.
+
 ## 현재 구조
 
 루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.
@@ -126,7 +129,7 @@ JAVA_HOME="$(/usr/libexec/java_home -v 25)" ./gradlew test
 
 새 Codex 작업도 루트 `AGENTS.md`를 기준으로 진행한다. 이 구조는 모델·개인 전역 설정을 고정하지 않는 저장소 지침 방식이며, [공식 OpenAI 안내](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)의 간결한 지침과 필요한 문서만 참조하는 원칙을 따른다.
 
-루트 `settings.gradle`은 `career-lab/worker-support`만 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM/CONTAINER capability는 기본 false이며 활성화한 sequence 실행 방식과 checks CONTAINER 등록을 반영한다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
+루트 `settings.gradle`은 `career-lab/worker-support`와 `career-lab/pipeline-support`를 composite build로 가져온다. 다섯 Career Boot 앱은 포함하지 않는다. 루트 테스트는 Java 21 테스트 worker jar를 자동 빌드하고 실행한다. 두 wrapper는 같은 worker-support 산출물 경로를 사용하므로 루트와 Career 검증을 동시에 실행하지 않는다. LOCAL_JVM/CONTAINER capability는 기본 false이며 활성화한 sequence 실행 방식과 checks CONTAINER 등록을 반영한다. 실제 Docker 수직 검증은 `./gradlew careerSequenceTest`로 별도 실행한다.
 
 등록 LOCAL_JVM의 비정상 종료 후 접수 보호는 `WorkerRecoveryGuard`와 `LocalJvmRegistration`에서 담당한다. `WorkerRecoveryGuardTest`, `LocalJvmRegistrationTest`로 강제 종료 기록 보존·실패 후 재접수 거절·정상 해제를 검증한다. [운영 복구 절차](worker-recovery.md)를 따르며 기본값은 자동 복구 비활성이다. `WorkerStartupRecovery`가 종료 확인 기록이 있는 sequence만 opt-in으로 시작 시 재조정하며, 나머지는 운영자 확인이 필요하다.
 
