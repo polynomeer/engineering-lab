@@ -10,7 +10,7 @@
 | P2 | 완료 | 분야·패턴 탐색, 프로젝트 출처 필터, 기존 URL과 새 API 없는 서버 fallback | 구형/신형 서버 브라우저 회귀, 16개 실험 접근 가능 |
 | P3 | 완료 | Strategy/Case study/Scenario 관계, 프리셋·설명 등록 계약, 패턴 의미 버전/폐기 정책 | 기존 JSON/hash 불변; BEFORE/AFTER의 구체적 전략·사례 근거 표시 |
 | P4 | 완료 | 공통 검증 성질·측정 범위·비교 가능 조건 모델 | 단위/환경/측정 범위 불일치 비교를 경고; 구형 증거 fallback |
-| P5 | 대기 | Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출 | 기존 처리 결과·메모리 상한·backpressure·오류·재시도·종료 보존 |
+| P5 | 완료 | Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출 | 기존 처리 결과·메모리 상한·backpressure·오류·재시도·종료 보존 |
 | P6 | 대기 | 추가 사례로 패턴 재사용 검증 및 확장 가이드 갱신 | 중앙 controller/frontend 분기 없이 등록; 출처·한계 유지 |
 | P7 | 대기 | 전체 인수·문서/캡처·릴리스·운영 전환 | 기본/Career 정상·실패·재시작·artifact 호환, 기존 Run 보존, 백업 검증 |
 
@@ -86,3 +86,19 @@ P1 종료 시 화면은 기존 모듈 탐색을 유지한다. 코드 이동·범
 - Java 25 루트 `./gradlew test`: 411개, 실패·오류·건너뜀 0. 등록 상한/충돌/확장, 단위·구간·worker 환경,
   미기록·실패·CHECK 전용 판정, HTTP와 저장 기록 재시작 호환성을 확인했다. Career 소스/빌드·운영 배포는 변경하지 않았다.
 - 다음 단계는 P5의 Excel/Equity 파이프라인 공통 계약과 최소 재사용 코드 추출이다.
+
+## P5 완료 기록 — 2026-10-18
+
+- [파이프라인 공통 계약](pipeline-contract.md)으로 두 사례의 배압·flush·실패·재시도·종료 차이를 명시했다.
+- Java 21 무의존 `pipeline-support`의 bounded batch만 추출해 Excel/Equity 양쪽에 적용했다.
+- shared primitive/Equity 실패·중단 회귀, Docker Career 전체, 루트 전체(기존 메모리·성능 포함)를 순차 검증했다.
+- 기존 ID/시나리오/hash/기록과 운영 배포를 유지했다. 다음 단계는 P6의 추가 사례를 통한 패턴 재사용 검증이다.
+
+### P5 검증 기록
+
+- Docker 사용 `./scripts/career-lab.sh test`: 156개, 실패·오류·건너뜀 0.
+  새 batch primitive 3개, Equity 14개(추가 실패/중단 3개 포함), 나머지 Career/worker 회귀 포함.
+- Equity worker jar에 `pipeline-support-0.1.0.jar` 포함 및 Java 21 class major 65 확인.
+- Java 25 `./gradlew test bootJar`: 루트 411개 + 공유 라이브러리 3개, 실패·오류·건너뜀 0.
+  제한 힙·성능·시간/종료 flush·retry/DLQ/Run 호환 회귀 및 root jar 라이브러리 포함을 확인했다.
+- Career 테스트 로그의 컨테이너 20개가 모두 제거됐음을 확인했다. 운영 배포와 기존 컨테이너는 변경하지 않았다.

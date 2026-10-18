@@ -26,4 +26,47 @@ class BoundedRegistrationTest {
         var failure=assertThrows(IllegalStateException.class,()->pipeline.registerMeasured(Collections.nCopies(100,null),10,1,1));
         assertEquals("invalid share",failure.getCause().getMessage()); verifyNoInteractions(dao);
     }
+    @Test void sequentialFlushesFullAndPartialBatchesAndPropagatesWriteFailure() {
+        var processor=mock(RowProcessor.class); var dao=mock(EquityShareInsertDao.class);
+        var sizes=new ArrayList<Integer>();
+        doAnswer(call -> { sizes.add(((List<?>)call.getArgument(0)).size()); return null; }).when(dao).insertBatch(anyList());
+        var pipeline=new SequentialRegistrationPipeline(processor,dao);
+        assertEquals(2003,pipeline.register(Collections.nCopies(2003,null)));
+        assertEquals(List.of(1000,1000,3),sizes);
+        reset(dao);
+        var failure=new IllegalStateException("uncertain commit");
+        doThrow(failure).when(dao).insertBatch(anyList());
+        assertSame(failure,assertThrows(IllegalStateException.class,()->pipeline.register(Collections.nCopies(2003,null))));
+        verify(dao,times(1)).insertBatch(anyList()); // No implicit retry or write of the tail.
+    }
+    @Test void parallelWriteFailureIsNotRetriedOrSilentlyCounted() {
+        var processor=mock(RowProcessor.class); var dao=mock(EquityShareInsertDao.class);
+        var failure=new IllegalStateException("uncertain commit");
+        doThrow(failure).when(dao).insertBatch(anyList());
+        var pipeline=new ParallelRegistrationPipeline(processor,dao);
+        assertSame(failure,assertThrows(IllegalStateException.class,
+                ()->pipeline.registerMeasured(Collections.nCopies(23,null),10,1,1)).getCause());
+        verify(dao,times(1)).insertBatch(anyList());
+    }
+    @Test void interruptedAdmissionCancelsWorkAndRestoresCallerInterrupt() throws Exception {
+        var processor=mock(RowProcessor.class); var dao=mock(EquityShareInsertDao.class);
+        var started=new java.util.concurrent.CountDownLatch(1);
+        var release=new java.util.concurrent.CountDownLatch(1);
+        when(processor.process(null)).thenAnswer(call -> { started.countDown(); release.await(); return null; });
+        var failure=new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var interrupted=new java.util.concurrent.atomic.AtomicBoolean();
+        Thread caller=new Thread(()->{
+            try { new ParallelRegistrationPipeline(processor,dao).registerMeasured(Collections.nCopies(30,null),10,1,1); }
+            catch (Throwable ex) { failure.set(ex); interrupted.set(Thread.currentThread().isInterrupted()); }
+        });
+        caller.start();
+        try {
+            assertTrue(started.await(5,java.util.concurrent.TimeUnit.SECONDS));
+            caller.interrupt(); caller.join(5000);
+            assertFalse(caller.isAlive()); assertTrue(interrupted.get());
+            assertInstanceOf(InterruptedException.class,failure.get().getCause());
+            verifyNoInteractions(dao);
+        } finally { release.countDown(); caller.interrupt(); caller.join(5000); }
+    }
+
 }

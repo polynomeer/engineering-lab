@@ -11,6 +11,9 @@ P3 `registry/pattern/Study*`, `BuiltInStudies`, `StudyDetails.tsx`는 [전략·�
 P4 `registry/measurement/`, `ComparisonAssessment`, `MeasurementController`, `ComparisonAssessment.tsx`는
 [측정 계약](measurement-contract.md)을 구현한다. 신규 Run metadata에 계약을 저장하며 과거 Run에는 백필하지 않는다.
 
+P5 `career-lab/pipeline-support`의 Java 21 `BoundedBatch`를 Excel/Equity가 공유한다.
+[파이프라인 계약](pipeline-contract.md)을 읽고 양쪽 wrapper 테스트를 순서대로 실행한다.
+
 ## 현재 구조
 
 루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.

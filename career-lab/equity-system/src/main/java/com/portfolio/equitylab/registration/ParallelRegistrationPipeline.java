@@ -2,7 +2,7 @@ package com.portfolio.equitylab.registration;
 
 import com.portfolio.equitylab.registration.RowProcessor.MappedEquityRow;
 import com.portfolio.equitylab.repository.EquityShareInsertDao;
-import java.util.ArrayList;
+import com.pnomeer.lab.pipeline.BoundedBatch;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,9 +81,8 @@ public class ParallelRegistrationPipeline {
     }
 
     private int processAndInsertChunk(List<RawEquityRow> chunk) {
-        List<MappedEquityRow> mapped = new ArrayList<>(chunk.size());
+        var mapped = new BoundedBatch<MappedEquityRow>(chunk.size());
         for (RawEquityRow raw : chunk) mapped.add(rowProcessor.process(raw));
-        insertDao.insertBatch(mapped);
-        return mapped.size();
+        return mapped.flushTo(insertDao::insertBatch);
     }
 }

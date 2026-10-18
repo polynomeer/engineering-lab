@@ -2,7 +2,7 @@ package com.portfolio.equitylab.registration;
 
 import com.portfolio.equitylab.registration.RowProcessor.MappedEquityRow;
 import com.portfolio.equitylab.repository.EquityShareInsertDao;
-import java.util.ArrayList;
+import com.pnomeer.lab.pipeline.BoundedBatch;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -25,20 +25,13 @@ public class SequentialRegistrationPipeline {
     }
 
     public int register(List<RawEquityRow> rawRows) {
-        List<MappedEquityRow> batch = new ArrayList<>(INSERT_BATCH_SIZE);
+        var batch = new BoundedBatch<MappedEquityRow>(INSERT_BATCH_SIZE);
         int total = 0;
         for (RawEquityRow raw : rawRows) {
             batch.add(rowProcessor.process(raw));
-            if (batch.size() == INSERT_BATCH_SIZE) {
-                insertDao.insertBatch(batch);
-                total += batch.size();
-                batch = new ArrayList<>(INSERT_BATCH_SIZE);
-            }
+            if (batch.isFull()) total += batch.flushTo(insertDao::insertBatch);
         }
-        if (!batch.isEmpty()) {
-            insertDao.insertBatch(batch);
-            total += batch.size();
-        }
+        total += batch.flushTo(insertDao::insertBatch);
         return total;
     }
 }

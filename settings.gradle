@@ -2,3 +2,6 @@ rootProject.name = 'excel-pipeline'
 
 // Share only the Java 21 wire/process library, not the Career Boot applications.
 includeBuild('career-lab/worker-support')
+
+// Dependency-free Java 21 batch primitive shared with the independent Career build.
+includeBuild('career-lab/pipeline-support')

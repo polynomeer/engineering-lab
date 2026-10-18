@@ -143,3 +143,9 @@ PatternContribution extraPatternClassification() {
 
 [측정 계약과 비교 조건](measurement-contract.md)에서 선택 등록 bean, 실행 시점 snapshot, 신규 읽기 API,
 단위·환경·구간 불일치 및 과거 Run의 UNKNOWN 처리를 설명한다. 기존 실행/내보내기 계약은 유지한다.
+
+## 파이프라인 배치 재사용 (P5)
+
+Java 21 `pipeline-support`는 루트와 Career에서 동일한 bounded batch 코드를 사용한다.
+새 사례는 [공통 계약](pipeline-contract.md)에 따라 flush 시점·입력 소유권·실패/중단 정책을 먼저
+정의한다. 라이브러리가 자동으로 retry, DLQ, transaction, streaming 입력을 제공하지는 않는다.

@@ -396,3 +396,11 @@ reserve headroom across callers. No cleanup is inferred from quota rejection. Th
 budget, not a filesystem hard quota, and excludes H2/uploads/controller captures and Docker volumes.
 Managed REPORT downloads reuse the secure snapshot/hash verification used for JFR/logs.
 See [operating limits](dashboard-operations.md).
+
+## Shared bounded batch primitive (P5)
+
+Root Excel and Career Equity registration now share the dependency-free Java 21
+`career-lab/pipeline-support` library through composite/project dependencies.
+Only batch capacity and synchronous success-before-clear behavior are shared.
+Queues, admission, time flush, transactions, retry, dead-letter and shutdown
+remain case-owned. See [the pipeline contract](pipeline-contract.md).

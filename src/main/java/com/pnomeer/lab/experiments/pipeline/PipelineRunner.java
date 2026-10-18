@@ -22,6 +22,7 @@ import java.lang.management.MemoryMXBean;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import com.pnomeer.lab.pipeline.BoundedBatch;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -243,7 +244,7 @@ public class PipelineRunner {
         AtomicInteger retryCount = new AtomicInteger(0);
         StageLatencyMetrics stageLatencyMetrics = new StageLatencyMetrics();
         ResourceMetricsTracker resourceMetricsTracker = new ResourceMetricsTracker(jdbcTemplate);
-        List<MappedRow> chunk = new ArrayList<>(chunkSize);
+        BoundedBatch<MappedRow> chunk = new BoundedBatch<>(chunkSize);
         AtomicLong firstRowNanos = new AtomicLong();
         long flushIntervalNanos = TimeUnit.MILLISECONDS.toNanos(properties.getInsert().getFlushIntervalMs());
 
@@ -353,7 +354,7 @@ public class PipelineRunner {
             chunk.add(new MappedRow(rawRow.getRowIndex(), new IngestItem(col1, col2, col3Int)));
             mappedCount.incrementAndGet();
             stageLatencyMetrics.addMappingNanos(System.nanoTime() - mappingStart);
-            if (chunk.size() >= chunkSize) {
+            if (chunk.isFull()) {
                 try {
                     flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                 } catch (InterruptedException ex) {
@@ -546,7 +547,7 @@ public class PipelineRunner {
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < workerCount; i++) {
             futures.add(pool.submit(() -> {
-                List<MappedRow> chunk = new ArrayList<>(chunkSize);
+                BoundedBatch<MappedRow> chunk = new BoundedBatch<>(chunkSize);
                 long firstRowNanos = 0;
                 long intervalNanos = TimeUnit.MILLISECONDS.toNanos(properties.getInsert().getFlushIntervalMs());
                 try {
@@ -568,7 +569,7 @@ public class PipelineRunner {
                         }
                         if (chunk.isEmpty()) firstRowNanos = System.nanoTime();
                         chunk.add(envelope.getPayload());
-                        if (chunk.size() >= chunkSize) {
+                        if (chunk.isFull()) {
                             flushChunk(chunk, insertedCount, batchCount, retryCount, stageLatencyMetrics, resourceMetricsTracker);
                         }
                     }
@@ -589,7 +590,7 @@ public class PipelineRunner {
     }
 
     private void flushChunk(
-            List<MappedRow> chunk,
+            BoundedBatch<MappedRow> chunk,
             AtomicInteger insertedCount,
             AtomicInteger batchCount,
             AtomicInteger retryCount,
@@ -604,25 +605,26 @@ public class PipelineRunner {
             Thread.sleep(insertDelayMs);
         }
 
-        Integer inserted = batchTransaction.execute(() -> {
-            long dbBatchStart = System.nanoTime();
-            int[][] updated = jdbcTemplate.batchUpdate(
-                    INSERT_SQL,
-                    chunk,
-                    chunk.size(),
-                    (ps, mappedRow) -> {
-                        IngestItem item = mappedRow.getItem();
-                        ps.setString(1, item.getCol1());
-                        ps.setString(2, item.getCol2());
-                        ps.setInt(3, item.getCol3Int());
-                    });
-            resourceMetricsTracker.recordLockWaitEstimateNanos(System.nanoTime() - dbBatchStart);
-            return normalizeBatchUpdateCount(updated, chunk.size());
-        }, retryCount, resourceMetricsTracker::recordConnectionWaitNanos);
-        insertedCount.addAndGet(inserted == null ? 0 : inserted);
-        batchCount.incrementAndGet();
-        stageLatencyMetrics.addInsertNanos(System.nanoTime() - insertStart);
-        chunk.clear();
+        chunk.flushTo(rows -> {
+            Integer inserted = batchTransaction.execute(() -> {
+                long dbBatchStart = System.nanoTime();
+                int[][] updated = jdbcTemplate.batchUpdate(
+                        INSERT_SQL,
+                        rows,
+                        rows.size(),
+                        (ps, mappedRow) -> {
+                            IngestItem item = mappedRow.getItem();
+                            ps.setString(1, item.getCol1());
+                            ps.setString(2, item.getCol2());
+                            ps.setInt(3, item.getCol3Int());
+                        });
+                resourceMetricsTracker.recordLockWaitEstimateNanos(System.nanoTime() - dbBatchStart);
+                return normalizeBatchUpdateCount(updated, rows.size());
+            }, retryCount, resourceMetricsTracker::recordConnectionWaitNanos);
+            insertedCount.addAndGet(inserted == null ? 0 : inserted);
+            batchCount.incrementAndGet();
+            stageLatencyMetrics.addInsertNanos(System.nanoTime() - insertStart);
+        });
     }
 
     private ScheduledExecutorService startMetricsLogger(

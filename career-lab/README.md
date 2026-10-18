@@ -14,6 +14,9 @@
 
 공통 통신 기반으로 Java 21 [worker-support](worker-support/README.md)를 추가했습니다. 다섯 실험 모듈과 별개의 infrastructure 라이브러리입니다. sequence의 [선택적 중앙 API 연결](../docs/career-worker-deployment.md)을 지원하며 [전용 화면 사용법](../docs/standalone-dashboard.md#career-sequence-실행과-검증-결과)도 제공합니다.
 
+Java 21 [pipeline-support](pipeline-support/README.md)는 Excel/Equity가 공유하는 무의존 배치 primitive입니다.
+worker 통신과 별개이며 실험 모듈을 추가하지 않습니다. [공통 계약](../docs/pipeline-contract.md)을 따릅니다.
+
 ## 모듈 추가
 
 각 모듈의 `lab-module.properties`를 읽어 빌드에 자동 포함합니다. 새 모듈은 디렉터리·선언·빌드 파일을 추가하며 중앙 목록은 수정하지 않습니다. [확장 가이드](../docs/adding-experiments.md#현재-구현-career-빌드-모듈-추가)를 참고하세요.
@@ -29,7 +32,7 @@ MySQL/Redis 컨테이너 이미지 다운로드가 필요합니다.
 `CAREER_LAB_JAVA_HOME`을 지정하면 운영체제에 관계없이 그 경로를 우선 사용합니다.
 
 ```bash
-# 다섯 실험 모듈과 공통 worker-support 전체 테스트
+# 다섯 실험 모듈과 worker-support/pipeline-support 전체 테스트
 ./scripts/career-lab.sh test
 
 # 한 모듈만 테스트

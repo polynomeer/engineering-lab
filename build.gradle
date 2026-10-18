@@ -20,6 +20,7 @@ repositories {
 
 dependencies {
     implementation 'com.pnomeer.lab:worker-support:0.1.0'
+    implementation 'com.pnomeer.lab:pipeline-support:0.1.0'
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
@@ -34,6 +35,7 @@ dependencies {
 
 tasks.named('test') {
     dependsOn gradle.includedBuild('worker-support').task(':processFixtureJar')
+    dependsOn gradle.includedBuild('pipeline-support').task(':test')
     def workerJava = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     systemProperty 'lab.worker.java', workerJava.get().executablePath.asFile.absolutePath
     systemProperty 'lab.worker.fixture', file('career-lab/worker-support/build/libs/worker-support-0.1.0-process-fixture.jar').absolutePath
