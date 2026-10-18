@@ -3,6 +3,7 @@ import { ComparisonAssessment } from '../ComparisonAssessment';
 import { Table, format } from '../components';
 import { comparisonCsv, download } from '../execution';
 import { ComparisonOverview } from '../RunOverview';
+import { runComparisonDraft } from '../findingDraft';
 
 const runLink = (id: string) => '/app/runs/' + encodeURIComponent(id);
 
@@ -59,6 +60,17 @@ export function Compare({ query, comparison }: { query: URLSearchParams; compari
               }
             >
               비교 JSON
+            </button>
+            <button
+              onClick={() =>
+                download(
+                  `finding-draft-${comparison.baseline.runId.slice(0, 8)}-${comparison.candidate.runId.slice(0, 8)}.md`,
+                  runComparisonDraft(comparison),
+                  'text/markdown;charset=utf-8',
+                )
+              }
+            >
+              Finding 초안 (.md)
             </button>
             <a href={runLink(comparison.baseline.runId)}>기준 실행 상세</a>
             <a href={runLink(comparison.candidate.runId)}>비교 실행 상세</a>

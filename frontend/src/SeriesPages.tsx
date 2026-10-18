@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { get, type Descriptor } from './api';
 import { Table } from './components';
 import { SweepList } from './SweepPage';
+import { seriesComparisonDraft } from './findingDraft';
+import { download } from './execution';
 import {
   activeSeries,
   directionLabels,
@@ -405,6 +407,19 @@ export function SeriesCompare({ baseline, candidate }: { baseline: string; candi
             <SeriesBadge status={view.series.status} />
           </a>
         ))}
+      </div>
+      <div className="actions">
+        <button
+          onClick={() =>
+            download(
+              `finding-draft-${value.baseline.series.seriesId.slice(0, 8)}-${value.candidate.series.seriesId.slice(0, 8)}.md`,
+              seriesComparisonDraft(value),
+              'text/markdown;charset=utf-8',
+            )
+          }
+        >
+          Finding 초안 (.md)
+        </button>
       </div>
       <p className="note">
         {value.sameDefinition
