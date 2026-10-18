@@ -9,10 +9,12 @@ import {
   GearIcon,
   ArchiveIcon,
   LightningBoltIcon,
+  LayersIcon,
 } from '@radix-ui/react-icons';
 import { WorkerEvidence, type Execution } from './WorkerEvidence';
 import { RecentRuns } from './RecentRuns';
 import { DeadLetters } from './DeadLetters';
+import { SeriesCompare, SeriesDetail, SeriesList } from './SeriesPages';
 import { ComparisonOverview, KpiStrip, PipelineFlowPanel } from './RunOverview';
 import { capabilities as parseCapabilities } from './capabilities';
 import React, { useEffect, useState } from 'react';
@@ -316,6 +318,13 @@ function App() {
                 <ReaderIcon width={18} height={18} aria-hidden="true" />
                 실행 기록
               </a>
+              <a
+                href="/app/series"
+                aria-current={route.kind.startsWith('series') ? 'page' : undefined}
+              >
+                <LayersIcon width={18} height={18} aria-hidden="true" />
+                반복 측정
+              </a>
               <a href="/app/compare" aria-current={route.kind === 'compare' ? 'page' : undefined}>
                 <BarChartIcon width={18} height={18} aria-hidden="true" />
                 Run 비교
@@ -379,6 +388,12 @@ function App() {
                           ? '실행 기록과 검증 증거'
                           : route.kind === 'compare'
                             ? '실행 비교'
+                            : route.kind === 'series-list'
+                              ? '반복 측정'
+                              : route.kind === 'series'
+                                ? '반복 측정 상세'
+                                : route.kind === 'series-compare'
+                                  ? '반복 측정 비교'
                             : route.kind === 'missing'
                               ? '페이지를 찾을 수 없습니다'
                               : '실행 기록'}
@@ -431,6 +446,19 @@ function App() {
             />
           )}
           {route.kind === 'missing' && <a href="/app/runs">실행 기록으로 돌아가기</a>}
+          {route.kind === 'series-list' && (
+            <SeriesList catalog={catalog} baseline={route.query.get('compare')} />
+          )}
+          {route.kind === 'series' && <SeriesDetail id={route.id} key={route.id} />}
+          {route.kind === 'series-compare' &&
+            (route.query.get('baseline') && route.query.get('candidate') ? (
+              <SeriesCompare
+                baseline={route.query.get('baseline')!}
+                candidate={route.query.get('candidate')!}
+              />
+            ) : (
+              <a href="/app/series">비교할 두 묶음을 반복 측정 목록에서 선택하세요</a>
+            ))}
           {route.kind === 'list' && (
             <>
               <div className="history-toolbar">

@@ -1,0 +1,32 @@
+import { describe, expect, it } from 'vitest';
+import { rangeScale, seriesProgress, type SeriesView, type Statistics } from './series';
+
+const stats = (min: number | null, max: number | null): Statistics => ({
+  count: 3, min, max, mean: null, median: null, p95: null, standardDeviation: null, coefficientOfVariation: null,
+});
+
+describe('series helpers', () => {
+  it('places both ranges on one padded scale', () => {
+    const scale = rangeScale(stats(100, 200), stats(300, 400))!;
+    expect(scale.lo).toBe(85);
+    expect(scale.hi).toBe(415);
+    expect(scale.at(100)).toBeGreaterThan(0);
+    expect(scale.at(400)).toBeLessThan(100);
+    expect(rangeScale(stats(null, null), stats(null, null))).toBeNull();
+    const flat = rangeScale(stats(5, 5), stats(5, 5))!;
+    expect(flat.at(5)).toBeCloseTo(50);
+  });
+
+  it('counts finished members and failed measured runs only', () => {
+    const view = {
+      series: { repetitions: 3, warmup: 1 },
+      members: [
+        { position: 0, warmup: true, status: 'FAILED' },
+        { position: 1, warmup: false, status: 'SUCCEEDED' },
+        { position: 2, warmup: false, status: 'INTERRUPTED' },
+        { position: 3, warmup: false, status: 'RUNNING' },
+      ],
+    } as unknown as SeriesView;
+    expect(seriesProgress(view)).toEqual({ total: 4, finished: 3, failed: 1 });
+  });
+});

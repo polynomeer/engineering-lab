@@ -1506,3 +1506,27 @@ form {
 .reason-chips li { padding: 4px 10px; border: 1px solid rgba(255, 140, 134, .45); border-radius: 4px; font-size: 13px; }
 .reason-chips .mono { color: var(--danger); margin-left: 4px; }
 .dead-letter-cells { white-space: pre-wrap; overflow-wrap: anywhere; }
+.execution-form .repeat-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin: 16px 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: 4px; }
+.execution-form .repeat-fields legend { padding: 0 6px; color: var(--muted); }
+.series-page { display: grid; gap: 16px; }
+.series-page .panel .section-heading h2 { margin: 0; }
+.series-progress { height: 6px; border-radius: 3px; background: var(--surface-hover); overflow: hidden; }
+.series-progress i { display: block; height: 100%; background: var(--accent); }
+.series-compare-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 16px; background: var(--panel); }
+.series-compare-form label { flex: 1 1 220px; display: grid; gap: 4px; }
+.series-compare-form select { min-height: 44px; }
+.series-measures { display: grid; margin: 8px 0 0; padding: 0; list-style: none; }
+.series-measures li { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(200px, 1.2fr) minmax(160px, 1fr) minmax(150px, .8fr); gap: 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--surface-hover); }
+.series-measures small { display: block; }
+.series-sides { display: grid; gap: 6px; }
+.range-bars { display: grid; gap: 6px; }
+.range-row { position: relative; height: 10px; }
+.range-row::before { content: ''; position: absolute; inset: 4px 0; border-top: 1px dashed var(--border); }
+.range-span { position: absolute; top: 2px; height: 6px; border-radius: 3px; }
+.range-median { position: absolute; top: 0; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid var(--panel); }
+.range-row.baseline .range-span, .range-row.baseline .range-median { background: var(--text-primary); }
+.range-row.candidate .range-span, .range-row.candidate .range-median { background: var(--accent); }
+.separation { display: grid; gap: 2px; text-align: right; }
+.separation-separated .mono { color: var(--accent); }
+.separation-insufficient, .separation-overlapping { color: var(--muted); }
+@media (max-width: 900px) { .series-measures li { grid-template-columns: minmax(0, 1fr); gap: 8px; } .separation { text-align: left; } }

@@ -8,7 +8,7 @@ test('category catalog and experience projects have separate navigation', async 
   await expect(page.getByRole('heading',{name:'분야별 카탈로그',exact:true})).toBeVisible();
   await expect(page.getByRole('navigation',{name:'실험 분야'}).getByRole('link')).toHaveCount(7);
   await expect(page.locator('.sidebar .catalog-group')).toHaveCount(0);
-  await expect(page.locator('.sidebar a:visible')).toHaveCount(6); // Brand and five main destinations.
+  await expect(page.locator('.sidebar a:visible')).toHaveCount(7); // Brand and six main destinations.
   const category = page.getByRole('navigation',{name:'실험 분야'}).getByRole('link',{name:/데이터 처리와 자원 관리/});
   await category.click();
   await expect(page).toHaveURL(/category=data-processing/);

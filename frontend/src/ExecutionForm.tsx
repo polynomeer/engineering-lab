@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { loadSettings, saveSettings } from './settings';
 import { moduleViews } from './moduleViews';
 import type { Descriptor } from './api';
+import { MAX_REPETITIONS, MAX_WARMUP, submitSeries } from './series';
 import {
   definition,
   initialDraft,
@@ -72,6 +73,8 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
   const lock = useRef(false);
   const alert = useRef<HTMLDivElement>(null);
   const [runId, setRunId] = useState('');
+  const [seriesId, setSeriesId] = useState('');
+  const [repeat, setRepeat] = useState({ repetitions: 1, warmup: 0 });
   useEffect(() => {
     try {
       setSaved(readSaved(localStorage, catalog));
@@ -115,8 +118,11 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
     setBusy(true);
     setError('');
     setRunId('');
+    setSeriesId('');
     try {
-      setRunId(await submitRun(definition(descriptor, draft)));
+      if (repeat.repetitions > 1 || repeat.warmup > 0)
+        setSeriesId(await submitSeries(definition(descriptor, draft), repeat.repetitions, repeat.warmup));
+      else setRunId(await submitRun(definition(descriptor, draft)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -218,14 +224,55 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
                 );
               })}
           </div>
+          <fieldset className="repeat-fields">
+            <legend>반복 측정</legend>
+            <label>
+              측정 반복 횟수
+              <input
+                type="number"
+                min={1}
+                max={MAX_REPETITIONS}
+                step={1}
+                required
+                value={repeat.repetitions}
+                onChange={(e) => setRepeat({ ...repeat, repetitions: Number(e.target.value) })}
+              />
+              <small>1이면 단일 실행입니다. 2 이상이면 같은 정의를 순서대로 반복합니다(최대 {MAX_REPETITIONS}).</small>
+            </label>
+            <label>
+              warmup 횟수
+              <input
+                type="number"
+                min={0}
+                max={MAX_WARMUP}
+                step={1}
+                required
+                value={repeat.warmup}
+                onChange={(e) => setRepeat({ ...repeat, warmup: Number(e.target.value) })}
+              />
+              <small>통계에서 제외하는 앞쪽 실행입니다(최대 {MAX_WARMUP}).</small>
+            </label>
+          </fieldset>
           <div className="actions">
-            <button type="submit">{busy ? '접수 확인 중…' : '실험 실행'}</button>
+            <button type="submit">
+              {busy
+                ? '접수 확인 중…'
+                : repeat.repetitions > 1 || repeat.warmup > 0
+                  ? `반복 측정 실행 (${repeat.warmup + repeat.repetitions}회)`
+                  : '실험 실행'}
+            </button>
             <button type="button" onClick={save}>
               설정 저장
             </button>
           </div>
         </fieldset>
       </form>
+      {seriesId && (
+        <p role="status">
+          반복 측정이 접수되었습니다. 반복은 하나씩 순서대로 실행합니다.{' '}
+          <a href={'/app/series/' + encodeURIComponent(seriesId)}>접수된 반복 측정 보기</a>
+        </p>
+      )}
       {runId && (
         <p role="status">
           실행이 접수되었습니다.{' '}
