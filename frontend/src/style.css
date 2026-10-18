@@ -1530,3 +1530,11 @@ form {
 .separation-separated .mono { color: var(--accent); }
 .separation-insufficient, .separation-overlapping { color: var(--muted); }
 @media (max-width: 900px) { .series-measures li { grid-template-columns: minmax(0, 1fr); gap: 8px; } .separation { text-align: left; } }
+.baseline-panel .section-heading h2 { margin: 0; }
+.baseline-overall, .baseline-current { margin: 12px 0 0; padding: 10px 12px; border-radius: 4px; border: 1px solid var(--border); }
+.baseline-current { border-color: var(--accent); color: #f3cb84; }
+.overall-pass { border-color: rgba(115, 211, 160, .5); color: var(--success); }
+.overall-regression { border-color: rgba(255, 140, 134, .6); color: var(--danger); background: rgba(255, 140, 134, .06); }
+.verdict-regression, .verdict-changed { color: var(--danger); font-weight: 600; }
+.verdict-improvement { color: var(--success); font-weight: 600; }
+.verdict-insufficient, .verdict-ok { color: var(--muted); }

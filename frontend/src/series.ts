@@ -118,3 +118,50 @@ export async function submitSeries(
   if (typeof body.seriesId !== 'string' || !body.seriesId) throw new Error('응답에 seriesId가 없습니다.');
   return body.seriesId;
 }
+
+export type Verdict = 'OK' | 'IMPROVEMENT' | 'REGRESSION' | 'CHANGED' | 'INSUFFICIENT';
+export type RegressionCheck = {
+  overall: 'PASS' | 'REGRESSION' | 'INSUFFICIENT' | 'NO_BASELINE';
+  baselineSeriesId: string | null;
+  candidateSeriesId: string;
+  tolerancePct: number;
+  measures: {
+    role: string;
+    name: string;
+    unit: string;
+    direction: 'LOWER_IS_BETTER' | 'HIGHER_IS_BETTER' | 'UNKNOWN';
+    baselineMedian: number | null;
+    candidateMedian: number | null;
+    changePct: number | null;
+    separation: Separation;
+    verdict: Verdict;
+  }[];
+};
+export const overallLabels: Record<RegressionCheck['overall'], string> = {
+  PASS: '통과 · 기준선 대비 분리된 악화 없음',
+  REGRESSION: '회귀 의심 · 허용 오차를 넘고 범위가 분리된 악화',
+  INSUFFICIENT: '판정 불가 · 측정 반복 3회 미만',
+  NO_BASELINE: '기준선 없음',
+};
+export const verdictLabels: Record<Verdict, string> = {
+  OK: '변화 없음',
+  IMPROVEMENT: '개선',
+  REGRESSION: '회귀',
+  CHANGED: '변화(방향 미정)',
+  INSUFFICIENT: '근거 부족',
+};
+export const directionLabels = {
+  LOWER_IS_BETTER: '낮을수록 좋음',
+  HIGHER_IS_BETTER: '높을수록 좋음',
+  UNKNOWN: '방향 미정',
+} as const;
+
+export async function pinBaseline(seriesId: string): Promise<void> {
+  const response = await fetch(apiUrl('/run-series/' + encodeURIComponent(seriesId) + '/baseline'), {
+    method: 'PUT',
+    signal: AbortSignal.timeout(15000),
+  });
+  if (response.status === 409)
+    throw new Error('기준선은 성공한 묶음 중 측정 반복이 3회 이상인 경우만 지정할 수 있습니다.');
+  if (!response.ok) throw new Error(`기준선을 지정하지 못했습니다 (${response.status}).`);
+}

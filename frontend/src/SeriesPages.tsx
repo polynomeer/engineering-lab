@@ -3,6 +3,11 @@ import { get, type Descriptor } from './api';
 import { Table } from './components';
 import {
   activeSeries,
+  directionLabels,
+  overallLabels,
+  pinBaseline,
+  verdictLabels,
+  type RegressionCheck,
   rangeScale,
   separationLabels,
   seriesProgress,
@@ -230,6 +235,7 @@ export function SeriesDetail({ id }: { id: string }) {
           있습니다.
         </p>
       </section>
+      <BaselinePanel view={value} />
       <Table
         label="반복 구성"
         headers={['순서', 'Run', '구분', '상태', '소요 시간']}
@@ -249,6 +255,94 @@ export function SeriesDetail({ id }: { id: string }) {
         <a href={'/app/series?compare=' + encodeURIComponent(series.seriesId)}>다른 묶음과 비교</a>
         <a href="/app/series">반복 측정 목록</a>
       </div>
+    </section>
+  );
+}
+
+/** The scenario's pinned baseline, this series' verdict against it, and pinning. */
+function BaselinePanel({ view }: { view: SeriesView }) {
+  const id = view.series.seriesId;
+  const [revision, setRevision] = useState(0);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const done = !activeSeries(view.series.status);
+  const check = useResource<RegressionCheck>(
+    done ? `/run-series/${encodeURIComponent(id)}/regression?r=${revision}` : null,
+    () => false,
+  );
+  const baselines = useResource<Series[]>(done ? `/run-series/baselines?r=${revision}` : null, () => false);
+  const isBaseline = baselines.value?.some((b) => b.seriesId === id) ?? false;
+  const eligible = view.series.status === 'SUCCEEDED' && view.measuredSucceeded >= 3;
+  async function pin() {
+    setBusy(true);
+    setMessage('');
+    try {
+      await pinBaseline(id);
+      setMessage('이 묶음을 기준선으로 지정했습니다.');
+      setRevision((n) => n + 1);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!done) return null;
+  const result = check.value;
+  return (
+    <section className="panel baseline-panel" aria-labelledby="baseline-title">
+      <div className="section-heading">
+        <h2 id="baseline-title">회귀 기준선</h2>
+        <span className="note">
+          같은 실험·시나리오 ID의 기준선과 비교 · 허용 오차 {result?.tolerancePct ?? 5}%
+        </span>
+      </div>
+      {(check.error || baselines.error) && (
+        <p role="alert" className="error">
+          기준선 조회 실패: {check.error || baselines.error}
+        </p>
+      )}
+      {isBaseline ? (
+        <p className="baseline-current">이 묶음이 현재 기준선입니다.</p>
+      ) : result ? (
+        <p className={'baseline-overall overall-' + result.overall.toLowerCase()}>
+          {overallLabels[result.overall]}
+          {result.baselineSeriesId && (
+            <>
+              {' · '}
+              <a href={seriesLink(result.baselineSeriesId)}>기준선 묶음 보기</a>
+            </>
+          )}
+        </p>
+      ) : null}
+      {result && result.measures.length > 0 && !isBaseline && (
+        <Table
+          label="기준선 대비 판정"
+          headers={['measure', '방향', '기준선 → 이 묶음 (중앙값)', '변화', '판정']}
+          rows={result.measures.map((m) => [
+            <>
+              {m.role}
+              <small className="mono">{m.name}</small>
+            </>,
+            directionLabels[m.direction],
+            <span className="mono">
+              {number(m.baselineMedian)} → {number(m.candidateMedian)} {m.unit}
+            </span>,
+            <span className="mono">
+              {m.changePct === null ? '—' : (m.changePct > 0 ? '+' : '') + number(m.changePct, 1) + '%'}
+            </span>,
+            <span className={'verdict verdict-' + m.verdict.toLowerCase()}>{verdictLabels[m.verdict]}</span>,
+          ])}
+        />
+      )}
+      {!isBaseline && (
+        <div className="actions">
+          <button onClick={pin} disabled={busy || !eligible}>
+            이 묶음을 기준선으로 지정
+          </button>
+          {!eligible && <span className="note">성공한 측정 반복이 3회 이상이어야 합니다.</span>}
+        </div>
+      )}
+      {message && <p role="status">{message}</p>}
     </section>
   );
 }
