@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.Optional;
 
 /** A separate file DB: ingestion table initialization cannot erase experiment evidence. */
-public final class JdbcRunStore implements RunStore, AutoCloseable {
+public final class JdbcRunStore implements RunStore, RunSeriesStore, AutoCloseable {
+    public static final int SCHEMA_VERSION = 4;
     private final HikariDataSource dataSource;
     private final java.nio.channels.FileChannel ownershipChannel;
     private final java.nio.channels.FileLock ownershipLock;
@@ -67,15 +68,16 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
             boolean exists = Boolean.TRUE.equals(jdbc.queryForObject(
                     "select count(*) > 0 from information_schema.tables where table_name='LAB_SCHEMA'", Boolean.class));
             Integer version = exists ? jdbc.queryForObject("select version from lab_schema where id=1", Integer.class) : 0;
-            if (version == null || version < 0 || version > 3 || exists && version == 0) {
+            if (version == null || version < 0 || version > SCHEMA_VERSION || exists && version == 0) {
                 throw new IllegalStateException("Unsupported lab schema version: " + version);
             }
-            if (version == 1 || version == 2) backupBeforeV3(root, version);
+            if (version >= 1 && version < SCHEMA_VERSION) backupBeforeUpgrade(root, version);
             if (version < 2) {
                 new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v1.sql"),
                         new ClassPathResource("lab/schema-v2.sql")).execute(dataSource);
             }
             if (version < 3) new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v3.sql")).execute(dataSource);
+            if (version < 4) new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v4.sql")).execute(dataSource);
         } catch (RuntimeException ex) {
             dataSource.close();
             releaseOwnership();
@@ -83,18 +85,84 @@ public final class JdbcRunStore implements RunStore, AutoCloseable {
         }
     }
 
-    private void backupBeforeV3(Path root, int version) {
+    private void backupBeforeUpgrade(Path root, int version) {
+        String target = "v" + SCHEMA_VERSION;
         Path directory = root.toAbsolutePath().normalize().resolve("backups");
         try {
             Files.createDirectories(directory);
             if (Files.isSymbolicLink(directory)) throw new java.io.IOException("Backup directory must not be a symbolic link");
-        } catch (java.io.IOException ex) { throw new IllegalStateException("Cannot create pre-v3 backup directory", ex); }
-        Path backup = directory.resolve("schema-v" + version + "-before-v3-" + java.util.UUID.randomUUID() + ".zip");
+        } catch (java.io.IOException ex) { throw new IllegalStateException("Cannot create pre-" + target + " backup directory", ex); }
+        Path backup = directory.resolve("schema-v" + version + "-before-" + target + "-" + java.util.UUID.randomUUID() + ".zip");
         Path partial = backup.resolveSibling(backup.getFileName() + ".partial");
         // Publish only a complete H2 backup; failed copies remain visibly partial for inspection.
         jdbc.execute("BACKUP TO '" + partial.toString().replace("'", "''") + "'");
         try { Files.move(partial, backup, java.nio.file.StandardCopyOption.ATOMIC_MOVE); }
-        catch (java.io.IOException ex) { throw new IllegalStateException("Cannot publish pre-v3 backup", ex); }
+        catch (java.io.IOException ex) { throw new IllegalStateException("Cannot publish pre-" + target + " backup", ex); }
+    }
+
+    @Override
+    public RunSeries createSeries(String id, String type, String scenario, String sha256, int repetitions, int warmup) {
+        long now = System.currentTimeMillis();
+        new RunSeries(0, id, type, scenario, sha256, repetitions, warmup, RunStatus.QUEUED, now, 0, null); // validates bounds
+        jdbc.update("insert into lab_series(series_id,experiment_type,scenario_id,definition_sha256,repetitions,warmup,status,created_at) values(?,?,?,?,?,?,'QUEUED',?)",
+                id, type, scenario, sha256, repetitions, warmup, now);
+        return findSeries(id).orElseThrow();
+    }
+
+    @Override
+    public void startSeries(String id) {
+        requireTransition(jdbc.update("update lab_series set status='RUNNING' where series_id=? and status='QUEUED'", id), id);
+    }
+
+    @Override
+    public void addSeriesRun(String id, RunSeries.Member member) {
+        transactions.executeWithoutResult(tx -> {
+            var series = jdbc.query("select * from lab_series where series_id=? for update", this::readSeries, id).stream().findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown series: " + id));
+            if (series.status() != RunStatus.RUNNING) throw new IllegalStateException("Series is not running: " + id);
+            if (member.position() >= series.total()) throw new IllegalArgumentException("Series position exceeds repetitions");
+            jdbc.update("insert into lab_series_run(series_id,position,run_id,warmup) values(?,?,?,?)",
+                    id, member.position(), member.runId(), member.warmup());
+        });
+    }
+
+    @Override
+    public void completeSeries(String id, RunStatus status, String failure) {
+        if (status != RunStatus.SUCCEEDED && status != RunStatus.FAILED && status != RunStatus.INTERRUPTED)
+            throw new IllegalArgumentException("Series completion needs a terminal status");
+        String message = failure == null ? null : failure.length() > 1000 ? failure.substring(0, 1000) : failure;
+        requireTransition(jdbc.update("update lab_series set status=?, completed_at=?, failure_message=? where series_id=? and status in ('QUEUED','RUNNING')",
+                status.name(), System.currentTimeMillis(), message, id), id);
+    }
+
+    @Override
+    public Optional<RunSeries> findSeries(String id) {
+        return jdbc.query("select * from lab_series where series_id=?", this::readSeries, id).stream().findFirst();
+    }
+
+    @Override
+    public List<RunSeries.Member> seriesRuns(String id) {
+        return jdbc.query("select * from lab_series_run where series_id=? order by position", (row, n) ->
+                new RunSeries.Member(row.getInt("position"), row.getString("run_id"), row.getBoolean("warmup")), id);
+    }
+
+    @Override
+    public List<RunSeries> listSeries(String type, int limit) {
+        checkLimit(limit);
+        if (type == null) return jdbc.query("select * from lab_series order by seq desc limit ?", this::readSeries, limit);
+        return jdbc.query("select * from lab_series where experiment_type=? order by seq desc limit ?", this::readSeries, type, limit);
+    }
+
+    @Override
+    public int recoverInterruptedSeries() {
+        return jdbc.update("update lab_series set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before the series finished' where status in ('QUEUED','RUNNING')",
+                System.currentTimeMillis());
+    }
+
+    private RunSeries readSeries(ResultSet row, int n) throws SQLException {
+        return new RunSeries(row.getLong("seq"), row.getString("series_id"), row.getString("experiment_type"), row.getString("scenario_id"),
+                row.getString("definition_sha256"), row.getInt("repetitions"), row.getInt("warmup"), RunStatus.valueOf(row.getString("status")),
+                row.getLong("created_at"), row.getLong("completed_at"), row.getString("failure_message"));
     }
 
     @Override

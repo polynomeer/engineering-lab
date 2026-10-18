@@ -14,7 +14,7 @@ public class RunStorageConfiguration {
     @Bean(destroyMethod = "close")
     public JdbcRunStore runStore(StorageProperties properties) {
         var store = new JdbcRunStore(Path.of(properties.root()), properties.pageLimit(), properties.batchSize());
-        try { store.recoverInterrupted(); return store; }
+        try { store.recoverInterrupted(); store.recoverInterruptedSeries(); return store; }
         catch (RuntimeException ex) { store.close(); throw ex; }
     }
     @Bean(name = "experimentRunner", destroyMethod = "close")

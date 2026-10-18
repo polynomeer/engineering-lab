@@ -59,7 +59,7 @@ class RunSchemaMigrationTest {
         versionTwoFixture(root);
         var before = snapshot(root);
         try (var store = new JdbcRunStore(root, 10, 2)) {
-            assertEquals(3, version(root));
+            assertEquals(JdbcRunStore.SCHEMA_VERSION, version(root));
             assertEquals("legacy", store.find("legacy").orElseThrow().runId());
             assertEquals("legacy-commit", store.find("legacy").orElseThrow().runMetadata().git().commit());
             assertTrue(store.execution("legacy").isEmpty()); // Never invent historical execution evidence.
@@ -92,7 +92,28 @@ class RunSchemaMigrationTest {
         assertEquals(before, snapshot(root));
         Files.delete(root.resolve("backups"));
         try (var store = new JdbcRunStore(root, 10, 2)) { assertTrue(store.find("legacy").isPresent()); }
+        assertEquals(JdbcRunStore.SCHEMA_VERSION, version(root));
+    }
+
+    @Test void upgradesV3ToV4WithItsOwnBackupAndAddsSeriesTables() throws Exception {
+        versionTwoFixture(root);
+        new ResourceDatabasePopulator(new ClassPathResource("lab/schema-v3.sql")).execute(source(root));
         assertEquals(3, version(root));
+        var before = snapshot(root);
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            assertEquals(4, version(root));
+            assertTrue(store.listSeries(null, 10).isEmpty()); // No series invented for historical runs.
+        }
+        assertEquals(before, snapshot(root));
+        assertEquals(1, tableCount(root, "LAB_SERIES"));
+        assertEquals(1, tableCount(root, "LAB_SERIES_RUN"));
+        try (var paths = Files.list(root.resolve("backups"))) {
+            var names = paths.map(p -> p.getFileName().toString()).toList();
+            assertEquals(1, names.size());
+            assertTrue(names.getFirst().startsWith("schema-v3-before-v4-") && names.getFirst().endsWith(".zip"), names.toString());
+        }
+        try (var store = new JdbcRunStore(root, 10, 2)) { assertEquals(4, version(root)); }
+        try (var paths = Files.list(root.resolve("backups"))) { assertEquals(1, paths.count()); } // reopening v4 makes no new backup
     }
 
     @Test void resumesPartialDdlWithoutDroppingLegacyEvidenceAndRejectsFutureVersionsBeforeDdl() throws Exception {
@@ -101,7 +122,7 @@ class RunSchemaMigrationTest {
         var jdbc = new JdbcTemplate(source(root));
         jdbc.execute("create table lab_execution(run_id varchar(100) primary key references lab_run(run_id), definition_json clob not null, worker_json clob, phase varchar(30) not null, evidence_complete boolean not null default false)");
         try (var store = new JdbcRunStore(root, 10, 2)) { assertTrue(store.find("legacy").isPresent()); }
-        assertEquals(3, version(root)); assertEquals(1, tableCount(root, "LAB_CHECK"));
+        assertEquals(JdbcRunStore.SCHEMA_VERSION, version(root)); assertEquals(1, tableCount(root, "LAB_CHECK"));
         assertEquals(before, snapshot(root));
         jdbc.execute("drop table lab_check"); jdbc.update("update lab_schema set version=99 where id=1");
         assertThrows(IllegalStateException.class, () -> new JdbcRunStore(root, 10, 2));

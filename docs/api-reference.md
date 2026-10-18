@@ -76,6 +76,25 @@ curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID"
 curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID/metrics?after=-1&limit=100"
 ```
 
+### 반복 묶음(series)
+
+| Method | 경로 | 설명 |
+| --- | --- | --- |
+| POST | `/run-series?repetitions=5&warmup=1` | `POST /runs`와 같은 시나리오 문서(JSON/YAML, Excel은 multipart `scenario`+`file`). 202와 `seriesId`, `definitionSha256` |
+| GET | `/run-series?experimentType=...&limit=20` | 최신순 묶음 목록(limit 1–100) |
+| GET | `/run-series/{seriesId}` | `series`, `members`(position·runId·warmup·status), `measuredSucceeded`, `measures`(measure별 `statistics`) |
+| GET | `/run-series/compare?baseline=...&candidate=...` | 같은 실험의 두 묶음을 measure별로 비교. `sameDefinition`, `medianChangePct`, `separation` |
+
+- 반복은 하나씩 순서대로 실행한다. warmup Run도 일반 Run으로 저장하지만 통계에서 제외한다. 반복 수는 정의 hash에 들어가지 않는다.
+- `statistics`는 `count`, `min`, `max`, `mean`, `median`, `p95`(nearest rank), `standardDeviation`(표본), `coefficientOfVariation`이다. 값이 없으면 null이며 0으로 채우지 않는다.
+- `separation`은 보수적 판정이다. 어느 쪽이든 성공한 측정 반복이 3개 미만이면 `INSUFFICIENT`, 관측 범위(min–max)가 겹치면 `OVERLAPPING`(차이 불분명), 모든 반복이 상대 범위 밖이면 `SEPARATED`다. 통계적 유의성 검정이 아니다.
+
+```bash
+curl --fail --silent --show-error -H 'Content-Type: application/yaml' \
+  --data-binary @experiments/concurrency/queue-contention/scenarios/small-buffer.yaml \
+  'http://localhost:8080/run-series?repetitions=5&warmup=1'
+```
+
 `summary`는 `counters`, `gauges`, `details` map이며 필드는 실험군마다 다릅니다. `runMetadata`는 `runId`, `parameters`, `environment`, `git`을 담습니다. 시각의 `*EpochMs`는 epoch milliseconds입니다.
 
 | 상태 | 의미 |

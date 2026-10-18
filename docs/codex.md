@@ -37,6 +37,7 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 | `com/pnomeer/lab/runtime/` | 영속 runner, `ExperimentExecutor`/`InProcessExecutor`, `ExperimentExecutors` 선택·`ExecutionAdmission` 제한, 제출/종료 lifecycle, Git provenance, JVM/trace/JFR/log 설정과 `JfrRecorder`·`RunLogRecorder` artifact 수집 |
 | `com/pnomeer/lab/storage/` | H2 RunStore, bounded writer, 설정·소유권·스키마 검사 |
 | `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 조회·비교·export·artifact 참조·검증 다운로드와 오류 응답 |
+| `com/pnomeer/lab/app/series/` | `/run-series` 반복 묶음 제출·순차 실행·measure 통계·묶음 비교. 저장은 `JdbcRunStore`의 `RunSeriesStore`(schema v4) |
 | `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI |
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
@@ -102,6 +103,7 @@ CI는 `.github/workflows/ci.yml`(push·PR: 루트 테스트, frontend 단위·�
 | Excel / DB 쓰기 | `PipelineRunnerIntegrationTest`, 모델·시나리오 테스트 |
 | 공통 실행 모델 | `LocalExperimentRunnerTest`, `ExperimentExecutionStateTest`, `DurableExperimentRunnerTest`, `ExperimentExecutorTest`, `ExecutorRoutingTest`, `ExecutionAdmissionTest` |
 | 선언적 실행 | `ScenarioDocumentsTest`, `ScenarioApiIntegrationTest`, `LabCliIntegrationTest`, `LabCliTest` |
+| 반복 묶음 | `SeriesStatisticsTest`, `RunSeriesStoreTest`, `RunSeriesApiIntegrationTest` |
 | 영속 저장 | `JdbcRunStoreTest`, `ExecutionStoreTest`, `RunSchemaMigrationTest`, `BoundedMetricWriterTest`, `RunRestartIntegrationTest`, `MetricWriterPerformanceTest` |
 | 큐 경합 / IO | `QueueContentionExperimentTest`, `IoEndpointComparisonExperimentTest` |
 | Run 로그 | `RunLogRecorderTest`, `LabCliIntegrationTest`; [관측 가이드](observability.md) |

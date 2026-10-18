@@ -107,6 +107,11 @@ lab:
   scenario:
     max-document-bytes: 65536
     max-input-bytes: 52428800
+  series:
+    # Series run one repetition at a time; extra submissions wait in this bounded queue.
+    queue-capacity: 4
+    run-timeout-ms: 1800000
+    poll-interval-ms: 200
   storage:
     root: .lab
     queue-capacity: 1000

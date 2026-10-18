@@ -12,7 +12,7 @@
 
 DB가 완전히 접근 불가능하면 실패 상태 자체도 쓰지 못할 수 있다. API는 DB 접근 실패를 HTTP 503으로 노출하고 runner는 `job_id`와 원인을 로그에 남긴다. 이 경우 실행을 성공으로 표시하지 않으며, 저장소 복구 후 앱을 재시작하면 남은 실행을 INTERRUPTED로 처리한다. 프로세스 강제 종료 시 아직 commit되지 않은 metric은 없을 수 있다.
 
-동일 저장 경로는 한 앱만 소유할 수 있다. OS 파일 잠금과 H2 파일 잠금으로 중복 소유를 막는다. 백업은 앱을 정상 종료한 뒤 `.lab/` 전체를 복사한다. 현재 schema는 v3이며 v1/v2는 아래의 additive 이행으로 갱신한다. 지원하지 않는 버전은 DDL 변경 전에 시작을 거부한다. 향후 버전도 명시적인 migration이 필요하다.
+동일 저장 경로는 한 앱만 소유할 수 있다. OS 파일 잠금과 H2 파일 잠금으로 중복 소유를 막는다. 백업은 앱을 정상 종료한 뒤 `.lab/` 전체를 복사한다. 현재 schema는 v4이며 v1–v3은 아래의 additive 이행으로 갱신한다. 지원하지 않는 버전은 DDL 변경 전에 시작을 거부한다. 향후 버전도 명시적인 migration이 필요하다.
 
 ## 설정
 
@@ -117,6 +117,19 @@ DB·dead-letter·worker 실패 또는 drain timeout이면 추가 처리를 중�
 - execution definition과 worker JSON도 각각 최대 64 KiB다. worker 환경 문자열은 각각 256자, Git commit은 128자/error는 1,024자 이하로 직렬화 전에도 제한한다. 초과 데이터는 잘라 저장하지 않는다. 이는 전체 workspace/DB 용량 quota를 구현한 것이 아니다.
 - `finishExecutionEvidence`는 executor가 최종 결과·종료·개수·flush를 확인한 뒤 호출하는 저장 계약이다. FINALIZING에서 완료 표시를 고정하며 이후 check 추가를 거부한다. execution이 등록된 Run은 증거 미완료 상태로 SUCCEEDED가 될 수 없다. worker protocol 검증 자체는 아직 구현하지 않았다.
 - terminal Run의 execution/check 변경은 거부한다. 재시작 복구는 미종료 Run을 INTERRUPTED로 바꾸며 같은 트랜잭션에서 evidenceComplete를 false로 돌린다. 이미 저장된 worker/check와 단계는 부분 증거로 유지한다.
+
+## v4 반복 묶음(series) 저장 계약
+
+`lab_series`와 `lab_series_run`을 추가했다. 같은 정의를 여러 번 실행한 묶음과 그 구성원을 저장한다. 각 반복은 일반 Run이며 `lab_run`·metadata는 바꾸지 않는다. 묶음 정보를 Run parameter에 넣지 않으므로 기존 Run 비교가 반복 번호를 조건 차이로 보지 않는다.
+
+- 묶음은 실험·시나리오·정의 SHA-256, 측정 반복 수(1–50), warmup 수(0–10), 상태, 생성·종료 시각, 실패 사유(최대 1,000자)를 저장한다.
+- 구성원은 `(series_id, position)`이 기본 키이고 `run_id`는 한 묶음에만 속한다. position은 warmup부터 0으로 시작하며 `warmup + repetitions`보다 작아야 한다. RUNNING 묶음에만 추가할 수 있다.
+- 상태는 Run과 같은 값이다. 모든 측정 반복이 성공하면 SUCCEEDED, 하나라도 아니면 FAILED다. 재시작 시 미종료 묶음은 INTERRUPTED가 되며 자동으로 이어 실행하지 않는다.
+- 통계는 저장하지 않고 조회 때 계산한다. 반복 Run에 기록된 측정 계약의 measure 값을, 성공한 비-warmup Run에서만 읽는다.
+
+## v4 이행
+
+v1–v3 DB를 열면 아래 v3 절차와 같은 규칙으로 `<storage-root>/backups/schema-v<1|2|3>-before-v4-<UUID>.zip`을 먼저 만든다. 백업 실패 시 DDL 전에 시작을 중단한다. v1/v2는 v3 테이블과 v4 테이블을 차례로 추가한 뒤 version을 4로 바꾼다. 이전 서버로 되돌릴 때는 v4 DB를 열지 않고 아래 4–6번처럼 업데이트 전 복사본이나 자동 백업을 빈 디렉터리에 복원한다. v4 원본은 보관한다.
 
 ## v3 이행·백업·되돌리기
 

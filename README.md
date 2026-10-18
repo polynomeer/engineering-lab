@@ -198,6 +198,9 @@ Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata�
 | `pipeline.backpressure.offer-timeout-ms` | 200 | timed offer 대기 |
 | `pipeline.error-preview-limit` | 100 | 메모리에 보유할 오류 행 미리보기 |
 | `pipeline.shutdown-timeout-ms` | 30000 | drain 및 별도 executor 종료 대기 |
+| `lab.series.queue-capacity` | 4 | 대기할 수 있는 반복 묶음 수(1–32). 묶음은 하나씩 실행 |
+| `lab.series.run-timeout-ms` | 1800000 | 반복 Run 하나의 최대 대기 시간 |
+| `lab.series.poll-interval-ms` | 200 | 반복 Run 종료 확인 간격 |
 | `lab.career.creator.enabled` | `false` | Creator 세 시나리오 CONTAINER 등록; worker/MySQL/Redis image ID와 jar hash 필수 ([설정](docs/creator-worker.md)) |
 | `lab.career.mds.enabled` | `false` | MDS 두 시나리오 CONTAINER 등록; worker/MySQL image ID와 jar hash 필수 ([설정](docs/mds-worker.md)) |
 | `lab.career.memory.enabled` | `false` | batch/excel CONTAINER 등록; worker/MySQL image ID와 jar hash 필수 ([설정](docs/batch-memory-worker.md)) |
