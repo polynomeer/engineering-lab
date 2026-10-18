@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lab-api",
+      "runtimeExecutable": "./gradlew",
+      "runtimeArgs": ["bootRun", "--args=--server.port=18080 --server.address=127.0.0.1 --lab.storage.root=/tmp/lab-dashboard-preview"],
+      "port": 18080
+    },
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "env": {
+        "LAB_API_TARGET": "http://127.0.0.1:18080",
+        "VITE_LEGACY_BASE": "http://127.0.0.1:18080"
+      },
+      "port": 5173,
+      "url": "http://127.0.0.1:5173"
+    }
+  ]
+}
