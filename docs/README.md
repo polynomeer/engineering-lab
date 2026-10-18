@@ -20,6 +20,7 @@
 | 실제 측정값과 원본 증거 | [Pipeline Finding](findings/2026-10-04-pipeline-throughput-heap.md) |
 | 독립 대시보드 실행·화면 | [사용 가이드](standalone-dashboard.md), [개발/검증 명령](../frontend/README.md) |
 | Equity 삭제·잠금·등록 worker 실행·측정·복구 | [Equity worker](equity-worker.md) |
+| 분야 중심 메뉴와 별도 경험 사례 | [탐색 구조·캡처](catalog-navigation.md) |
 | 공통 검증 성질·측정 범위·비교 가능 조건 | [P4 측정 계약](measurement-contract.md) |
 | Excel/Equity 공통 처리 계약·재사용 경계 | [P5 파이프라인 계약](pipeline-contract.md) |
 | 패턴 재사용 확장 참조 사례 | [Batched checksum](../experiments/examples/batched-checksum/README.md) |

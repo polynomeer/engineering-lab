@@ -47,6 +47,10 @@ test('serves the build and streams API bodies, statuses, headers and failures', 
     });
     child.on('exit', (code) => reject(new Error('server exited ' + code)));
   });
+  const home = await fetch(address + '/', {redirect: 'manual'});
+  assert.equal(home.status, 302);
+  assert.equal(home.headers.get('location'), '/app/catalog');
+  assert.equal((await fetch(address + '/app/career')).status, 200);
   assert.equal((await fetch(address + '/app/runs/deep-link')).status, 200);
   assert.equal((await fetch(address + '/outside')).status, 404);
   assert.equal((await fetch(address + '/app/assets/missing.js')).status, 404);

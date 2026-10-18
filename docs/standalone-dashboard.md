@@ -16,7 +16,7 @@
 
 ## 분야·패턴으로 실험 찾기 (P2)
 
-왼쪽 **패턴 탐색** 또는 `/app/catalog`에서 분야·패턴·프로젝트 출처를 선택하고
+왼쪽 **분야별 카탈로그** 또는 `/app/catalog`에서 분야·패턴·프로젝트 출처를 선택하고
 **필터 적용**을 누릅니다. 필터는 AND 조건이며 분야는 실험의 대표 분야를 기준으로 합니다.
 예를 들어 패턴 `bounded-queue`는 Excel ingestion, Queue contention, Equity registration을
 연결합니다. Career가 비활성인 서버에는 기본 실험만 나타납니다.
@@ -43,6 +43,9 @@
 ![분야·패턴·출처로 실험 탐색](images/24-pattern-discovery.png)
 
 ![375px 패턴 탐색](images/25-pattern-discovery-mobile.png)
+
+최신 메뉴는 [분야별 카탈로그와 경험 사례](catalog-navigation.md)를 따릅니다.
+경험에서 비롯된 프로젝트는 **경험 사례**에서 별도로 탐색하고, 도구·설정은 접어서 표시합니다.
 
 ## 전략·사례·시나리오 확인 (P3)
 

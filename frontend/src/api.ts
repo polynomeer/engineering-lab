@@ -122,7 +122,8 @@ export function artifactReason(run: Run, artifact: Artifact, maxBytes: number, w
 }
 export function parseRoute(path: string, search: string) {
   const query = new URLSearchParams(search);
-  if (path === '/app' || path === '/app/' || path === '/app/runs')
+  if (path === '/app' || path === '/app/') return { kind: 'catalog' as const, query };
+  if (path === '/app/runs')
     return { kind: 'list' as const, query };
   const experimentPath = /^\/app\/experiments\/([^/]+)$/.exec(path);
   if (experimentPath) {
@@ -133,6 +134,7 @@ export function parseRoute(path: string, search: string) {
       return { kind: 'missing' as const, query };
     }
   }
+  if (path === '/app/career') return { kind: 'career' as const, query };
   if (path === '/app/catalog') return { kind: 'catalog' as const, query };
   if (path === '/app/settings') return { kind: 'settings' as const, query };
   if (path === '/app/tools/ingestion-db') return { kind: 'database' as const, query };

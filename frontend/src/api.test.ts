@@ -38,6 +38,9 @@ describe('API compatibility', () => {
       ),
     ).toBe('pipeline.excel-ingestion');
     expect(parseRoute('/app/experiments/%xx', '').kind).toBe('missing');
+    expect(parseRoute('/app/', '').kind).toBe('catalog');
+    expect(parseRoute('/app/career', '?source=equity-system').kind).toBe('career');
+    expect(parseRoute('/app/runs', '').kind).toBe('list');
     expect(parseRoute('/app/compare', '?baseline=a&candidate=b').query.get('candidate')).toBe('b');
   });
   it('requires explicit server support and exact managed paths for worker reports', () => {

@@ -94,7 +94,7 @@ test('legacy catalog fallback, empty pages and keyboard navigation', async ({ pa
   await expect(
     page.getByText('이 페이지에 저장된 실행이 없습니다.', { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole('heading', { name: '등록된 실험', exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: '대시보드 탐색' }).getByRole('link', { name: '분야별 카탈로그', exact: true })).toBeVisible();
   await expect(page.getByText('기존 API 호환 모드', { exact: false })).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: '본문으로 이동' })).toBeFocused();

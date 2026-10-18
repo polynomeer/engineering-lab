@@ -1352,3 +1352,15 @@ form {
 .measurement-sides dd { margin-inline-start: 1rem; }
 .measurement-assessment summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
 @media (max-width: 700px) { .measurement-sides { grid-template-columns: minmax(0, 1fr); } }
+
+/* Category navigation stays compact regardless of the number of experiments. */
+.navigation-group { border-top: 1px solid var(--border); margin-top: 12px; }
+.navigation-group > summary { cursor: pointer; min-height: 44px; padding: 12px; color: var(--muted); }
+.sidebar .navigation-group nav { display: grid; margin: 0 0 12px; }
+.catalog-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; margin: 24px 0; }
+.catalog-tile { display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); text-decoration: none; min-width: 0; }
+.catalog-tile strong { color: var(--text-primary, #f1f4f6); overflow-wrap: anywhere; }
+.catalog-tile span, .catalog-section > h2 small { color: var(--muted); font-size: 13px; font-weight: 400; }
+.catalog-tile:hover, .catalog-tile[aria-current=page] { border-color: var(--accent); }
+.catalog-section { margin-top: 28px; }
+.catalog-section > h2 { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }

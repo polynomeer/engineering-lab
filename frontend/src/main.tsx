@@ -1,5 +1,5 @@
 import { ComparisonAssessment } from './ComparisonAssessment';
-import { PatternExplorer } from './PatternExplorer';
+import { PatternExplorer, usePatternCatalog } from './PatternExplorer';
 import { MetricCharts } from './RunMetricCharts';
 import {
   CubeIcon,
@@ -192,6 +192,7 @@ function App() {
     return () => document.removeEventListener('visibilitychange', visible);
   }, []);
   const [pageStatus, setPageStatus] = useState('all');
+  const patternResource = usePatternCatalog(refresh);
   const [selectedView, setDetailView] = useState('auto');
   const [execution, setExecution] = useState<Execution | null>(null);
   const detailView =
@@ -268,18 +269,6 @@ function App() {
       </section>
     </>
   );
-  const groups = modules.length
-    ? modules
-    : [
-        {
-          module: {
-            id: 'all',
-            title: '등록된 실험',
-            collection: 'engineering',
-          },
-          experiments: catalog,
-        },
-      ];
   return (
     <>
       <a className="skip" href="#content">
@@ -287,13 +276,13 @@ function App() {
       </a>
       <div className="layout">
         <aside className="sidebar">
-          <a className="sidebar-brand" href="/app/runs">
+          <a className="sidebar-brand" href="/app/catalog">
             <CubeIcon width={24} height={24} aria-hidden="true" />
             Engineering Lab<small>EXPERIMENT OBSERVATORY</small>
           </a>
           <details
             className="navigation-drawer"
-            open
+            open={window.innerWidth >= 1024}
             onKeyDown={(event) => {
               if (event.key === 'Escape' && window.innerWidth < 1024) {
                 event.currentTarget.open = false;
@@ -304,7 +293,10 @@ function App() {
             <summary>메뉴</summary>
             <nav aria-label="대시보드 탐색">
               <a href="/app/catalog" aria-current={route.kind === 'catalog' ? 'page' : undefined}>
-                <CubeIcon width={18} height={18} aria-hidden="true" />패턴 탐색
+                <CubeIcon width={18} height={18} aria-hidden="true" />분야별 카탈로그
+              </a>
+              <a href="/app/career" aria-current={route.kind === 'career' ? 'page' : undefined}>
+                <ArchiveIcon width={18} height={18} aria-hidden="true" />경험 사례
               </a>
               <a
                 href="/app/experiments"
@@ -324,41 +316,24 @@ function App() {
                 <BarChartIcon width={18} height={18} aria-hidden="true" />
                 Run 비교
               </a>
-              <a href="/app/tools/ingestion-db">
-                <ArchiveIcon width={18} height={18} aria-hidden="true" />
-                현재 DB 조회
-              </a>
-              <a href="/app/tools/io-echo">
-                <LightningBoltIcon width={18} height={18} aria-hidden="true" />
-                IO 단건 데모
-              </a>
-              <a href="/app/settings">
-                <GearIcon width={18} height={18} aria-hidden="true" />
-                설정 이전
-              </a>
             </nav>
-            <p className="eyebrow">EXPERIMENT CATALOG</p>
-            <a href="/app/runs?experiment=">모든 실행</a>
-            {groups.map((group) => (
-              <section className="catalog-group" key={group.module.id}>
-                <h2>{group.module.title}</h2>
-
-                {group.experiments.map((item) => (
-                  <a
-                    key={item.id}
-                    aria-current={
-                      (route.query.get('experiment') ?? run?.experimentType) === item.id
-                        ? 'page'
-                        : undefined
-                    }
-                    href={'/app/experiments?experiment=' + encodeURIComponent(item.id)}
-                  >
-                    {item.title}
-                  </a>
-                ))}
-              </section>
-            ))}
-
+            <details className="navigation-group">
+              <summary>분야별 찾아보기</summary>
+              <nav aria-label="분야 바로가기">
+                {patternResource.metadata?.categories.map(category => <a key={category.id}
+                  href={'/app/catalog?category=' + encodeURIComponent(category.id)}
+                  aria-current={route.kind === 'catalog' && route.query.get('category') === category.id ? 'page' : undefined}>
+                  {category.title}
+                </a>)}
+                {!patternResource.metadata && <a href="/app/catalog">카탈로그에서 찾아보기</a>}
+              </nav>
+            </details>
+            <details className="navigation-group" open={['database','echo','settings'].includes(route.kind)}>
+              <summary>도구·설정</summary>
+              <nav aria-label="도구와 설정">
+                <a href="/app/tools/ingestion-db"><ArchiveIcon aria-hidden="true" />현재 DB 조회</a>
+                <a href="/app/tools/io-echo"><LightningBoltIcon aria-hidden="true" />IO 단건 데모</a>
+                <a href="/app/settings"><GearIcon aria-hidden="true" />설정 이전</a>
             <a
               href={
                 new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href
@@ -366,7 +341,8 @@ function App() {
             >
               기존 실험 실행 ↗
             </a>
-            <p className="note">서버에 등록된 모듈만 표시됩니다.</p>
+              </nav>
+            </details>
           </details>
           <p className="connection-status">
             {bootstrapError ? 'API 연결 확인 필요' : loading ? 'API 확인 중' : 'API 조회 완료'}
@@ -383,7 +359,7 @@ function App() {
                   'Workspace'}
               </p>
               <h1>
-                {route.kind === 'catalog' ? '패턴 탐색' : route.kind === 'settings'
+                {route.kind === 'career' ? '경험 사례' : route.kind === 'catalog' ? '분야별 카탈로그' : route.kind === 'settings'
                   ? '설정 이전'
                   : route.kind === 'database'
                     ? '현재 DB 조회'
@@ -425,7 +401,7 @@ function App() {
                 ? '이 브라우저에 저장된 설정 관리'
                 : route.kind === 'database' || route.kind === 'echo'
                   ? '현재 서버의 도구 · Run 증거와 별도'
-                  : route.kind === 'execute' || route.kind === 'catalog'
+                  : route.kind === 'execute' || route.kind === 'catalog' || route.kind === 'career'
                     ? '서버에 등록된 실험과 입력 범위'
                     : '저장소에서 조회한 실행 증거'}
           </p>
@@ -435,7 +411,7 @@ function App() {
               <button onClick={() => setRefresh((n) => n + 1)}>다시 시도</button>
             </div>
           )}
-          {route.kind === 'catalog' && <PatternExplorer catalog={catalog} modules={modules} query={route.query} refresh={refresh} />}
+          {(route.kind === 'catalog' || route.kind === 'career') && <PatternExplorer catalog={catalog} modules={modules} query={route.query} refresh={refresh} resource={patternResource} career={route.kind === 'career'} />}
           {route.kind === 'settings' && <SettingsPage catalog={catalog} />}
           {route.kind === 'database' && <DatabaseTool />}
           {route.kind === 'echo' && <IoEchoTool />}
