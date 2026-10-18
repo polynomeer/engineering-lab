@@ -12,6 +12,7 @@ import {
 } from '@radix-ui/react-icons';
 import { WorkerEvidence, type Execution } from './WorkerEvidence';
 import { RecentRuns } from './RecentRuns';
+import { DeadLetters } from './DeadLetters';
 import { ComparisonOverview, KpiStrip, PipelineFlowPanel } from './RunOverview';
 import { capabilities as parseCapabilities } from './capabilities';
 import React, { useEffect, useState } from 'react';
@@ -563,6 +564,9 @@ function App() {
                   ['metrics', '메트릭'],
                   ['environment', '실행 환경'],
                   ['artifacts', '아티팩트'],
+                  ...(run.experimentType === 'pipeline.excel-ingestion'
+                    ? [['dead-letters', 'Dead-letter']]
+                    : []),
                 ].map(([id, title]) => (
                   <button
                     key={id}
@@ -602,6 +606,9 @@ function App() {
                 (detailView === 'overview' &&
                   execution?.execution?.definition.kind !== 'IN_PROCESS')) &&
                 metricContent}
+              {detailView === 'dead-letters' && (
+                <DeadLetters run={run} pageSize={options.pageSize} />
+              )}
               <RecentRuns run={run} />
               <section
                 className="detail-panel"

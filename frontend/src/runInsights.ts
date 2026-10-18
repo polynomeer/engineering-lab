@@ -227,3 +227,12 @@ export function conditionSummary(conditions: Comparison['conditions']) {
   const different = conditions.filter((c) => c.different).map((c) => c.field);
   return { total: conditions.length, same: conditions.length - different.length, different };
 }
+
+/** Reason counts for the loaded page only, largest first; never a whole-run total. */
+export function deadLetterReasons(rows: { reason: string }[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.reason, (counts.get(row.reason) ?? 0) + 1);
+  return [...counts]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+}

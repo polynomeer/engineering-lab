@@ -267,6 +267,7 @@ Pipeline은 해당 창의 관련 표본 모두에 time.elapsedMs가 있으면 �
 | Run 상세 | 핵심 지표 줄: 저장 확인 행, 평균 저장 처리량, 검증 실패 행, Insert 재시도 | Excel summary counter만 사용한다. 없는 값은 tile을 숨기며 0으로 채우지 않는다. 평균 처리량은 저장 확인 행 ÷ Run 경과 시간이다 |
 | Run 상세 | 파이프라인 흐름: 파싱 → raw queue → 검증·매핑 → mapped queue → chunk insert → DB | 불러온 관측 구간의 마지막 pipeline 관측 하나를 읽는다. 점유율은 기록된 `saturationPct`, 없으면 깊이 ÷ 실행 파라미터 용량이다. `enqueueWaitMs` 1 ms 이상일 때만 backpressure로 강조한다 |
 | 검증 결과 | PASS/FAIL 비율 막대, 판정 필터, 실패 먼저 정렬, 모든 행이 같은 설명이면 한 번만 표시 | 집계·필터는 `현재 페이지` 범위다. 기본 필터는 전체이며 표 이름과 열은 유지한다 |
+| Dead-letter | Excel Run 상세의 `Dead-letter` 탭: 행 번호(0 기반)·단계·사유·원본 셀, 사유별 건수 | 종료 Run만 `/runs/{runId}/dead-letters` cursor로 페이지 조회한다. 사유 건수는 `현재 페이지` 범위다 |
 | 카탈로그 | 분야 칩, 실험 검색, 행 단위 목록 | 검색은 불러온 목록의 화면 필터다. 분야·패턴·출처 필터와 `필터 적용`은 URL 기반 그대로다 |
 | Run 비교 | A/B Run 카드, 조건 차이 칩, 변화율 막대 | 기준값이 0이거나 누락된 지표는 변화율을 계산하지 않는다. 변화 없는 지표는 개수만 표시한다. 막대 방향은 개선 판정이 아니다 |
 

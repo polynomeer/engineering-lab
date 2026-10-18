@@ -1500,3 +1500,9 @@ form {
 .delta-value { text-align: right; }
 @media (max-width: 600px) { .delta-list li { grid-template-columns: minmax(0, 1fr) 72px; } .delta-bar { grid-column: 1 / -1; grid-row: 2; } }
 @media (prefers-reduced-motion: no-preference) { .sidebar nav a, .chip, .catalog-tile { transition: background-color .15s, color .15s; } }
+.dead-letters { margin: 0 0 16px; }
+.dead-letters .section-heading h2 { margin: 0; }
+.reason-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.reason-chips li { padding: 4px 10px; border: 1px solid rgba(255, 140, 134, .45); border-radius: 4px; font-size: 13px; }
+.reason-chips .mono { color: var(--danger); margin-left: 4px; }
+.dead-letter-cells { white-space: pre-wrap; overflow-wrap: anywhere; }

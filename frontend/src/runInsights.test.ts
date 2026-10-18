@@ -5,6 +5,7 @@ import {
   checkOverview,
   comparisonDeltas,
   conditionSummary,
+  deadLetterReasons,
   durationSeconds,
   pipelineFlow,
   runKpis,
@@ -141,5 +142,17 @@ describe('comparison helpers', () => {
         { field: 'git.commit', baseline: 'a', candidate: 'b', different: true },
       ]),
     ).toEqual({ total: 2, same: 1, different: ['git.commit'] });
+  });
+});
+
+describe('dead-letter reasons', () => {
+  it('counts reasons on the loaded page, largest first then by name', () => {
+    expect(
+      deadLetterReasons([{ reason: 'col3 not int' }, { reason: 'col1 blank' }, { reason: 'col3 not int' }]),
+    ).toEqual([
+      { reason: 'col3 not int', count: 2 },
+      { reason: 'col1 blank', count: 1 },
+    ]);
+    expect(deadLetterReasons([])).toEqual([]);
   });
 });

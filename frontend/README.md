@@ -68,6 +68,8 @@ npm run test:e2e
 - `src/ExecutionForm.tsx`, `src/execution.ts`: schema 기반 폼, 프리셋 저장, 단일 제출과 비교 다운로드
 - `src/LegacyTools.tsx`, `src/moduleViews.tsx`: 기존 업로드 API·Excel 상세 adapter, 현재 DB·비영속 IO 도구
 - `src/settings.ts`, `src/SettingsPage.tsx`: bounded 설정 검증·이전·단일 key 저장, 선택적 conflict 처리
+- `src/DeadLetters.tsx`: 종료된 Excel Run의 dead-letter 행 페이지 조회
+- `src/runInsights.ts`, `src/RunOverview.tsx`: 기록값 기반 핵심 지표·파이프라인 흐름·check/비교 요약 계산과 화면
 - `src/WorkerEvidence.tsx`: 실행 준비 상태, worker 환경, 종료 후 검증 결과의 bounded 페이지 조회와 확장 내보내기
 - `src/style.css`: Dark Observatory 차콜·앰버 토큰과 반응형 스타일
 - `tests/dashboard.spec.ts`: 실제 서버 기반 browser E2E와 오류/cursor/legacy fallback
