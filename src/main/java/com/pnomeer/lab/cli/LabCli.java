@@ -21,7 +21,8 @@ public final class LabCli {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String USAGE = "lab list [--server URL] | validate FILE | run FILE [--server URL] [--repeat N [--warmup M]] "
             + "[--wait [--timeout-seconds N] [--check-baseline [--tolerance-pct P]]] | baseline SERIES_ID [--server URL] "
-            + "| sweep FILE --grid NAME=V1,V2 [--grid ...] [--repeat N] [--warmup M] [--server URL] [--wait [--timeout-seconds N]]";
+            + "| sweep FILE --grid NAME=V1,V2 [--grid ...] [--repeat N] [--warmup M] [--server URL] [--wait [--timeout-seconds N]] "
+            + "| retention --older-than-days N [--apply] [--server URL]";
     /** Exit codes: 0 success, 1 failed run or error, 2 wait timeout, 3 regression, 4 no baseline or too few repetitions. */
     static final int EXIT_REGRESSION = 3, EXIT_INCONCLUSIVE = 4;
 
@@ -48,6 +49,16 @@ public final class LabCli {
             client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
             if (options.command.equals("list")) {
                 out.println(JSON.writeValueAsString(request(client, options.server.resolve("/experiments"), null, null, Duration.ofSeconds(30))));
+                return 0;
+            }
+            if (options.command.equals("retention")) {
+                URI preview = options.server.resolve("/maintenance/retention?olderThanDays=" + options.olderThanDays);
+                Map<?, ?> listed = object(request(client, preview, null, null, Duration.ofSeconds(30)));
+                out.println(JSON.writeValueAsString(listed));
+                if (!options.apply) return 0;
+                URI apply = options.server.resolve("/maintenance/retention?olderThanDays=" + options.olderThanDays
+                        + "&token=" + java.net.URLEncoder.encode(String.valueOf(listed.get("token")), StandardCharsets.UTF_8));
+                out.println(JSON.writeValueAsString(request(client, apply, HttpRequest.BodyPublishers.noBody(), null, Duration.ofSeconds(60), "POST")));
                 return 0;
             }
             if (options.command.equals("baseline")) {
@@ -256,17 +267,19 @@ public final class LabCli {
     }
 
     private record Options(String command, Path file, String seriesId, URI server, boolean waitForCompletion, int timeoutSeconds,
-            Integer repeat, int warmup, boolean checkBaseline, double tolerancePct, Map<String, List<Object>> grid) {
+            Integer repeat, int warmup, boolean checkBaseline, double tolerancePct, Map<String, List<Object>> grid,
+            int olderThanDays, boolean apply) {
         static Options parse(String[] args) {
-            if (args.length == 0 || !Set.of("run", "validate", "list", "baseline", "sweep").contains(args[0])) throw new ScenarioException(USAGE);
+            if (args.length == 0 || !Set.of("run", "validate", "list", "baseline", "sweep", "retention").contains(args[0])) throw new ScenarioException(USAGE);
             String command = args[0]; int index = 1; Path file = null; String seriesId = null;
-            if (!command.equals("list")) {
+            if (!command.equals("list") && !command.equals("retention")) {
                 if (args.length <= index || args[index].startsWith("--")) throw new ScenarioException(USAGE);
                 if (command.equals("baseline")) seriesId = args[index++]; else file = Path.of(args[index++]);
             }
             URI server = URI.create("http://localhost:8080"); boolean wait = false; int timeout = 120;
             Integer repeat = null; int warmup = 0; boolean check = false; double tolerance = 5.0;
             var grid = new LinkedHashMap<String, List<Object>>();
+            int olderThanDays = 0; boolean apply = false;
             Set<String> seen = new HashSet<>();
             while (index < args.length) {
                 String key = args[index++];
@@ -274,12 +287,14 @@ public final class LabCli {
                 boolean runs = command.equals("run") || command.equals("sweep");
                 if (key.equals("--wait") && runs) { wait = true; continue; }
                 if (key.equals("--check-baseline") && command.equals("run")) { check = true; continue; }
+                if (key.equals("--apply") && command.equals("retention")) { apply = true; continue; }
                 if (index >= args.length) throw new ScenarioException(USAGE);
                 String value = args[index++];
                 if (key.equals("--server") && !command.equals("validate")) server = URI.create(value);
                 else if (key.equals("--timeout-seconds") && runs) timeout = Integer.parseInt(value);
                 else if (key.equals("--repeat") && runs) repeat = Integer.parseInt(value);
                 else if (key.equals("--warmup") && runs) warmup = Integer.parseInt(value);
+                else if (key.equals("--older-than-days") && command.equals("retention")) olderThanDays = Integer.parseInt(value);
                 else if (key.equals("--grid") && command.equals("sweep")) {
                     var entry = gridEntry(value);
                     if (grid.put(entry.getKey(), entry.getValue()) != null) throw new ScenarioException("Duplicate grid parameter: " + entry.getKey());
@@ -291,6 +306,8 @@ public final class LabCli {
             if (timeout < 1 || timeout > 3600) throw new ScenarioException("timeout must be between 1 and 3600 seconds");
             if (seen.contains("--warmup") && repeat == null && !command.equals("sweep")) throw new ScenarioException("--warmup requires --repeat");
             if (command.equals("sweep") && grid.isEmpty()) throw new ScenarioException("sweep needs at least one --grid NAME=V1,V2");
+            if (command.equals("retention") && (olderThanDays < 1 || olderThanDays > 3650))
+                throw new ScenarioException("retention needs --older-than-days 1..3650");
             if (repeat != null && (repeat < 1 || repeat > 50 || warmup < 0 || warmup > 10))
                 throw new ScenarioException("--repeat must be 1..50 and --warmup 0..10");
             if (check && (repeat == null || !wait)) throw new ScenarioException("--check-baseline requires --repeat and --wait");
@@ -299,7 +316,7 @@ public final class LabCli {
             if (!("http".equals(server.getScheme()) || "https".equals(server.getScheme())) || server.getHost() == null
                     || server.getUserInfo() != null || server.getQuery() != null || server.getFragment() != null
                     || !(server.getPath().isEmpty() || server.getPath().equals("/"))) throw new ScenarioException("--server requires an HTTP(S) origin URL");
-            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance, grid);
+            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance, grid, olderThanDays, apply);
         }
     }
 }

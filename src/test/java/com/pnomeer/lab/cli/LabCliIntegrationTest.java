@@ -112,6 +112,17 @@ class LabCliIntegrationTest {
         assertEquals(2, points.size());
         assertEquals(4, ((Map<?, ?>)((Map<?, ?>)points.get(1)).get("parameters")).get("queueCapacity"));
     }
+    @Test void previewsRetentionAndRefusesToApplyWhileDisabled() throws Exception {
+        var preview = run("retention", "--older-than-days", "30", "--server", "http://localhost:" + port);
+        assertEquals(0, preview.code, preview.err);
+        Map<?, ?> listed = json.readValue(preview.out.strip(), Map.class);
+        assertEquals(false, listed.get("applyEnabled"));
+        assertEquals(List.of(), listed.get("candidates")); // every capture here is younger than 30 days
+        var apply = run("retention", "--older-than-days", "30", "--apply", "--server", "http://localhost:" + port);
+        assertEquals(1, apply.code);
+        assertTrue(apply.err.contains("403"), apply.err);
+        assertEquals(1, run("retention", "--server", "http://localhost:" + port).code); // days are required
+    }
     private void verifyDownload(ArtifactReference reference) throws Exception {
         try (var client = java.net.http.HttpClient.newHttpClient()) {
             var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port

@@ -107,6 +107,9 @@ lab:
   scenario:
     max-document-bytes: 65536
     max-input-bytes: 52428800
+  retention:
+    # Deleting old JFR/Run-log captures needs this flag and a preview token; previews are always allowed.
+    apply-enabled: false
   series:
     # Series run one repetition at a time; extra submissions wait in this bounded queue.
     queue-capacity: 4

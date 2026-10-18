@@ -111,6 +111,23 @@ curl --fail --silent --show-error -H 'Content-Type: application/yaml' \
 - 실행 전에 모든 점의 정의를 검증하며 하나라도 범위를 벗어나면 400으로 거절하고 아무것도 실행하지 않는다.
 - 스윕 하나의 점들과 다른 묶음은 같은 직렬 실행기를 공유한다. 묶음 실행 중 접수한 스윕은 대기열에서 기다린다.
 
+### 캡처 보관 정리(retention)
+
+| Method | 경로 | 설명 |
+| --- | --- | --- |
+| GET | `/maintenance/retention?olderThanDays=30` | 정리 후보 미리보기: 종료 후 N일(1–3650)이 지난 Run의 JFR·Run 로그 artifact, 총 바이트, 기준선 보호 Run 수, `applyEnabled`, `token` |
+| POST | `/maintenance/retention?olderThanDays=30&token=...` | `lab.retention.apply-enabled=true`일 때만 동작(아니면 403). 미리보기 뒤 후보가 바뀌었으면 409 |
+
+- 대상은 `jfr_*`, `log_*` artifact뿐이다. Worker REPORT, metric, dead-letter, Run 행은 지우지 않는다. 기준선으로 지정된 묶음의 Run은 항상 제외한다.
+- 기준 시각은 일 단위로 맞춘다. 같은 날의 미리보기와 적용은 같은 Run을 고른다. 한 번에 최대 1,000개를 다룬다.
+- artifact 참조를 먼저 지우고 파일을 지운다. 실패하면 고아 파일이 남을 수는 있어도 없는 파일을 가리키는 참조는 남지 않는다. 삭제마다 `<storage-root>/retention-log.ndjson`에 한 줄을 남긴다.
+- Finding 문서가 인용한 Run은 서버가 알 수 없다. 남겨야 하는 Run은 기준선으로 지정하거나 export·artifact를 따로 보관한다.
+
+```bash
+./gradlew -q lab --args='retention --older-than-days 30'          # 미리보기만
+./gradlew -q lab --args='retention --older-than-days 30 --apply'  # 설정을 켠 서버에서 미리보기 후 적용
+```
+
 `summary`는 `counters`, `gauges`, `details` map이며 필드는 실험군마다 다릅니다. `runMetadata`는 `runId`, `parameters`, `environment`, `git`을 담습니다. 시각의 `*EpochMs`는 epoch milliseconds입니다.
 
 | 상태 | 의미 |

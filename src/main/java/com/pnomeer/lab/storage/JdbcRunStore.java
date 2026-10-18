@@ -186,6 +186,33 @@ public final class JdbcRunStore implements RunStore, RunSeriesStore, AutoCloseab
                 + jdbc.update("update lab_series set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before the series finished' where status in ('QUEUED','RUNNING')", now));
     }
 
+    /**
+     * JFR and Run-log artifacts of finished runs completed before {@code cutoff}, oldest first. Runs in a
+     * pinned baseline series are never candidates; worker reports and metrics are out of scope.
+     */
+    public List<ArtifactReference> retentionCandidates(long cutoffEpochMs, int limit) {
+        if (limit < 1 || limit > 1000) throw new IllegalArgumentException("limit must be 1..1000");
+        return jdbc.query("select a.* from lab_artifact a join lab_run r on r.run_id=a.run_id"
+                + " where r.status in ('SUCCEEDED','FAILED','INTERRUPTED') and r.completed_at > 0 and r.completed_at < ?"
+                + " and (a.artifact_id like 'jfr!_%' escape '!' or a.artifact_id like 'log!_%' escape '!')"
+                + " and a.run_id not in (select sr.run_id from lab_series_run sr join lab_series_baseline b on b.series_id=sr.series_id)"
+                + " order by r.completed_at, a.artifact_id limit ?",
+                (row, n) -> new ArtifactReference(row.getString("artifact_id"), row.getString("run_id"), row.getString("relative_path"),
+                        row.getString("media_type"), row.getLong("byte_size"), row.getString("sha256")), cutoffEpochMs, limit);
+    }
+
+    /** Counts runs kept only because they belong to a pinned baseline series. */
+    public int baselineProtectedRuns() {
+        Integer count = jdbc.queryForObject("select count(distinct sr.run_id) from lab_series_run sr join lab_series_baseline b on b.series_id=sr.series_id", Integer.class);
+        return count == null ? 0 : count;
+    }
+
+    /** Removes one artifact reference; the caller deletes the file afterwards. */
+    public void deleteArtifactReference(String artifactId) {
+        int deleted = jdbc.update("delete from lab_artifact where artifact_id=?", artifactId);
+        if (deleted != 1) throw new IllegalStateException("Artifact reference not found: " + artifactId);
+    }
+
     @Override
     public RunSweep createSweep(String id, String type, String scenario, java.util.Map<String, List<Object>> grid, int repetitions, int warmup) {
         if (repetitions < 1 || repetitions > RunSeries.MAX_REPETITIONS || warmup < 0 || warmup > RunSeries.MAX_WARMUP)

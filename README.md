@@ -171,7 +171,7 @@ flowchart LR
 | 데이터 | 기본 위치 | 서버 재시작 후 |
 | --- | --- | --- |
 | Run 상태·환경·설정·metrics·summary·dead-letter | `.lab/runs.mv.db` | 유지 |
-| 선택적 JFR·Run 로그 | `.lab/jfr/`, `.lab/logs/` | 유지; 자동 보관 기간 없음 |
+| 선택적 JFR·Run 로그 | `.lab/jfr/`, `.lab/logs/` | 유지; 자동 삭제 없음. `lab retention`으로 오래된 캡처를 미리 보고, 설정을 켠 경우에만 정리 |
 | Excel이 저장한 `ingest_item` | 별도 H2 메모리 DB | 초기화 |
 | 업로드 XLSX | 실행 중 임시 파일 | 정상 정리; 원본 자동 보관 없음 |
 | CLI 원본 시나리오·작은 fixture | `experiments/` | Git으로 관리 |
@@ -198,6 +198,7 @@ Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata�
 | `pipeline.backpressure.offer-timeout-ms` | 200 | timed offer 대기 |
 | `pipeline.error-preview-limit` | 100 | 메모리에 보유할 오류 행 미리보기 |
 | `pipeline.shutdown-timeout-ms` | 30000 | drain 및 별도 executor 종료 대기 |
+| `lab.retention.apply-enabled` | false | true일 때만 `POST /maintenance/retention`이 오래된 JFR·Run 로그를 삭제. 미리보기는 항상 가능 |
 | `lab.series.queue-capacity` | 4 | 대기할 수 있는 반복 묶음 수(1–32). 묶음은 하나씩 실행 |
 | `lab.series.run-timeout-ms` | 1800000 | 반복 Run 하나의 최대 대기 시간 |
 | `lab.series.poll-interval-ms` | 200 | 반복 Run 종료 확인 간격 |
