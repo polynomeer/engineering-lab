@@ -1,6 +1,6 @@
 package com.pnomeer.lab.experiments.examples;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import com.pnomeer.lab.app.run.*;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.registry.measurement.MeasurementContract;
@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ChecksumExtensionIntegrationTest {
     @TempDir Path root;
     private ConfigurableApplicationContext start(boolean enabled) {
-        return new SpringApplicationBuilder(ExcelPipelineApplication.class).web(WebApplicationType.NONE).run(
+        return new SpringApplicationBuilder(EngineeringLabApplication.class).web(WebApplicationType.NONE).run(
                 "--lab.examples.checksum.enabled="+enabled,"--lab.storage.root="+root,"--spring.main.banner-mode=off","--logging.level.root=WARN");
     }
     @Test void independentContributionsReachGenericApisAndStoredEvidenceSurvivesDisablingExtension() throws Exception {

@@ -88,7 +88,7 @@ def prepare(destination, port):
     if destination.exists():
         raise ValueError('Use a new deployment directory; existing deployments are never overwritten')
     builds = {key: manifest(*entry) for key, entry in WORKERS.items()}
-    controller = ROOT / 'build/libs/excel-pipeline-0.0.1-SNAPSHOT.jar'
+    controller = ROOT / 'build/libs/engineering-lab-0.0.1-SNAPSHOT.jar'
     frontend = ROOT / 'frontend/dist'
     if not controller.is_file() or not (frontend / 'index.html').is_file():
         raise ValueError('Build controller and frontend first')

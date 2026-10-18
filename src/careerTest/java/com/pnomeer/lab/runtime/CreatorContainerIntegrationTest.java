@@ -4,7 +4,7 @@ import com.pnomeer.lab.app.run.*;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.scenario.*;
 import com.pnomeer.lab.worker.*;
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,7 +37,7 @@ class CreatorContainerIntegrationTest {
     }
     @AfterAll static void cleanup() throws Exception { removeTag(tag); }
     private ConfigurableApplicationContext start() {
-        return new SpringApplicationBuilder(ExcelPipelineApplication.class).web(org.springframework.boot.WebApplicationType.NONE)
+        return new SpringApplicationBuilder(EngineeringLabApplication.class).web(org.springframework.boot.WebApplicationType.NONE)
                 .run("--lab.storage.root=" + root, "--spring.main.banner-mode=off", "--logging.level.root=WARN",
                         "--lab.career.creator.enabled=true", "--lab.career.creator.container.image-id=" + image,
                         "--lab.career.creator.container.artifact-sha256=" + hash,

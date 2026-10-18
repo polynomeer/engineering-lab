@@ -101,7 +101,7 @@ artifactSha256을 사용한다. 최신 tag 이름만 서버 설정에 넣지 않
 모듈 문서의 opt-in/image/hash 설정을 관리자 전용 `application-career.yml`에 작성한 뒤:
 
 ```bash
-java -jar build/libs/excel-pipeline-0.0.1-SNAPSHOT.jar \
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar \
   --spring.config.additional-location=file:./application-career.yml \
   --server.address=127.0.0.1 --server.port=8080 --lab.storage.root=./.lab
 # 다른 터미널

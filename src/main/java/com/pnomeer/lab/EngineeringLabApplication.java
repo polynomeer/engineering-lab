@@ -1,16 +1,16 @@
-package com.pnomeer.pipeline;
+package com.pnomeer.lab;
 
 import com.pnomeer.lab.experiments.pipeline.config.PipelineProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
-@SpringBootApplication(scanBasePackages = "com.pnomeer")
+@SpringBootApplication
 @EnableConfigurationProperties(PipelineProperties.class)
-public class ExcelPipelineApplication {
+public class EngineeringLabApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ExcelPipelineApplication.class, args);
+        SpringApplication.run(EngineeringLabApplication.class, args);
     }
 
 }

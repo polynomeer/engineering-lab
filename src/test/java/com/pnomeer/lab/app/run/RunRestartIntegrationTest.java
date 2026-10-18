@@ -1,6 +1,6 @@
 package com.pnomeer.lab.app.run;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import com.pnomeer.lab.app.experiment.ExperimentJobService;
 import com.pnomeer.lab.app.ingest.IngestionService;
 import com.pnomeer.lab.core.ExperimentStatus;
@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RunRestartIntegrationTest {
     @TempDir Path root;
     private ConfigurableApplicationContext start() {
-        return new SpringApplicationBuilder(ExcelPipelineApplication.class).web(WebApplicationType.NONE)
+        return new SpringApplicationBuilder(EngineeringLabApplication.class).web(WebApplicationType.NONE)
                 .run("--lab.storage.root=" + root, "--spring.main.banner-mode=off", "--logging.level.root=WARN");
     }
 

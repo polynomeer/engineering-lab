@@ -1,6 +1,6 @@
 package com.pnomeer.lab.cli;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import com.pnomeer.lab.core.storage.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +11,7 @@ import java.io.*;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
+@SpringBootTest(classes=EngineeringLabApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties={"lab.storage.root=${java.io.tmpdir}/lab-cli-tests-${random.uuid}", "lab.observation.jvm-enabled=true", "lab.observation.jvm-interval-ms=100", "lab.observation.max-periodic-samples=2", "lab.trace.enabled=true", "lab.trace.max-spans=7", "lab.jfr.enabled=true", "lab.jfr.duration-seconds=60", "lab.jfr.max-bytes=1048576", "lab.logs.enabled=true"})
 class LabCliIntegrationTest {
     @LocalServerPort int port;

@@ -1,6 +1,6 @@
 package com.pnomeer.lab.app.run;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -8,7 +8,7 @@ import java.net.URI;
 import java.net.http.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(classes=ExcelPipelineApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
+@SpringBootTest(classes=EngineeringLabApplication.class, webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties={"lab.storage.root=${java.io.tmpdir}/lab-ui-tests-${random.uuid}", "lab.storage.page-limit=2", "lab.storage.preview-limit=2", "lab.artifacts.download.max-bytes=4096"})
 class RunUiIntegrationTest {
     @LocalServerPort int port;

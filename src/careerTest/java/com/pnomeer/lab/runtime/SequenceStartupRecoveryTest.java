@@ -1,6 +1,6 @@
 package com.pnomeer.lab.runtime;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import com.pnomeer.lab.core.*;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.experiments.career.SequenceRegistrationConfiguration;
@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class SequenceStartupRecoveryTest {
     @TempDir Path root;
     private ConfigurableApplicationContext start(boolean recovery) {
-        return new SpringApplicationBuilder(ExcelPipelineApplication.class).web(WebApplicationType.NONE)
+        return new SpringApplicationBuilder(EngineeringLabApplication.class).web(WebApplicationType.NONE)
                 .run("--lab.storage.root=" + root, "--spring.main.banner-mode=off", "--logging.level.root=WARN",
                         "--lab.career.sequence.enabled=true", "--lab.career.sequence.recover-on-startup=" + recovery,
                         "--lab.career.sequence.manifest=" + System.getProperty("lab.sequence.manifest"),

@@ -47,7 +47,7 @@ tasks.register('generateTestXlsx', JavaExec) {
     group = 'application'
     description = 'Generate a sample XLSX file for ingestion testing.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.pnomeer.pipeline.tools.TestWorkbookGenerator'
+    mainClass = 'com.pnomeer.lab.tools.TestWorkbookGenerator'
 }
 
 tasks.register('runBlockingEchoServer', JavaExec) {
@@ -100,7 +100,7 @@ tasks.register('bootDashboardJar', org.springframework.boot.gradle.tasks.bundlin
     description = 'Package an already-built frontend/dist with the API (run npm run build first).'
     archiveClassifier = 'dashboard'
     targetJavaVersion = tasks.named('bootJar').flatMap { it.targetJavaVersion }
-    mainClass = 'com.pnomeer.pipeline.ExcelPipelineApplication'
+    mainClass = 'com.pnomeer.lab.EngineeringLabApplication'
     classpath = sourceSets.main.runtimeClasspath
     dependsOn classes
     from('frontend/dist') { into 'BOOT-INF/classes/static/app' }

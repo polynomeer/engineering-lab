@@ -1,4 +1,4 @@
-rootProject.name = 'excel-pipeline'
+rootProject.name = 'engineering-lab'
 
 // Share only the Java 21 wire/process library, not the Career Boot applications.
 includeBuild('career-lab/worker-support')

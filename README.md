@@ -269,7 +269,7 @@ experiments/           Git 관리 시나리오와 fixture
 docs/                  사용·설계·운영·실험 결과
 ```
 
-Spring 진입점과 작은 XLSX 생성기는 `com.pnomeer.pipeline`에 남아 있습니다. Gradle root 이름 `excel-pipeline`도 기존 이름이며 실제 저장소는 단일 프로젝트입니다. 설계 문서의 향후 모듈 구성을 현재 구현과 혼동하지 않습니다.
+Spring 진입점 `EngineeringLabApplication`과 작은 XLSX 생성기도 `com.pnomeer.lab` 아래에 있습니다. Gradle root 이름은 `engineering-lab`이며(v0.2.0까지 `excel-pipeline`), 실제 저장소는 단일 프로젝트입니다. 설계 문서의 향후 모듈 구성을 현재 구현과 혼동하지 않습니다.
 
 ```bash
 ./gradlew test

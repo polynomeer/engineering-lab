@@ -18,10 +18,10 @@
 ./gradlew bootJar
 ```
 
-현재 Gradle root 이름은 `excel-pipeline`, 버전은 `0.0.1-SNAPSHOT`이므로 아래처럼 실행합니다. 버전이 바뀌었다면 `build/libs/`의 실제 파일명으로 바꿉니다.
+현재 Gradle root 이름은 `engineering-lab`(v0.2.0까지는 `excel-pipeline`), 버전은 `0.0.1-SNAPSHOT`이므로 아래처럼 실행합니다. 버전이 바뀌었다면 `build/libs/`의 실제 파일명으로 바꿉니다.
 
 ```bash
-java -jar build/libs/excel-pipeline-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1
 ```
 
 상대 경로 `.lab`·Git directory·시나리오 명령은 실행 위치에 영향을 받습니다. 저장소 루트에서 실행하거나 `--lab.storage.root=/원하는/절대/경로`와 `--lab.storage.git-directory=/저장소/절대/경로`를 명시합니다. jar만 복사한 곳에서는 Git provenance 수집이 실패할 수 있으며 unknown을 clean으로 해석하지 않습니다.

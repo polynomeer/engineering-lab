@@ -20,7 +20,7 @@ npm run test:serve
 루트에서 `./gradlew bootJar` 후 Java 25로 API를 시작한다. `java --version`으로 버전을 확인한다. macOS에서는 `/usr/libexec/java_home -v 25`로 해당 JDK 위치를 찾을 수 있다.
 
 ```bash
-java -jar build/libs/excel-pipeline-0.0.1-SNAPSHOT.jar \
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar \
   --server.address=127.0.0.1 --server.port=8080
 ```
 
@@ -44,7 +44,7 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 
 ```bash
 ./gradlew bootDashboardJar
-java -jar build/libs/excel-pipeline-0.0.1-SNAPSHOT-dashboard.jar \
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT-dashboard.jar \
   --server.address=127.0.0.1 --server.port=8080
 ```
 

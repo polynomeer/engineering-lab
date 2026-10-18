@@ -98,7 +98,7 @@ class SequenceContainerIntegrationTest {
     }
 
     private static org.springframework.context.ConfigurableApplicationContext start(Path storage, boolean recover) {
-        return new org.springframework.boot.builder.SpringApplicationBuilder(com.pnomeer.pipeline.ExcelPipelineApplication.class)
+        return new org.springframework.boot.builder.SpringApplicationBuilder(com.pnomeer.lab.EngineeringLabApplication.class)
                 .web(org.springframework.boot.WebApplicationType.NONE).run("--lab.storage.root=" + storage,
                         "--spring.main.banner-mode=off", "--logging.level.root=WARN", "--lab.career.sequence.enabled=true",
                         "--lab.career.sequence.execution-kind=CONTAINER", "--lab.career.sequence.recover-on-startup=" + recover,

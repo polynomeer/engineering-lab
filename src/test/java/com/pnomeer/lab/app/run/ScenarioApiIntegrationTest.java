@@ -1,6 +1,6 @@
 package com.pnomeer.lab.app.run;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.scenario.*;
 import com.pnomeer.lab.app.ingest.IngestionService;
@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(classes=ExcelPipelineApplication.class, properties="lab.storage.root=${java.io.tmpdir}/lab-scenario-api-${random.uuid}")
+@SpringBootTest(classes=EngineeringLabApplication.class, properties="lab.storage.root=${java.io.tmpdir}/lab-scenario-api-${random.uuid}")
 class ScenarioApiIntegrationTest {
     @Autowired ScenarioRunController controller;
     @Autowired ExperimentCatalogController catalog;

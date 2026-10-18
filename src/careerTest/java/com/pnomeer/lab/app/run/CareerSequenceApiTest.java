@@ -1,6 +1,6 @@
 package com.pnomeer.lab.app.run;
 
-import com.pnomeer.pipeline.ExcelPipelineApplication;
+import com.pnomeer.lab.EngineeringLabApplication;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.storage.*;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(classes=ExcelPipelineApplication.class, properties={"lab.career.sequence.enabled=true", "lab.storage.root=${java.io.tmpdir}/lab-career-api-${random.uuid}"})
+@SpringBootTest(classes=EngineeringLabApplication.class, properties={"lab.career.sequence.enabled=true", "lab.storage.root=${java.io.tmpdir}/lab-career-api-${random.uuid}"})
 @org.springframework.test.annotation.DirtiesContext
 class CareerSequenceApiTest {
     @DynamicPropertySource static void worker(DynamicPropertyRegistry properties) {

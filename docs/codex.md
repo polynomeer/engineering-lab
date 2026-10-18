@@ -23,7 +23,7 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 
 ## 현재 구조
 
-루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`의 이름은 아직 `excel-pipeline`이고, 앱 이름은 `engineering-lab`이다.
+루트 플랫폼은 Java 25, Spring Boot 4.0.3, Gradle Wrapper 9.3.1을 사용하는 단일 Gradle 프로젝트다. 데이터 접근은 Spring JDBC, 실행 DB는 H2, XLSX 파싱은 Apache POI 기반이다. `settings.gradle`과 앱 이름은 모두 `engineering-lab`이다(v0.2.0까지 Gradle 이름은 `excel-pipeline`).
 
 `career-lab/`에는 Java 21 / Spring Boot 3.3.4 / Gradle 8.14.2 기반의 독립 다중 프로젝트가 있으며, `com.portfolio.*` 패키지와 원본 빌드 경계를 유지한다. [Career Lab 안내](../career-lab/README.md)를 읽고 Docker를 실행한 뒤 `./scripts/career-lab.sh test`로 다섯 모듈을 검증한다. 루트 테스트는 이 모듈들을 포함하지 않는다.
 
@@ -31,7 +31,7 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 
 | 경로 | 책임 / 수정 시 확인할 대상 |
 | --- | --- |
-| `com/pnomeer/pipeline/ExcelPipelineApplication.java` | Spring Boot 진입점, `com.pnomeer` 컴포넌트 스캔 |
+| `com/pnomeer/lab/EngineeringLabApplication.java` | Spring Boot 진입점, `com.pnomeer.lab` 컴포넌트 스캔 |
 | `com/pnomeer/lab/core/` | `Experiment`, `ExperimentScenario`, 결과·상태·메트릭 계약, `RunMetadata`/`RunEnvironment`, `LocalExperimentRunner`, 명시적 `TraceRecorder` |
 | `com/pnomeer/lab/metrics/` | 공용 실행 메트릭 스냅샷, `MetricCatalog` 단위·범위·의미, `JvmSnapshot` |
 | `com/pnomeer/lab/runtime/` | 영속 runner, `ExperimentExecutor`/`InProcessExecutor`, `ExperimentExecutors` 선택·`ExecutionAdmission` 제한, 제출/종료 lifecycle, Git provenance, JVM/trace/JFR/log 설정과 `JfrRecorder`·`RunLogRecorder` artifact 수집 |
@@ -45,7 +45,7 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 | `com/pnomeer/lab/app/experiment/` | `/experiments/*`, 공통 실험 작업 API, 비교·프리셋·이력 UI |
 | `com/pnomeer/lab/app/io/` | `/lab/io/*`, IO 데모 API·UI, virtual-thread executor |
 | `com/pnomeer/lab/app/HomeController.java` | `/`, `/ui` 홈 |
-| `com/pnomeer/pipeline/tools/` | 테스트 XLSX 생성 도구 |
+| `com/pnomeer/lab/tools/` | 테스트 XLSX 생성 도구 |
 
 - 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 기존 화면 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. `frontend/`에는 별도 React/TypeScript/Vite Run 조회 화면이 있으며 [frontend 안내](../frontend/README.md)의 Node 버전과 검증 명령을 따른다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
 - `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 각 실험의 `*ExperimentModule`과 [시나리오 가이드](scenarios.md)를 함께 수정한다.

@@ -10,7 +10,7 @@
   - Use bounded queues between major stages.
   - Use configurable worker pools (`transform`, `insert`).
   - Use chunked inserts with size/time-based flush conditions.
-- New code normally belongs under `com.pnomeer.lab`; the entrypoint and workbook generator still use `com.pnomeer.pipeline`.
+- New code belongs under `com.pnomeer.lab`, including the entrypoint `EngineeringLabApplication` and the workbook generator.
 - Read [docs/codex.md](docs/codex.md) when locating code, choosing verification commands, or checking implementation gaps. Read [docs/architecture.md](docs/architecture.md) for architectural changes; its target layout is not the current module structure.
 - Standards below describe required design direction, not a claim that every capability already exists.
 
