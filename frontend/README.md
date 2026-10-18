@@ -64,7 +64,9 @@ npm run test:e2e
 
 - `src/api.ts`: API prefix, HTTP/JSON 오류, optional 404, route parsing, artifact 다운로드 조건
 - `src/components.tsx`: 공통 표·상태·원시 데이터·Run 동작
-- `src/main.tsx`: catalog 기반 탐색, Run/비교 화면, abort 가능한 조회·활성 Run polling
+- `src/main.tsx`: 앱 셸(부트스트랩 조회, 탐색 메뉴, 제목·상태, 경로별 화면 선택)
+- `src/useRouteData.ts`: 경로별 Run 목록·상세·비교 조회, 활성 Run polling과 일시 오류 backoff
+- `src/pages/RunHistory.tsx`, `src/pages/RunDetail.tsx`, `src/pages/Compare.tsx`: 실행 기록·Run 상세(결과 보기 전환)·Run 비교 화면
 - `src/ExecutionForm.tsx`, `src/execution.ts`: schema 기반 폼, 프리셋 저장, 단일 제출과 비교 다운로드
 - `src/LegacyTools.tsx`, `src/moduleViews.tsx`: 기존 업로드 API·Excel 상세 adapter, 현재 DB·비영속 IO 도구
 - `src/settings.ts`, `src/SettingsPage.tsx`: bounded 설정 검증·이전·단일 key 저장, 선택적 conflict 처리
