@@ -80,6 +80,21 @@ public class RunSeriesController {
         return service.compare(baseline, candidate);
     }
 
+    @PutMapping("/{seriesId}/baseline")
+    public RunSeries pinBaseline(@PathVariable String seriesId) { return service.pinBaseline(seriesId); }
+
+    @GetMapping("/baselines")
+    public List<RunSeries> baselines(@RequestParam(defaultValue="50") int limit) {
+        if (limit < 1 || limit > 100) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "limit must be 1..100");
+        return service.baselines(limit);
+    }
+
+    @GetMapping("/{seriesId}/regression")
+    public RegressionCheck regression(@PathVariable String seriesId,
+            @RequestParam(defaultValue="5") double tolerancePct) {
+        return service.regression(seriesId, tolerancePct);
+    }
+
     private static void bounds(int repetitions, int warmup) {
         if (repetitions < 1 || repetitions > RunSeries.MAX_REPETITIONS || warmup < 0 || warmup > RunSeries.MAX_WARMUP)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

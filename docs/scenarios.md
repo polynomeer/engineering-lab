@@ -83,7 +83,24 @@ file은 시나리오 디렉터리 안의 상대 경로이며 상위 경로, 절�
 
 기본 서버는 `http://localhost:8080`이다. `--server http://localhost:8090`처럼 HTTP(S) origin으로 바꿀 수 있다. `--wait`가 없으면 접수 응답을 출력하고 끝낸다. 있으면 기본 120초까지 완료를 조회하며 `--timeout-seconds 30`으로 1–3600초 범위에서 바꾼다. 대기 timeout은 서버 실행을 취소하지 않는다. POST를 자동 재시도하지 않으며, 같은 정의를 다시 제출하면 새 Run이 만들어진다.
 
-stdout은 JSON lines다. validate는 검증 결과/hash, list는 catalog 배열을 출력한다. run은 접수 응답을 한 줄 출력하고 --wait 사용 시 최종 결과를 한 줄 더 출력한다. Java CLI의 종료 코드는 성공 0, 검증/HTTP/실험 실패 1, 완료 대기 timeout 2다. Gradle JavaExec로 호출하면 비정상 종료를 Gradle task 실패로 보고한다.
+stdout은 JSON lines다. validate는 검증 결과/hash, list는 catalog 배열을 출력한다. run은 접수 응답을 한 줄 출력하고 --wait 사용 시 최종 결과를 한 줄 더 출력한다. Java CLI의 종료 코드는 성공 0, 검증/HTTP/실험 실패 1, 완료 대기 timeout 2이며 반복 측정의 기준선 판정은 3(회귀)과 4(판정 불가)를 더 쓴다. Gradle JavaExec로 호출하면 비정상 종료를 Gradle task 실패로 보고한다.
+
+### 반복 측정과 회귀 기준선
+
+```bash
+# 같은 정의를 warmup 1회 + 측정 5회 실행하고 끝날 때까지 기다린다
+./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --repeat 5 --warmup 1 --wait'
+# 끝난 묶음을 이 실험·시나리오 ID의 기준선으로 지정한다(성공한 측정 반복 3회 이상)
+./gradlew -q lab --args='baseline <seriesId>'
+# 새 묶음을 실행하고 기준선과 비교한다. CI에서 종료 코드로 판정한다
+./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --repeat 5 --wait --check-baseline --tolerance-pct 5'
+```
+
+`--repeat`(1–50)는 `/run-series`로 제출하고, `--warmup`(0–10)은 통계에서 빼는 앞쪽 실행이다. Excel처럼 파일을 받는 시나리오는 파일을 한 번 올리고 서버가 반복마다 복사본을 쓴다. `--wait`이면 묶음 상세를 한 줄 더 출력하고, `--check-baseline`이면 회귀 판정을 한 줄 더 출력한다.
+
+회귀 판정은 measure마다 기준선 대비 중앙값 변화율과 관측 범위 겹침을 함께 본다. 변화가 허용 오차(`--tolerance-pct`, 기본 5) 이내이거나 범위가 겹치면 OK다. 범위가 분리되고 오차를 넘으면 방향에 따라 판정한다. `elapsed`는 증가, `throughput`은 감소가 REGRESSION이고 반대는 IMPROVEMENT다. 방향을 모르는 measure는 CHANGED로 표시하며 회귀처럼 실패로 센다. 측정 계약에는 방향이 없어서 이 두 역할만 코드에 명시했다.
+
+종료 코드: 0 통과, 1 실패한 Run·묶음 또는 오류, 2 대기 timeout, 3 회귀, 4 판정 불가(기준선 없음 또는 어느 쪽이든 성공한 측정 반복 3회 미만).
 
 CLI 문서/파일 한도는 각각 64 KiB/50 MiB이고 서버가 더 작은 한도를 설정하면 서버가 거부한다. XLSX는 8 KiB 버퍼로 hash를 검증한 뒤 multipart로 스트리밍 전송한다. input symlink가 시나리오 디렉터리 밖을 가리키면 거부한다. 서버 응답은 1 MiB로 제한하고, connect timeout은 5초, HTTP 요청 전체의 대기는 최대 30초 또는 남은 --wait 시간 중 짧은 값이다. HTTP redirect는 따라가지 않는다.
 

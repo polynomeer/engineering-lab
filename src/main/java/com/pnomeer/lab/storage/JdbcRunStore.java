@@ -154,6 +154,32 @@ public final class JdbcRunStore implements RunStore, RunSeriesStore, AutoCloseab
     }
 
     @Override
+    public void pinBaseline(String id) {
+        transactions.executeWithoutResult(tx -> {
+            var series = findSeries(id).orElseThrow(() -> new IllegalArgumentException("Unknown series: " + id));
+            if (series.status() != RunStatus.SUCCEEDED) throw new IllegalStateException("Only a succeeded series can be a baseline");
+            long now = System.currentTimeMillis();
+            int updated = jdbc.update("update lab_series_baseline set series_id=?, pinned_at=? where experiment_type=? and scenario_id=?",
+                    id, now, series.experimentType(), series.scenarioId());
+            if (updated == 0) jdbc.update("insert into lab_series_baseline(experiment_type,scenario_id,series_id,pinned_at) values(?,?,?,?)",
+                    series.experimentType(), series.scenarioId(), id, now);
+        });
+    }
+
+    @Override
+    public Optional<RunSeries> baseline(String type, String scenario) {
+        return jdbc.query("select s.* from lab_series_baseline b join lab_series s on s.series_id=b.series_id where b.experiment_type=? and b.scenario_id=?",
+                this::readSeries, type, scenario).stream().findFirst();
+    }
+
+    @Override
+    public List<RunSeries> baselines(int limit) {
+        checkLimit(limit);
+        return jdbc.query("select s.* from lab_series_baseline b join lab_series s on s.series_id=b.series_id order by b.pinned_at desc, s.seq desc limit ?",
+                this::readSeries, limit);
+    }
+
+    @Override
     public int recoverInterruptedSeries() {
         return jdbc.update("update lab_series set status='INTERRUPTED', completed_at=?, failure_message='Process stopped before the series finished' where status in ('QUEUED','RUNNING')",
                 System.currentTimeMillis());

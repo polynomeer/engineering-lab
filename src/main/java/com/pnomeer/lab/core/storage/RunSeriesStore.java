@@ -14,6 +14,11 @@ public interface RunSeriesStore {
     List<RunSeries.Member> seriesRuns(String seriesId);
     /** Newest first; null type means all experiments. */
     List<RunSeries> listSeries(String experimentType, int limit);
+    /** Replaces the pinned baseline for the series' experiment and scenario ID. */
+    void pinBaseline(String seriesId);
+    Optional<RunSeries> baseline(String experimentType, String scenarioId);
+    /** Pinned baselines, most recently pinned first. */
+    List<RunSeries> baselines(int limit);
     /** Marks unfinished series INTERRUPTED after a restart; never resumes them. */
     int recoverInterruptedSeries();
 }

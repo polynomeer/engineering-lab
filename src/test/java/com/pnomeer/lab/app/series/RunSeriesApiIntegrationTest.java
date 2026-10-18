@@ -77,8 +77,22 @@ class RunSeriesApiIntegrationTest {
         assertNotNull(row.get("separation").asString());
         assertEquals(3, row.get("baseline").get("count").asInt());
 
+        // A baseline needs three measured repetitions; the check compares other series of the same scenario.
+        mvc.perform(get("/run-series/" + id + "/regression")).andExpect(status().isOk()).andExpect(jsonPath("$.overall").value("NO_BASELINE"));
+        mvc.perform(put("/run-series/" + id + "/baseline")).andExpect(status().isOk());
+        mvc.perform(get("/run-series/baselines")).andExpect(status().isOk()).andExpect(jsonPath("$[0].seriesId").value(id));
+        mvc.perform(get("/run-series/" + id + "/regression")).andExpect(jsonPath("$.overall").value("NO_BASELINE")); // never against itself
+        String repeat = submit(queue(4), "?repetitions=3&warmup=0");
+        finished(repeat);
+        mvc.perform(get("/run-series/" + repeat + "/regression").param("tolerancePct", "100")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.baselineSeriesId").value(id)).andExpect(jsonPath("$.overall").value("PASS"));
+        mvc.perform(get("/run-series/" + repeat + "/regression").param("tolerancePct", "101")).andExpect(status().isBadRequest());
+        String short_ = submit(queue(4), "?repetitions=2&warmup=0");
+        finished(short_);
+        mvc.perform(put("/run-series/" + short_ + "/baseline")).andExpect(status().isConflict());
+
         mvc.perform(get("/run-series").param("experimentType", "concurrency.queue-contention"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].seriesId").value(other)).andExpect(jsonPath("$[1].seriesId").value(id));
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].seriesId").value(short_)).andExpect(jsonPath("$[2].seriesId").value(other));
     }
 
     @Test void rejectsInvalidCountsDefinitionsAndUnknownSeries() throws Exception {

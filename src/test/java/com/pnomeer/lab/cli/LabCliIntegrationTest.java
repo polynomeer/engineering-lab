@@ -73,6 +73,34 @@ class LabCliIntegrationTest {
         assertEquals(0, catalog.code, catalog.err);
         assertEquals(3, json.readValue(catalog.out.strip(), List.class).size());
     }
+    @Test void repeatsAFileInputScenarioPinsABaselineAndChecksAgainstIt() throws Exception {
+        String file = "experiments/pipeline/excel-ingestion/scenarios/small-batch.yaml", server = "http://localhost:" + port;
+        var first = run("run", file, "--server", server, "--repeat", "3", "--warmup", "1", "--wait", "--timeout-seconds", "120", "--check-baseline");
+        assertEquals(LabCli.EXIT_INCONCLUSIVE, first.code, first.err); // no baseline pinned yet
+        var lines = first.out.lines().toList();
+        assertEquals(3, lines.size()); // submission, finished series, regression check
+        String seriesId = (String)json.readValue(lines.getFirst(), Map.class).get("seriesId");
+        assertEquals("NO_BASELINE", json.readValue(lines.get(2), Map.class).get("overall"));
+        Map<?, ?> view = json.readValue(lines.get(1), Map.class);
+        assertEquals(3, view.get("measuredSucceeded"));
+        // Each repetition consumed its own staged copy of the one uploaded workbook.
+        for (Object member : (List<?>)view.get("members")) {
+            var run = store.find((String)((Map<?, ?>)member).get("runId")).orElseThrow();
+            assertEquals(RunStatus.SUCCEEDED, run.status());
+            assertEquals(5, ingestion.getJob(run.runId()).getInsertedCount());
+        }
+        var pinned = run("baseline", seriesId, "--server", server);
+        assertEquals(0, pinned.code, pinned.err);
+        // A generous tolerance keeps timing noise from failing the check; the verdict logic has unit tests.
+        var second = run("run", file, "--server", server, "--repeat", "3", "--wait", "--timeout-seconds", "120",
+                "--check-baseline", "--tolerance-pct", "100");
+        assertEquals(0, second.code, second.err + second.out);
+        var check = json.readValue(second.out.lines().toList().get(2), Map.class);
+        assertEquals("PASS", check.get("overall"));
+        assertEquals(seriesId, check.get("baselineSeriesId"));
+        assertEquals(1, run("run", file, "--warmup", "1").code); // --warmup needs --repeat
+        assertEquals(1, run("run", file, "--repeat", "3", "--check-baseline").code); // the check needs --wait
+    }
     private void verifyDownload(ArtifactReference reference) throws Exception {
         try (var client = java.net.http.HttpClient.newHttpClient()) {
             var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port

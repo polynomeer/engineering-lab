@@ -140,6 +140,27 @@ public class RunSeriesService {
         return SeriesComparison.of(baseline, candidate);
     }
 
+    /** Pins a finished series with enough measured repetitions as its scenario's baseline. */
+    public RunSeries pinBaseline(String seriesId) {
+        var view = view(seriesId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown series"));
+        if (view.series().status() != RunStatus.SUCCEEDED || view.measuredSucceeded() < SeriesStatistics.MIN_FOR_COMPARISON)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A baseline needs a succeeded series with at least " + SeriesStatistics.MIN_FOR_COMPARISON + " measured repetitions");
+        seriesStore.pinBaseline(seriesId);
+        return view.series();
+    }
+
+    public List<RunSeries> baselines(int limit) { return seriesStore.baselines(limit); }
+
+    public RegressionCheck regression(String seriesId, double tolerancePct) {
+        var candidate = seriesStore.findSeries(seriesId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown series"));
+        if (!(tolerancePct >= 0 && tolerancePct <= 100)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tolerancePct must be 0..100");
+        var baseline = seriesStore.baseline(candidate.experimentType(), candidate.scenarioId())
+                .filter(b -> !b.seriesId().equals(seriesId));
+        if (baseline.isEmpty()) return RegressionCheck.noBaseline(seriesId, tolerancePct);
+        return RegressionCheck.of(compare(baseline.get().seriesId(), seriesId), tolerancePct);
+    }
+
     private static Double value(StoredRun run, MeasurementContract.Measure measure) {
         Number value = measure.kind() == MeasurementContract.Kind.counter
                 ? run.summary().counters().get(measure.name()) : run.summary().gauges().get(measure.name());

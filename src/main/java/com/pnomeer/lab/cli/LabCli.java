@@ -19,7 +19,10 @@ import java.util.concurrent.*;
 public final class LabCli {
     private static final int DOCUMENT_LIMIT = 65536, INPUT_LIMIT = 52428800, RESPONSE_LIMIT = 1048576;
     private static final JsonMapper JSON = JsonMapper.builder().build();
-    private static final String USAGE = "lab list [--server URL] | validate FILE | run FILE [--server URL] [--wait [--timeout-seconds N]]";
+    private static final String USAGE = "lab list [--server URL] | validate FILE | run FILE [--server URL] [--repeat N [--warmup M]] "
+            + "[--wait [--timeout-seconds N] [--check-baseline [--tolerance-pct P]]] | baseline SERIES_ID [--server URL]";
+    /** Exit codes: 0 success, 1 failed run or error, 2 wait timeout, 3 regression, 4 no baseline or too few repetitions. */
+    static final int EXIT_REGRESSION = 3, EXIT_INCONCLUSIVE = 4;
 
     public static void main(String[] args) { System.exit(execute(args, System.out, System.err)); }
 
@@ -30,7 +33,7 @@ public final class LabCli {
             ScenarioDocuments documents = new ScenarioDocuments(DOCUMENT_LIMIT);
             ScenarioDefinition definition = null;
             Path input = null;
-            if (!options.command.equals("list")) {
+            if (options.command.equals("run") || options.command.equals("validate")) {
                 Path path = options.file.toRealPath();
                 try (var stream = Files.newInputStream(path)) { definition = documents.read(stream, ScenarioDocuments.format(path.toString())); }
                 ExperimentCatalog.load().get(definition.experiment()).validate(definition);
@@ -44,6 +47,12 @@ public final class LabCli {
             client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
             if (options.command.equals("list")) {
                 out.println(JSON.writeValueAsString(request(client, options.server.resolve("/experiments"), null, null, Duration.ofSeconds(30))));
+                return 0;
+            }
+            if (options.command.equals("baseline")) {
+                var series = request(client, options.server.resolve("/run-series/" + UUID.fromString(options.seriesId) + "/baseline"),
+                        HttpRequest.BodyPublishers.noBody(), null, Duration.ofSeconds(30), "PUT");
+                out.println(JSON.writeValueAsString(series));
                 return 0;
             }
             String canonical = documents.canonical(definition);
@@ -61,6 +70,7 @@ public final class LabCli {
                         HttpRequest.BodyPublishers.ofFile(input),
                         HttpRequest.BodyPublishers.ofString("\r\n--" + boundary + "--\r\n"));
             }
+            if (options.repeat != null) return series(client, options, body, contentType, out, err);
             Map<?, ?> submission = object(request(client, options.server.resolve("/runs"), body, contentType, Duration.ofSeconds(30)));
             String runId = UUID.fromString((String)submission.get("runId")).toString();
             out.println(JSON.writeValueAsString(submission));
@@ -95,6 +105,43 @@ public final class LabCli {
         } finally { if (client != null) client.shutdownNow(); }
     }
 
+    private static int series(HttpClient client, Options options, HttpRequest.BodyPublisher body, String contentType,
+            PrintStream out, PrintStream err) throws Exception {
+        URI submit = options.server.resolve("/run-series?repetitions=" + options.repeat + "&warmup=" + options.warmup);
+        Map<?, ?> submission = object(request(client, submit, body, contentType, Duration.ofSeconds(30)));
+        String seriesId = UUID.fromString((String)submission.get("seriesId")).toString();
+        out.println(JSON.writeValueAsString(submission));
+        if (!options.waitForCompletion) return 0;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(options.timeoutSeconds);
+        Map<?, ?> view;
+        while (true) {
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) { err.println("Wait timed out; series continues: " + seriesId); return 2; }
+            try {
+                view = object(request(client, options.server.resolve("/run-series/" + seriesId), null, null,
+                        Duration.ofNanos(Math.min(remaining, TimeUnit.SECONDS.toNanos(30)))));
+            } catch (TimeoutException ex) {
+                if (System.nanoTime() >= deadline) { err.println("Wait timed out; series continues: " + seriesId); return 2; }
+                throw ex;
+            }
+            String status = (String)object(view.get("series")).get("status");
+            if (Set.of("SUCCEEDED", "FAILED", "INTERRUPTED").contains(status)) break;
+            if (!Set.of("QUEUED", "RUNNING").contains(status)) throw new IOException("Unexpected series status: " + status);
+            Thread.sleep(Math.max(1, Math.min(500, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()))));
+        }
+        out.println(JSON.writeValueAsString(view));
+        if (!"SUCCEEDED".equals(object(view.get("series")).get("status"))) return 1;
+        if (!options.checkBaseline) return 0;
+        Map<?, ?> check = object(request(client, options.server.resolve("/run-series/" + seriesId + "/regression?tolerancePct=" + options.tolerancePct),
+                null, null, Duration.ofSeconds(30)));
+        out.println(JSON.writeValueAsString(check));
+        return switch (String.valueOf(check.get("overall"))) {
+            case "PASS" -> 0;
+            case "REGRESSION" -> { err.println("Regression against baseline " + check.get("baselineSeriesId")); yield EXIT_REGRESSION; }
+            default -> { err.println("Baseline check inconclusive: " + check.get("overall")); yield EXIT_INCONCLUSIVE; }
+        };
+    }
+
     static Path verifyInput(Path directory, ScenarioDefinition.Input input) throws Exception {
         Path root = directory.toRealPath(), file = root.resolve(input.file()).toRealPath();
         if (!file.startsWith(root) || !Files.isRegularFile(file)) throw new ScenarioException("Input must be a regular file inside the scenario directory");
@@ -113,8 +160,12 @@ public final class LabCli {
     }
 
     private static Object request(HttpClient client, URI uri, HttpRequest.BodyPublisher body, String type, Duration timeout) throws Exception {
+        return request(client, uri, body, type, timeout, body == null ? "GET" : "POST");
+    }
+    private static Object request(HttpClient client, URI uri, HttpRequest.BodyPublisher body, String type, Duration timeout, String method) throws Exception {
         var request = HttpRequest.newBuilder(uri).header("Accept", "application/json");
-        if (body == null) request.GET(); else request.header("Content-Type", type).POST(body);
+        if (body == null) request.GET();
+        else { if (type != null) request.header("Content-Type", type); request.method(method, body); }
         var future = client.sendAsync(request.build(), response -> new LimitedBodySubscriber());
         HttpResponse<byte[]> response;
         try { response = future.get(Math.max(1, timeout.toMillis()), TimeUnit.MILLISECONDS); }
@@ -150,32 +201,44 @@ public final class LabCli {
         public void onComplete() { result.complete(bytes.toByteArray()); }
     }
 
-    private record Options(String command, Path file, URI server, boolean waitForCompletion, int timeoutSeconds) {
+    private record Options(String command, Path file, String seriesId, URI server, boolean waitForCompletion, int timeoutSeconds,
+            Integer repeat, int warmup, boolean checkBaseline, double tolerancePct) {
         static Options parse(String[] args) {
-            if (args.length == 0 || !Set.of("run", "validate", "list").contains(args[0])) throw new ScenarioException(USAGE);
-            String command = args[0]; int index = 1; Path file = null;
+            if (args.length == 0 || !Set.of("run", "validate", "list", "baseline").contains(args[0])) throw new ScenarioException(USAGE);
+            String command = args[0]; int index = 1; Path file = null; String seriesId = null;
             if (!command.equals("list")) {
                 if (args.length <= index || args[index].startsWith("--")) throw new ScenarioException(USAGE);
-                file = Path.of(args[index++]);
+                if (command.equals("baseline")) seriesId = args[index++]; else file = Path.of(args[index++]);
             }
             URI server = URI.create("http://localhost:8080"); boolean wait = false; int timeout = 120;
+            Integer repeat = null; int warmup = 0; boolean check = false; double tolerance = 5.0;
             Set<String> seen = new HashSet<>();
             while (index < args.length) {
                 String key = args[index++];
                 if (!seen.add(key)) throw new ScenarioException("Duplicate option: " + key);
                 if (key.equals("--wait") && command.equals("run")) { wait = true; continue; }
+                if (key.equals("--check-baseline") && command.equals("run")) { check = true; continue; }
                 if (index >= args.length) throw new ScenarioException(USAGE);
                 String value = args[index++];
                 if (key.equals("--server") && !command.equals("validate")) server = URI.create(value);
                 else if (key.equals("--timeout-seconds") && command.equals("run")) timeout = Integer.parseInt(value);
+                else if (key.equals("--repeat") && command.equals("run")) repeat = Integer.parseInt(value);
+                else if (key.equals("--warmup") && command.equals("run")) warmup = Integer.parseInt(value);
+                else if (key.equals("--tolerance-pct") && command.equals("run")) tolerance = Double.parseDouble(value);
                 else throw new ScenarioException("Unsupported option: " + key);
             }
             if (seen.contains("--timeout-seconds") && !wait) throw new ScenarioException("--timeout-seconds requires --wait");
             if (timeout < 1 || timeout > 3600) throw new ScenarioException("timeout must be between 1 and 3600 seconds");
+            if (seen.contains("--warmup") && repeat == null) throw new ScenarioException("--warmup requires --repeat");
+            if (repeat != null && (repeat < 1 || repeat > 50 || warmup < 0 || warmup > 10))
+                throw new ScenarioException("--repeat must be 1..50 and --warmup 0..10");
+            if (check && (repeat == null || !wait)) throw new ScenarioException("--check-baseline requires --repeat and --wait");
+            if (seen.contains("--tolerance-pct") && !check) throw new ScenarioException("--tolerance-pct requires --check-baseline");
+            if (!(tolerance >= 0 && tolerance <= 100)) throw new ScenarioException("--tolerance-pct must be 0..100");
             if (!("http".equals(server.getScheme()) || "https".equals(server.getScheme())) || server.getHost() == null
                     || server.getUserInfo() != null || server.getQuery() != null || server.getFragment() != null
                     || !(server.getPath().isEmpty() || server.getPath().equals("/"))) throw new ScenarioException("--server requires an HTTP(S) origin URL");
-            return new Options(command, file, server, wait, timeout);
+            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance);
         }
     }
 }

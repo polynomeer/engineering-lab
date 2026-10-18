@@ -56,4 +56,21 @@ class RunSeriesStoreTest {
             assertEquals("Process stopped before the series finished", series.failureMessage());
         }
     }
+
+    @Test void pinsOneBaselinePerScenarioAndOnlyForSucceededSeries() {
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            store.createSeries("first", "queue", "small", "a".repeat(64), 3, 0);
+            store.createSeries("second", "queue", "small", "a".repeat(64), 3, 0);
+            store.createSeries("running", "queue", "small", "a".repeat(64), 3, 0);
+            assertThrows(IllegalStateException.class, () -> store.pinBaseline("first"));
+            for (String id : java.util.List.of("first", "second")) { store.startSeries(id); store.completeSeries(id, RunStatus.SUCCEEDED, null); }
+            store.pinBaseline("first");
+            assertEquals("first", store.baseline("queue", "small").orElseThrow().seriesId());
+            store.pinBaseline("second");
+            assertEquals("second", store.baseline("queue", "small").orElseThrow().seriesId());
+            assertEquals(1, store.baselines(10).size());
+            assertTrue(store.baseline("queue", "other").isEmpty());
+            assertThrows(IllegalArgumentException.class, () -> store.pinBaseline("missing"));
+        }
+    }
 }
