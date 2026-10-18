@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { docShot } from './docShot';
 import { readFileSync } from 'node:fs';
 const evidence = JSON.parse(
   readFileSync('../contracts/dashboard/v1/fixtures/evidence.json', 'utf8'),
@@ -6,7 +7,7 @@ const evidence = JSON.parse(
 
 test('metric graphs show recorded pipeline rates, occupancy, keyboard values and bounded page windows', async ({
   page,
-}) => {
+}, info) => {
   const id = 'chart-pipeline';
   await page.route('**/api/experiments', (r) => r.fulfill({ json: [] }));
   await page.route('**/api/modules', (r) => r.fulfill({ json: [] }));
@@ -104,7 +105,7 @@ test('metric graphs show recorded pipeline rates, occupancy, keyboard values and
   await expect(page.getByRole('table', { name: '큐 점유율 그래프 값' })).toBeVisible();
   await page.getByText('큐 점유율 값 표', { exact: true }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: '../docs/images/22-metric-charts-desktop.png', fullPage: true });
+  await page.screenshot({ path: docShot(info, '22-metric-charts-desktop.png'), fullPage: true });
   for (const width of [768, 375]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -114,7 +115,7 @@ test('metric graphs show recorded pipeline rates, occupancy, keyboard values and
   }
   await page.locator('.navigation-drawer > summary').click();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: '../docs/images/23-metric-charts-mobile.png', fullPage: true });
+  await page.screenshot({ path: docShot(info, '23-metric-charts-mobile.png'), fullPage: true });
   await page.getByRole('button', { name: '다음 관측', exact: true }).click();
   await expect(page.getByText('현재 관측 페이지', { exact: false })).toContainText('3개 표본');
   await expect(slider).toHaveAttribute('max', '2');
@@ -172,7 +173,7 @@ test('queue rate is an interval calculation and absent capacity never becomes ze
   ).toBeVisible();
 });
 
-test('active graphs follow new sequences, retain data on failure and drain final observations', async ({ page }) => {
+test('active graphs follow new sequences, retain data on failure and drain final observations', async ({ page }, info) => {
   const id = 'live-queue';
   let status = 'RUNNING';
   let count = 3;
@@ -212,7 +213,7 @@ test('active graphs follow new sequences, retain data on failure and drain final
   await expect(page.getByText('수집 완료 · 최종 구간', { exact: true })).toBeVisible({ timeout: 8000 });
   await expect(slider).toHaveAttribute('max', '8');
   await expect(page.getByRole('img', { name: '처리량 추이', exact: true }).locator('path').first()).toHaveAttribute('d', /M.*L.*L/);
-  await page.screenshot({ path: '../docs/images/24-live-metric-charts.png', fullPage: true });
+  await page.screenshot({ path: docShot(info, '24-live-metric-charts.png'), fullPage: true });
   const finalReads = cursors.filter(cursor => cursor >= 8).length;
   await page.waitForTimeout(2300);
   expect(cursors.filter(cursor => cursor >= 8)).toHaveLength(finalReads);

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { docShot } from './docShot';
 import { readFileSync } from 'node:fs';
 const fixture = JSON.parse(
   readFileSync('../contracts/dashboard/v1/fixtures/evidence.json', 'utf8'),
@@ -6,7 +7,7 @@ const fixture = JSON.parse(
 
 test('Dark Observatory preserves evidence while switching views and collapsing mobile navigation', async ({
   page,
-}) => {
+}, info) => {
   const id = fixture.run.runId;
   await page.route('**/api/experiments', (r) =>
     r.fulfill({
@@ -143,7 +144,7 @@ test('Dark Observatory preserves evidence while switching views and collapsing m
     '/app/compare?baseline=' + id + '&candidate=architecture-violation',
   );
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: '../docs/images/20-dark-observatory-desktop.png', fullPage: true });
+  await page.screenshot({ path: docShot(info, '20-dark-observatory-desktop.png'), fullPage: true });
   for (const width of [1024, 768, 375]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -159,7 +160,7 @@ test('Dark Observatory preserves evidence while switching views and collapsing m
   await page.keyboard.press('Escape');
   await expect(menu).toBeFocused();
   await expect(page.getByRole('navigation', { name: '대시보드 탐색' })).toBeHidden();
-  await page.screenshot({ path: '../docs/images/21-dark-observatory-mobile.png', fullPage: true });
+  await page.screenshot({ path: docShot(info, '21-dark-observatory-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.getByRole('navigation', { name: '대시보드 탐색' })).toBeVisible();
 });
