@@ -1,10 +1,12 @@
 # Engineering Lab
 
-백엔드·JVM·데이터 처리의 가설을 **정의 → 실행 → 관찰 → 비교 → 증거 보존**으로 검증하는 로컬 실험 플랫폼입니다. 루트 플랫폼은 Java 25 / Spring Boot 4 기반이며, Excel 수집·큐 경합·IO 비교의 세 실험군을 제공합니다.
+실무 시나리오를 **분야 → 패턴 → 전략·사례**로 탐색하고, 백엔드·JVM·데이터 처리의 가설을 **정의 → 실행 → 관찰 → 비교 → 증거 보존**으로 검증하는 로컬 실험 플랫폼입니다. 루트 플랫폼은 Java 25 / Spring Boot 4 기반이며, Excel 수집·큐 경합·IO 비교의 세 실험군을 제공합니다.
 
 단순히 실행 시간만 출력하지 않고 실행마다 Run ID, 입력·설정, Git 상태, JVM/OS 환경, 메트릭, 결과를 보존합니다. 실험 결과를 다시 조회하고 같은 조건인지 비교한 뒤 Finding 문서로 해석을 남길 수 있습니다.
 
 ![실행 증거 목록](docs/images/03-runs.jpg)
+
+> 독립 대시보드의 패턴 탐색·실행·비교는 **[최신 대시보드 사용법](docs/standalone-dashboard.md)**을, v0.2.0 변경 사항은 [릴리스 기록](docs/releases/v0.2.0.md)을 참고하세요.
 
 > 처음 사용하는 경우 **[화면 캡처 사용 가이드](docs/user-guide.md)**를 따라가세요. 전체 문서는 [문서 안내](docs/README.md)에서 찾을 수 있습니다.
 
@@ -15,6 +17,7 @@
 | 경로 | 구성 | 실행 환경 / 테스트 |
 | --- | --- | --- |
 | 루트 `src/` | Excel·큐·IO 실험 플랫폼, Run UI와 증거 저장 | Java 25 / Boot 4 / `./gradlew test` |
+| `career-lab/pipeline-support/` | Excel·Equity·checksum의 bounded batch primitive | Java 21 / 무의존 |
 | `career-lab/worker-support/` | 공통 통신·프로세스 라이브러리, 루트 composite 의존성 | Java 21 / Spring 비의존 |
 | [`career-lab/`](career-lab/README.md) | equity-system, batch-excel, mcp-platform, mds-distribution, creator-studio | Java 21 / Boot 3.3.4 / Docker / `./scripts/career-lab.sh test` |
 

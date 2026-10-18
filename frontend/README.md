@@ -171,3 +171,23 @@ CHECKSUM_E2E=1 DASHBOARD_URL=http://127.0.0.1:15178 LEGACY_URL=http://127.0.0.1:
 `CHECKSUM_E2E=1`은 검증 대상 서버가 활성화됐다는 명시적 조건이며, 실제 활성화하지 않은 서버에서는
 테스트가 실패해야 합니다. 추가 UI 분기 없이 패턴 탐색, 사례 설명, generic form의 세 시나리오,
 기록/비교/export와 모바일 폭을 검증합니다. [참조 사례](../experiments/examples/batched-checksum/README.md)를 참고하세요.
+
+### P7 버전 간 인수
+
+기본 실험만 활성화한 서버와 전체 Career 서버에서 `patterns.spec.ts`, `studies.spec.ts`를
+같이 실행할 수 있다. 활성 API의 실험 목록을 기준으로 탐색 결과를 대조한다.
+`pattern-release.spec.ts`는 전체 16개 실험이 활성화되고 구형 Run 저장소를 복원한
+서버에서만 실행한다. `PATTERN_HISTORY`는 전환 전 `/runs/{id}` 응답을 보존한 JSON 배열
+(`[{"run": <원본 Run 응답>, ...}]`)의 경로다. 테스트는 Run을 새로 제출하거나 변경하지 않는다.
+
+```bash
+DASHBOARD_URL=http://127.0.0.1:4189 \
+  PATTERN_HISTORY=../.lab/verification/v0.2.0/previous-history.json \
+  npm run test:e2e -- pattern-release.spec.ts patterns.spec.ts studies.spec.ts
+```
+
+`P7_SCREENSHOTS=1`이면 실제 서버의 패턴·사례·모바일·구형 계약 화면을
+`docs/images/26-pattern-release.png`, `27-pattern-release-mobile.png`,
+`28-legacy-contract.png`로 갱신한다. API mock 회귀 캡처와 구분한다.
+전체 Career 정상·의도적 실패·REPORT 다운로드는 `DEPLOYMENT_ACCEPTANCE`를 지정한
+`local-deployment.spec.ts`와 [배포 인수 도구](../docs/local-deployment.md)를 함께 실행한다.

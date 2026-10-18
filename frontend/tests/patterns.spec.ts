@@ -95,9 +95,11 @@ test('unknown filters, unclassified extensions, missing modules and empty catalo
   await expect(page.locator('.pattern-result')).toHaveCount(0);
   await expect(page.getByText('조건에 맞는 실험이 없습니다.',{exact:false})).toBeVisible();
 });
-test('actual API discovery and unchanged deep links', async ({page}) => {
+test('actual API discovery and unchanged deep links', async ({page,request}) => {
+  const experiments = await (await request.get('/api/experiments')).json();
+  expect(experiments.map((e: any) => e.id)).toContain('concurrency.queue-contention');
   await page.goto('/app/catalog');
-  await expect(page.locator('.pattern-result')).toHaveCount(3);
+  await expect(page.locator('.pattern-result')).toHaveCount(experiments.length);
   if (process.env.EXPECT_PATTERN_LEGACY === '1') {
     await expect(page.getByText('이 서버는 패턴 API를 제공하지 않습니다.', {exact:false})).toBeVisible();
     await expect(page.getByRole('combobox',{name:'분야',exact:true})).toBeDisabled();
