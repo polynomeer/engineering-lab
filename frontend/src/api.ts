@@ -142,6 +142,14 @@ export function parseRoute(path: string, search: string) {
   if (path === '/app/experiments') return { kind: 'execute' as const, query };
   if (path === '/app/compare') return { kind: 'compare' as const, query };
   if (path === '/app/series') return { kind: 'series-list' as const, query };
+  const sweep = /^\/app\/sweeps\/([^/]+)$/.exec(path);
+  if (sweep) {
+    try {
+      return { kind: 'sweep' as const, id: decodeURIComponent(sweep[1]), query };
+    } catch {
+      return { kind: 'missing' as const, query };
+    }
+  }
   if (path === '/app/series/compare') return { kind: 'series-compare' as const, query };
   const series = /^\/app\/series\/([^/]+)$/.exec(path);
   if (series) {

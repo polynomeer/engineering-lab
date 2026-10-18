@@ -3,7 +3,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { loadSettings, saveSettings } from './settings';
 import { moduleViews } from './moduleViews';
 import type { Descriptor } from './api';
-import { MAX_REPETITIONS, MAX_WARMUP, submitSeries } from './series';
+import {
+  MAX_REPETITIONS,
+  MAX_SWEEP_POINTS,
+  MAX_WARMUP,
+  parseSweepValues,
+  submitSeries,
+  submitSweep,
+  sweepPointCount,
+} from './series';
 import {
   definition,
   initialDraft,
@@ -75,6 +83,27 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
   const [runId, setRunId] = useState('');
   const [seriesId, setSeriesId] = useState('');
   const [repeat, setRepeat] = useState({ repetitions: 1, warmup: 0 });
+  const [sweepId, setSweepId] = useState('');
+  const [sweepRows, setSweepRows] = useState([
+    { parameter: '', values: '' },
+    { parameter: '', values: '' },
+  ]);
+  const sweepGrid = () => {
+    const grid: Record<string, (string | number | boolean)[]> = {};
+    for (const row of sweepRows) {
+      if (!row.parameter || !row.values.trim()) continue;
+      if (grid[row.parameter]) throw new Error(`${row.parameter}를 두 번 지정했습니다.`);
+      grid[row.parameter] = parseSweepValues(row.values, descriptor.parameters[row.parameter]?.type ?? 'string');
+    }
+    return grid;
+  };
+  let sweepPreview = '';
+  try {
+    const grid = sweepGrid();
+    if (Object.keys(grid).length) sweepPreview = `${sweepPointCount(grid)}개 점 × ${repeat.warmup + repeat.repetitions}회`;
+  } catch (e) {
+    sweepPreview = e instanceof Error ? e.message : String(e);
+  }
   useEffect(() => {
     try {
       setSaved(readSaved(localStorage, catalog));
@@ -119,8 +148,14 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
     setError('');
     setRunId('');
     setSeriesId('');
+    setSweepId('');
     try {
-      if (repeat.repetitions > 1 || repeat.warmup > 0)
+      const grid = sweepGrid();
+      if (Object.keys(grid).length) {
+        if (sweepPointCount(grid) > MAX_SWEEP_POINTS)
+          throw new Error(`스윕 점은 최대 ${MAX_SWEEP_POINTS}개입니다.`);
+        setSweepId(await submitSweep(definition(descriptor, draft), grid, repeat.repetitions, repeat.warmup));
+      } else if (repeat.repetitions > 1 || repeat.warmup > 0)
         setSeriesId(await submitSeries(definition(descriptor, draft), repeat.repetitions, repeat.warmup));
       else setRunId(await submitRun(definition(descriptor, draft)));
     } catch (e) {
@@ -253,12 +288,51 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
               <small>통계에서 제외하는 앞쪽 실행입니다(최대 {MAX_WARMUP}).</small>
             </label>
           </fieldset>
+          <fieldset className="repeat-fields sweep-fields">
+            <legend>파라미터 스윕 (선택)</legend>
+            {sweepRows.map((row, i) => (
+              <div className="sweep-row" key={i}>
+                <label>
+                  스윕 파라미터 {i + 1}
+                  <select
+                    value={row.parameter}
+                    onChange={(e) =>
+                      setSweepRows(sweepRows.map((r, j) => (j === i ? { ...r, parameter: e.target.value } : r)))
+                    }
+                  >
+                    <option value="">사용 안 함</option>
+                    {Object.keys(descriptor.parameters)
+                      .sort()
+                      .map((key) => (
+                        <option key={key}>{key}</option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  스윕 값 {i + 1}
+                  <input
+                    value={row.values}
+                    placeholder="예: 1, 4, 16"
+                    onChange={(e) =>
+                      setSweepRows(sweepRows.map((r, j) => (j === i ? { ...r, values: e.target.value } : r)))
+                    }
+                  />
+                </label>
+              </div>
+            ))}
+            <small>
+              값마다 위 반복 설정으로 묶음을 하나씩 실행합니다. 조합은 최대 {MAX_SWEEP_POINTS}개입니다.
+              {sweepPreview && ` 현재: ${sweepPreview}`}
+            </small>
+          </fieldset>
           <div className="actions">
             <button type="submit">
               {busy
                 ? '접수 확인 중…'
-                : repeat.repetitions > 1 || repeat.warmup > 0
-                  ? `반복 측정 실행 (${repeat.warmup + repeat.repetitions}회)`
+                : sweepPreview.includes('개 점')
+                  ? `스윕 실행 (${sweepPreview})`
+                  : repeat.repetitions > 1 || repeat.warmup > 0
+                    ? `반복 측정 실행 (${repeat.warmup + repeat.repetitions}회)`
                   : '실험 실행'}
             </button>
             <button type="button" onClick={save}>
@@ -267,6 +341,12 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
           </div>
         </fieldset>
       </form>
+      {sweepId && (
+        <p role="status">
+          스윕이 접수되었습니다. 점은 하나씩 순서대로 실행합니다.{' '}
+          <a href={'/app/sweeps/' + encodeURIComponent(sweepId)}>접수된 스윕 보기</a>
+        </p>
+      )}
       {seriesId && (
         <p role="status">
           반복 측정이 접수되었습니다. 반복은 하나씩 순서대로 실행합니다.{' '}

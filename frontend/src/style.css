@@ -1538,3 +1538,13 @@ form {
 .verdict-regression, .verdict-changed { color: var(--danger); font-weight: 600; }
 .verdict-improvement { color: var(--success); font-weight: 600; }
 .verdict-insufficient, .verdict-ok { color: var(--muted); }
+.execution-form .sweep-fields { grid-template-columns: minmax(0, 1fr); }
+.sweep-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.sweep-role { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.sweep-role select { min-height: 36px; width: auto; min-width: 160px; }
+.sweep-chart { display: block; width: 100%; max-width: 900px; height: auto; margin-top: 12px; }
+.sweep-chart text { fill: var(--muted); font-size: 11px; }
+.sweep-heatmap-wrap { overflow-x: auto; margin-top: 12px; }
+.sweep-heatmap { width: auto; min-width: 320px; table-layout: auto; }
+.sweep-heatmap th, .sweep-heatmap td { text-align: center; padding: 12px 16px; border: 1px solid var(--surface-hover); }
+.sweep-heatmap td .mono { color: var(--text-primary); }

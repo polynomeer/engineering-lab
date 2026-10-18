@@ -10,6 +10,7 @@ import {
   LayersIcon,
 } from '@radix-ui/react-icons';
 import { SeriesCompare, SeriesDetail, SeriesList } from './SeriesPages';
+import { SweepDetail } from './SweepPage';
 import { capabilities as parseCapabilities } from './capabilities';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -151,7 +152,7 @@ function App() {
               </a>
               <a
                 href="/app/series"
-                aria-current={route.kind.startsWith('series') ? 'page' : undefined}
+                aria-current={route.kind.startsWith('series') || route.kind === 'sweep' ? 'page' : undefined}
               >
                 <LayersIcon width={18} height={18} aria-hidden="true" />
                 반복 측정
@@ -225,6 +226,8 @@ function App() {
                                 ? '반복 측정 상세'
                                 : route.kind === 'series-compare'
                                   ? '반복 측정 비교'
+                                  : route.kind === 'sweep'
+                                    ? '파라미터 스윕'
                             : route.kind === 'missing'
                               ? '페이지를 찾을 수 없습니다'
                               : '실행 기록'}
@@ -281,6 +284,7 @@ function App() {
             <SeriesList catalog={catalog} baseline={route.query.get('compare')} />
           )}
           {route.kind === 'series' && <SeriesDetail id={route.id} key={route.id} />}
+          {route.kind === 'sweep' && <SweepDetail id={route.id} key={route.id} />}
           {route.kind === 'series-compare' &&
             (route.query.get('baseline') && route.query.get('candidate') ? (
               <SeriesCompare

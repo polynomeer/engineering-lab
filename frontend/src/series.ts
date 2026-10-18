@@ -165,3 +165,81 @@ export async function pinBaseline(seriesId: string): Promise<void> {
     throw new Error('기준선은 성공한 묶음 중 측정 반복이 3회 이상인 경우만 지정할 수 있습니다.');
   if (!response.ok) throw new Error(`기준선을 지정하지 못했습니다 (${response.status}).`);
 }
+
+export type Sweep = {
+  sequence: number;
+  sweepId: string;
+  experimentType: string;
+  scenarioId: string;
+  grid: Record<string, (string | number | boolean)[]>;
+  repetitions: number;
+  warmup: number;
+  status: string;
+  createdAtEpochMs: number;
+  completedAtEpochMs: number;
+  failureMessage: string | null;
+};
+export type SweepView = {
+  sweep: Sweep;
+  points: { position: number; parameters: Record<string, string | number | boolean>; series: SeriesView | null }[];
+};
+export const MAX_SWEEP_POINTS = 24;
+
+/** "1, 4, 16" → typed values; integers stay numbers so the server validates ranges. */
+export function parseSweepValues(text: string, type: string): (string | number | boolean)[] {
+  const parts = text.split(',').map((v) => v.trim()).filter((v) => v !== '');
+  if (type === 'integer') {
+    if (parts.some((v) => !/^-?\d+$/.test(v))) throw new Error('정수만 쉼표로 구분해 입력하세요.');
+    return parts.map(Number);
+  }
+  if (type === 'boolean') {
+    if (parts.some((v) => v !== 'true' && v !== 'false')) throw new Error('true 또는 false만 입력하세요.');
+    return parts.map((v) => v === 'true');
+  }
+  return parts;
+}
+
+export function sweepPointCount(grid: Record<string, unknown[]>) {
+  return Object.values(grid).reduce((n, values) => n * values.length, 1);
+}
+
+/** Median of one measure per point, in point order; null where the point has no statistics yet. */
+export function sweepMeasure(view: SweepView, role: string) {
+  return view.points.map((p) => {
+    const measure = p.series?.measures.find((m) => m.role === role);
+    return { point: p, stats: measure?.statistics ?? null, unit: measure?.unit ?? '' };
+  });
+}
+
+export async function submitSweep(
+  definition: unknown,
+  grid: Record<string, unknown[]>,
+  repetitions: number,
+  warmup: number,
+): Promise<string> {
+  const query = new URLSearchParams({ repetitions: String(repetitions), warmup: String(warmup) });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl('/run-sweeps?' + query), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ definition, grid }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch {
+    throw new Error('접수 여부를 확인할 수 없습니다. 반복 측정 목록에서 확인한 뒤 다시 실행하세요.');
+  }
+  if (response.status >= 400 && response.status < 500) {
+    let detail = '';
+    try {
+      detail = (await response.json()).detail ?? '';
+    } catch {
+      /* keep the status-only message */
+    }
+    throw new Error(`스윕 요청이 거절되었습니다 (${response.status}). ${detail}`.trim());
+  }
+  if (response.status !== 202) throw new Error(`스윕을 접수하지 못했습니다 (${response.status}).`);
+  const body = await response.json();
+  if (typeof body.sweepId !== 'string' || !body.sweepId) throw new Error('응답에 sweepId가 없습니다.');
+  return body.sweepId;
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { get, type Descriptor } from './api';
 import { Table } from './components';
+import { SweepList } from './SweepPage';
 import {
   activeSeries,
   directionLabels,
@@ -79,6 +80,7 @@ export function SeriesList({ catalog, baseline }: { catalog: Descriptor[]; basel
           반복 측정 조회 실패: {error} <button onClick={retry}>다시 조회</button>
         </div>
       )}
+      <SweepList catalog={catalog} />
       {value && value.length === 0 && <p>아직 반복 측정이 없습니다.</p>}
       {value && value.length > 0 && (
         <>
