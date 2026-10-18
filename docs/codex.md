@@ -58,9 +58,25 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 
 [실험 추가 가이드](adding-experiments.md)를 따른다. 모듈별 `ExperimentModule` SPI가 schema/metric을 제공하고 `*RegistrationConfiguration`이 실행 factory bean을 등록한다. 공통 registry와 CLI에 실험별 분기를 추가하지 않는다. `GET /modules`로 내장 모듈 소유 관계를 조회한다.
 
-## 다음 구조 변경
+## 영역별 구현 상태
 
-독립 프론트엔드와 Career Lab 연동은 [설계](dashboard-integration-design.md)와 [계획](dashboard-integration-plan.md)을 따른다. 등록 확장 기반과 Career 빌드 자동 발견은 구현했고, 독립 frontend의 D1 Run 조회와 D2 큐·IO·Excel 실행 화면과 DB/IO 도구는 구현했고 브라우저 상태 이행도 구현했다. 기존 URL/배포 호환도 구현했다. [배포 가이드](dashboard-deployment.md)의 opt-in 설정을 따르며 D3의 in-process executor 경계와 서버 등록 기반 선택·중앙 실행 제한도 구현했다. 기본 앱은 IN_PROCESS만 등록하고 설정으로 Career sequence LOCAL_JVM/CONTAINER 또는 architecture/validation CONTAINER를 추가한다. v3 execution/check 저장·페이지 조회와 자동 백업/이행은 구현했고, 앱의 자동 기록과 execution/check 조회·확장 export·비교도 연결했다. capabilities/catalog extension과 구형/신형 화면·API 세 가지 호환 조합은 검증했다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다. D4 첫 단위의 JSON Schema·fixture·Java 21 worker-support codec도 구현했다. manifest 기반 별도 JVM transport·deadline·직접 자식 종료·증거 저장 callback도 구현했다. 중앙 RunStore 어댑터를 실제 Java 21 fixture와 H2로 검증했다. REPORT 파일의 경로·크기·hash 검증과 중앙 사본/참조 보존도 구현했다. 첫 Career sequence 배포 jar·공용 하네스·격리 MySQL 실행/정상 정리를 구현했다. 실제 sequence worker의 중단 상태 보존·부모 EOF/deadline/강제 종료·보고서 실패·Ryuk 정리 검증도 추가했다. sequence 선택적 중앙 catalog/API 등록과 실제 배포물의 Docker readiness probe도 연결했다. [배포·검증 명령](career-worker-deployment.md)을 따른다. 독립 대시보드의 준비 상태·실행/check 패널과 worker/controller 환경 구분도 연결했다. I1–I5와 D4 실패 주입 검증, D5-1 MCP checks 연동을 마쳤으며 D5-2 equity와 D5-3 memory 연동 후 D5-4 MDS와 D5-5 Creator도 완료했으며 D6 관측·artifact·운영 마무리도 구현했으며 [운영 가이드](dashboard-operations.md)의 검증 범위와 제한을 따른다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+설계·계획 문서는 기록이다. 현재 동작은 아래 표의 상세 문서와 코드를 기준으로 한다. 작업 시작 시 해당 계획의 완료 항목을 확인하고, 기존 route/API·브라우저 설정·Run 데이터 호환과 worker/controller 관측 구분을 유지한다.
+
+| 영역 | 상태 | 시작 위치 | 상세 문서 |
+| --- | --- | --- | --- |
+| 독립 대시보드 D1–D3 (조회·실행·도구·브라우저 상태 이행·URL 전환·in-process 경계·중앙 실행 제한) | 완료 | `frontend/src/`, `runtime/ExecutionAdmission` | [이행 계획](dashboard-integration-plan.md), [배포](dashboard-deployment.md) |
+| v3 execution/check 저장·조회·확장 export·비교 | 완료 | `storage/JdbcRunStore`, `app/run/ExecutionEvidenceController` | [Run 증거](run-evidence.md), [저장](run-storage.md) |
+| D4 worker 계약·별도 JVM·REPORT·sequence 배포물 | 완료 | `runtime/LocalJvm*`, `career-lab/worker-support` | [worker v1](../contracts/worker/v1/README.md), [Career worker 배포](career-worker-deployment.md) |
+| D5 Career 연동(MCP checks, equity, memory, MDS, Creator) | 완료 | `experiments/career/*` | 각 worker 문서, [운영 가이드](dashboard-operations.md) |
+| D6 관측·artifact·운영 마무리 | 완료 | `runtime/*Recorder`, `app/run/ArtifactDownloadController` | [운영 가이드](dashboard-operations.md) |
+| 컨테이너 격리 I1–I5 | 완료(명시적 CONTAINER 등록 시) | `runtime/WorkerContainerLifecycle`, `ContainerWorker*` | [격리 계획](worker-container-isolation.md) |
+| 패턴 플랫폼 P1–P7 | 완료(v0.2.0) | `registry/pattern/`, `registry/measurement/` | [패턴 계획](pattern-platform-plan.md), [릴리스](releases/v0.2.0.md) |
+| 반복 측정·기준선·스윕(F1·F2·F3), 캡처 보관 정리(O3) | 구현, 미릴리스(schema v4) | `app/series/`, `app/maintenance/` | [API 참조](api-reference.md), [시나리오와 CLI](scenarios.md), [ADR](adr/README.md) |
+| 기존 Java 내장 UI | 유지(전환은 opt-in redirect) | `app/*Controller` text block | [배포](dashboard-deployment.md#기존-주소-전환과-되돌리기) |
+
+- 기본 앱은 IN_PROCESS 실행만 등록한다. Career sequence의 LOCAL_JVM/CONTAINER, architecture/validation의 CONTAINER는 설정으로 추가한다.
+- capabilities/catalog extension과 구형/신형 화면·API의 세 가지 호환 조합을 유지한다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다.
+- 대시보드의 준비 상태·실행/check 패널은 worker 환경과 controller 환경을 구분해 표시한다. Worker 정보가 없을 때 서버 환경으로 대신하지 않는다.
 
 통신 계약은 [worker v1](../contracts/worker/v1/README.md), Java 21 코드와 검증은 [worker-support](../career-lab/worker-support/README.md)를 따른다. 루트 통합 테스트에서 라이브러리를 실행하지만 Career sequence를 설정으로 등록했을 때만 capability의 외부 worker 지원을 켠다.
 
@@ -124,6 +140,7 @@ CI는 `.github/workflows/ci.yml`(push·PR: 루트 테스트, frontend 단위·�
 - 앱 Run의 검증 오류는 evidence DB의 dead-letter로 즉시 영속화되며 종료 Run의 `/runs/{runId}/dead-letters`에서 행 문맥을 페이지 조회한다. 행당 64 KiB 초과·저장 실패는 Run 실패다. 직접/local 실행은 영속 저장 없이 제한된 미리보기와 전체 집계를 제공한다. 앱도 `pipeline.error-preview-limit`(기본 100, 0–1000)만 원본 오류 행을 보유한다.
 - HTTP 업로드는 8 KiB 버퍼의 임시 파일로 처리하며 최대 16개/파일당 50 MiB로 제한한다. XLSX는 파일 기반 POI와 압축 해제/metadata/행 크기 상한을 사용한다. 오류 미리보기·큐·metric writer는 bounded다. [전체 ingestion benchmark](pipeline-benchmark.md)는 독립 128 MiB JVM에서 1만/10만 행을 비교하며, 측정 범위와 한계는 [Finding](findings/2026-10-04-pipeline-throughput-heap.md)에 남겼다.
 - PIPELINE은 입력 실패·coordinator 중단 후 받은 행을 제한 시간 안에 drain/flush하고 worker와 진행 callback 종료를 기다린다. 저장/worker 실패는 abort하고 실패 Run에 확인된 집계·rows.unconfirmed·shutdown.unfinishedExecutors를 남긴다. SINGLE_THREAD는 입력 실패 시 안전한 partial batch만 flush한다. 비협조적 I/O의 강제 종료·프로세스 강제 종료·미확인 행 재처리는 보장하지 않는다.
+- 단일 Run 비교의 한계는 반복 묶음(`/run-series`)으로 분포를 비교해 보완한다. 범위 겹침 판정은 통계적 유의성 검정이 아니며, 묶음은 같은 기계·프로세스에서 순서대로 실행한다.
 - pipeline 통합 테스트는 검증 오류, backpressure, 모드 결과 일치를 검증한다. metric writer에는 bounded buffer와 batch 처리량의 제어된 비교 테스트가 있다. `PipelinePerformanceTest`는 128 MiB JVM에서 전체 ingestion·영속 dead-letter·제어된 batch 지연의 처리량 개선을 검증한다. `./gradlew pipelineBenchmark`로 기본 H2/지연/입력 크기별 원시 측정과 Run export를 생성한다. 일반 환경의 성능 우위나 RSS 상한을 보장하지 않는다.
 
 ## 작업 단위 커밋

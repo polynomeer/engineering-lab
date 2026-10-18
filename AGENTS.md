@@ -1,9 +1,10 @@
 # AGENTS
 
 ## 1. Project Overview
+- Purpose: turn backend problems met in practice into reproducible experiments and keep hypothesis, conditions, results and interpretation as one evidence bundle. It is not a production ingestion service or a general benchmark; results hold only for the recorded environment.
 - Repository: `engineering-lab`, a monorepo with a Java 25 / Spring Boot 4 root experiment platform and five restored modules in the independent `career-lab/` Gradle build.
 - Career modules retain Java 21 / Spring Boot 3.3.4 and `com.portfolio.*` packages. Read [career-lab/README.md](career-lab/README.md); run `./scripts/career-lab.sh test` with Docker when modifying these modules or their build, in addition to the required root test.
-- Current experiments: Excel ingestion, queue contention, and IO endpoint comparison.
+- Current experiments: Excel ingestion, queue contention, and IO endpoint comparison, plus repeated-run series, baseline regression checks and parameter sweeps over them.
 - Pipeline goal: build a parallel Excel ingestion pipeline with bounded queues for backpressure and chunked batch inserts for efficient database writes.
 - Core architecture:
   - Use producer-consumer stages with explicit boundaries.
