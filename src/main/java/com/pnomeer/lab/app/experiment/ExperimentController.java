@@ -90,7 +90,7 @@ public class ExperimentController {
 
     @GetMapping(value = "/ui", produces = MediaType.TEXT_HTML_VALUE)
     public String getExperimentDashboard() {
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -865,13 +865,13 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                 <script src="/dashboard/export-settings.js"></script>
                 </body>
                 </html>
-                """;
+                """);
     }
 
     @GetMapping(value = "/ui/{jobId}", produces = MediaType.TEXT_HTML_VALUE)
     public String getExperimentDetail(@PathVariable String jobId) {
         String safeJobId = HtmlUtils.htmlEscape(jobId);
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -1016,7 +1016,7 @@ ${summaryA.secondaryLabel}: ${formatMetric(summaryA.secondary, summaryA.unitSeco
                 <script src="/dashboard/export-settings.js"></script>
                 </body>
                 </html>
-                """.formatted(safeJobId, safeJobId, safeJobId);
+                """.formatted(safeJobId, safeJobId, safeJobId));
     }
 
     private ExperimentJobResponse toResponse(ExperimentJobState state) {

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class HomeController {
     @GetMapping(value = {"/", "/ui"}, produces = MediaType.TEXT_HTML_VALUE)
     public String home() {
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -148,6 +148,6 @@ public class HomeController {
                 </script>
                 </body>
                 </html>
-                """;
+                """);
     }
 }

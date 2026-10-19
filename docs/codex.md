@@ -72,7 +72,7 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 | 컨테이너 격리 I1–I5 | 완료(명시적 CONTAINER 등록 시) | `runtime/WorkerContainerLifecycle`, `ContainerWorker*` | [격리 계획](worker-container-isolation.md) |
 | 패턴 플랫폼 P1–P7 | 완료(v0.2.0) | `registry/pattern/`, `registry/measurement/` | [패턴 계획](pattern-platform-plan.md), [릴리스](releases/v0.2.0.md) |
 | 반복 측정·기준선·스윕(F1·F2·F3), 캡처 보관 정리(O3) | 구현, 미릴리스(schema v4) | `app/series/`, `app/maintenance/` | [API 참조](api-reference.md), [시나리오와 CLI](scenarios.md), [ADR](adr/README.md) |
-| 기존 Java 내장 UI | 유지(전환은 opt-in redirect) | `app/*Controller` text block | [배포](dashboard-deployment.md#기존-주소-전환과-되돌리기) |
+| 기존 Java 내장 UI | 다음 릴리스에서 제거 예정. 기본 redirect, `?legacy=true`로만 열림(제거 안내 표시) | `app/*Controller` text block, `app/LegacyNotice` | [배포](dashboard-deployment.md#기존-주소-전환과-되돌리기) |
 
 - 기본 앱은 IN_PROCESS 실행만 등록한다. Career sequence의 LOCAL_JVM/CONTAINER, architecture/validation의 CONTAINER는 설정으로 추가한다.
 - capabilities/catalog extension과 구형/신형 화면·API의 세 가지 호환 조합을 유지한다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다.

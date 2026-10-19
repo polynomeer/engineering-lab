@@ -110,8 +110,8 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 ```
 
 `/app/experiments`에서 활성화한 모듈만 나타난다. 모든 Career 설정은 기본 비활성이며,
-설정 파일을 지정하지 않으면 기존 세 실험군만 실행한다. 내장 SPA는 frontend build 후
-`./gradlew bootDashboardJar`로 생성한다. [배포 가이드](dashboard-deployment.md)의
+설정 파일을 지정하지 않으면 기존 세 실험군만 실행한다. 내장 SPA는 기본
+`./gradlew bootJar`에 포함된다(Node 필요). [배포 가이드](dashboard-deployment.md)의
 두 방식을 혼용해 같은 저장소를 동시에 열지 않는다.
 
 ## 정지·재시작·readiness 진단
@@ -132,8 +132,8 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 
 ## 전환 parity
 
-기본 `redirect-enabled=false`와 기존 화면/API를 유지한다. 기능 확인 후 운영자가
-[주소 전환표](dashboard-deployment.md#기존-주소-전환과-되돌리기)를 적용할 수 있다.
+기본 `redirect-enabled=true`이며 내장 화면이 있을 때 기존 주소를 [주소 전환표](dashboard-deployment.md#기존-주소-전환과-되돌리기)대로 보낸다.
+기존 화면은 `?legacy=true`로 한 릴리스 더 열 수 있고 다음 릴리스에서 제거한다. 기존 API는 유지한다.
 
 | 항목 | 독립 화면 | 기존 화면/API |
 | --- | --- | --- |

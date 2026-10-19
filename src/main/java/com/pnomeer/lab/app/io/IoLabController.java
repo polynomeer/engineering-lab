@@ -63,7 +63,7 @@ public class IoLabController {
     @GetMapping(value = "/ui", produces = MediaType.TEXT_HTML_VALUE)
     public String ioLabDashboard(@RequestParam(defaultValue = "hello") String msg) {
         String safeMsg = HtmlUtils.htmlEscape(msg);
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -308,6 +308,6 @@ public class IoLabController {
                 <script src="/dashboard/export-settings.js"></script>
                 </body>
                 </html>
-                """.formatted(safeMsg, HISTORY_STORAGE_KEY);
+                """.formatted(safeMsg, HISTORY_STORAGE_KEY));
     }
 }

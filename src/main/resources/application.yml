@@ -83,7 +83,9 @@ lab:
       manifest: ""
       java-executable: ""
   dashboard:
-    redirect-enabled: false
+    # Legacy view URLs redirect to /app when the jar embeds the dashboard or frontend-origin is set.
+    # ?legacy=true keeps the old screens for one more release.
+    redirect-enabled: true
     frontend-origin: ""
   artifacts:
     download:

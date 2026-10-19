@@ -139,7 +139,7 @@ public class IngestionController {
     @GetMapping(value = "/ui/{jobId}", produces = MediaType.TEXT_HTML_VALUE)
     public String getJobVisualization(@PathVariable String jobId) {
         String safeJobId = HtmlUtils.htmlEscape(jobId);
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -493,12 +493,12 @@ public class IngestionController {
                 </script>
                 </body>
                 </html>
-                """.formatted(safeJobId, safeJobId, safeJobId);
+                """.formatted(safeJobId, safeJobId, safeJobId));
     }
 
     @GetMapping(value = "/ui", produces = MediaType.TEXT_HTML_VALUE)
     public String getJobsVisualization() {
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -597,12 +597,12 @@ public class IngestionController {
                 </script>
                 </body>
                 </html>
-                """;
+                """);
     }
 
     @GetMapping(value = "/ui/db", produces = MediaType.TEXT_HTML_VALUE)
     public String getDbVisualization() {
-        return """
+        return com.pnomeer.lab.app.LegacyNotice.inject("""
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -705,7 +705,7 @@ public class IngestionController {
                 </script>
                 </body>
                 </html>
-                """;
+                """);
     }
 
     public record StartIngestionResponse(String jobId, PipelineRunner.RunMode mode) {

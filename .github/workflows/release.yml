@@ -44,7 +44,7 @@ jobs:
           npm run test:e2e
       - name: Package
         run: |
-          ./gradlew bootJar bootDashboardJar
+          ./gradlew bootJar
           mkdir -p dist
           cp build/libs/engineering-lab-*.jar dist/
           tar -C frontend -czf "dist/engineering-lab-frontend-${GITHUB_REF_NAME}.tar.gz" dist server/serve.mjs package.json

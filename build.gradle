@@ -94,21 +94,55 @@ tasks.register('pipelineBenchmark', JavaExec) {
     mainClass = 'com.pnomeer.lab.experiments.pipeline.benchmark.PipelineBenchmark'
 }
 
-// Reuse the exact standalone artifact; default Java builds never invoke Node.
-tasks.register('bootDashboardJar', org.springframework.boot.gradle.tasks.bundling.BootJar) {
+// The default jar embeds the React dashboard, so packaging needs Node; tests never do.
+// -PskipFrontend builds an API-only jar (no /app pages; legacy URLs then keep the old screens).
+def skipFrontend = project.hasProperty('skipFrontend')
+def frontendDir = file('frontend')
+
+tasks.register('frontendInstall', Exec) {
     group = 'build'
-    description = 'Package an already-built frontend/dist with the API (run npm run build first).'
-    archiveClassifier = 'dashboard'
-    targetJavaVersion = tasks.named('bootJar').flatMap { it.targetJavaVersion }
-    mainClass = 'com.pnomeer.lab.EngineeringLabApplication'
-    classpath = sourceSets.main.runtimeClasspath
-    dependsOn classes
-    from('frontend/dist') { into 'BOOT-INF/classes/static/app' }
+    description = 'Install pinned frontend dependencies when package-lock.json changes.'
+    workingDir frontendDir
+    commandLine 'npx', '--yes', 'npm@11.6.0', 'ci'
+    inputs.file('frontend/package-lock.json')
+    outputs.file('frontend/node_modules/.package-lock.json')
+}
+
+tasks.register('frontendBuild', Exec) {
+    group = 'build'
+    description = 'Typecheck and build frontend/dist for embedding.'
+    dependsOn 'frontendInstall'
+    workingDir frontendDir
+    commandLine 'npm', 'run', 'build'
+    inputs.dir('frontend/src')
+    inputs.files('frontend/index.html', 'frontend/package.json', 'frontend/package-lock.json',
+            'frontend/tsconfig.json', 'frontend/vite.config.ts')
+    outputs.dir('frontend/dist')
     doFirst {
-        if (!file('frontend/dist/index.html').isFile()) {
-            throw new GradleException('Missing frontend/dist/index.html; run npm ci and npm run build in frontend first')
-        }
+        def required = file('frontend/.nvmrc').text.trim()
+        def actual = ['node', '--version'].execute().text.trim().replaceFirst('^v', '')
+        if (actual != required) logger.warn("Node ${actual} found; the frontend is verified with Node ${required} (frontend/.nvmrc)")
     }
+}
+
+tasks.named('bootJar') {
+    if (!skipFrontend) {
+        dependsOn 'frontendBuild'
+        from('frontend/dist') { into 'BOOT-INF/classes/static/app' }
+        doFirst {
+            if (!file('frontend/dist/index.html').isFile()) throw new GradleException('frontend/dist/index.html is missing after frontendBuild')
+        }
+    } else {
+        doFirst { logger.warn('bootJar without the embedded dashboard (-PskipFrontend)') }
+    }
+}
+
+// Kept for one release so existing scripts keep working; the default jar now embeds the dashboard.
+tasks.register('bootDashboardJar') {
+    group = 'build'
+    description = 'Deprecated alias for bootJar, which now embeds the dashboard.'
+    dependsOn 'bootJar'
+    doLast { logger.warn('bootDashboardJar is deprecated: bootJar now embeds the dashboard (build/libs/engineering-lab-<version>.jar)') }
 }
 
 // Explicit Docker integration suite; run after building the independent Career deployment.

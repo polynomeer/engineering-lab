@@ -18,6 +18,8 @@
 ./gradlew bootJar
 ```
 
+`bootJar`는 frontend를 빌드해 대시보드를 jar에 내장하므로 Node가 필요합니다. Node 없이 API만 만들려면 `./gradlew bootJar -PskipFrontend`를 씁니다.
+
 현재 Gradle root 이름은 `engineering-lab`(v0.2.0까지는 `excel-pipeline`), 버전은 `0.0.1-SNAPSHOT`이므로 아래처럼 실행합니다. 버전이 바뀌었다면 `build/libs/`의 실제 파일명으로 바꿉니다.
 
 ```bash

@@ -94,7 +94,7 @@ POST 실패 시 자동 재시도하지 않습니다. 네트워크 오류·5xx·�
 
 설정 백업/이전은 `/app/settings`를 사용합니다. 구화면 내보내기 스크립트는 `src/main/resources/static/dashboard/export-settings.js`에 있고 원본 key를 변경하지 않습니다. 상세 제한과 이전 절차는 [사용 가이드](../docs/standalone-dashboard.md)를 참고하세요. 브라우저 E2E의 구화면 주소는 `LEGACY_URL`(기본 `http://127.0.0.1:18080/experiments/ui`)로 변경합니다.
 
-독립 배포는 `npm run serve`, 내장 패키징은 루트 `./gradlew bootDashboardJar`를 사용합니다. `npm run test:serve`는 빌드 후 독립 서버의 streaming/headers/실패 응답을 검증합니다. 전체 브라우저 검증에 URL 전환을 켠 API를 쓰면 `EXPECT_REDIRECT=1`, 산출물 일치 검증에는 `VERIFY_BUILD=1`을 지정합니다.
+독립 배포는 `npm run serve`를 사용합니다. 루트 `./gradlew bootJar`가 이 frontend를 빌드해 기본 jar에 내장합니다(`-PskipFrontend`로 제외). `npm run test:serve`는 빌드 후 독립 서버의 streaming/headers/실패 응답을 검증합니다. 전체 브라우저 검증에 URL 전환을 켠 API를 쓰면 `EXPECT_REDIRECT=1`, 산출물 일치 검증에는 `VERIFY_BUILD=1`을 지정합니다.
 
 D3 호환 검증은 신규 API와 실제 D2 서버(`94c1913`)를 서로 다른 임시 DB로 띄워 수행했습니다. 구버전 서버 검증 시 `EXPECT_LEGACY=1`을 지정합니다. 신규 API의 기존 비교 화면을 촬영하려면 `CAPABILITY_SCREENSHOT=1 npm run test:e2e -- --grep 'extension catalog'`를 실행합니다. `LEGACY_URL`은 해당 API의 기존 화면 주소여야 합니다. API 계약과 지원 범위는 [Run 증거 문서](../docs/run-evidence.md#지원-기능과-catalog-확장)를 참고하세요.
 

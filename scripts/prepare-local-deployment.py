@@ -97,7 +97,7 @@ def prepare(destination, port):
     record = {'schemaVersion': 1, 'baseImage': base, 'mysqlImage': mysql, 'redisImage': redis, 'workers': {}}
     properties = ['server.address=127.0.0.1', f'server.port={port}',
                   'lab.storage.root=' + str(destination / 'store').replace('\\', '\\\\'),
-                  'lab.dashboard.redirect-enabled=false', 'lab.career.sequence.execution-kind=CONTAINER']
+                  'lab.career.sequence.execution-kind=CONTAINER']
     try:
         for key, (value, jar) in builds.items():
             tag = f'engineering-lab-local/{key}:{uuid.uuid4().hex}'

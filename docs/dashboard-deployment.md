@@ -38,43 +38,42 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 - 상태·Content-Type·Content-Disposition은 유지하고 같은 API origin의 Location을 `/api` 경로로 바꾼다.
 - `/app`의 화면 새로고침은 index.html, `/app/assets/*`는 실제 파일만 제공한다. 없는 asset/API를 HTML 성공으로 가리지 않는다. `/ui`는 기존 API 홈의 `legacy=true` 주소로 연결한다. 그 외 경로는 404다.
 
-## 내장 배포
+## 내장 배포 (기본)
 
-같은 `frontend/dist`를 빌드한 상태에서 루트에서 실행한다.
+기본 `bootJar`가 frontend를 빌드해 `BOOT-INF/classes/static/app/`에 넣는다. Gradle의 `frontendInstall`(`npx npm@11.6.0 ci`, lock 파일이 바뀔 때만)과 `frontendBuild`(`npm run build`, 소스가 바뀔 때만)가 앞서 실행되므로 Node가 필요하다. Node 버전이 `.nvmrc`(24.19.0)와 다르면 경고한다.
 
 ```bash
-./gradlew bootDashboardJar
-java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT-dashboard.jar \
+./gradlew bootJar
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar \
   --server.address=127.0.0.1 --server.port=8080
 ```
 
-`http://127.0.0.1:8080/app/runs`를 연다. `bootDashboardJar`는 빌드된 파일을 `BOOT-INF/classes/static/app/`에 넣는다. dist가 없으면 실패하며 오래된 dist를 자동 재빌드하지 않으므로 소스 변경 후 공통 빌드를 먼저 수행한다.
+`http://127.0.0.1:8080/app/runs`를 연다. `./gradlew test`와 `bootRun`은 Node를 쓰지 않는다. Node 없이 API만 패키징하려면 `./gradlew bootJar -PskipFrontend`를 쓴다. 이 jar에는 `/app` 화면이 없으며 기존 주소는 전환되지 않고 기존 화면을 계속 보여준다.
 
-기본 `test`, `bootJar`, `bootRun`에는 Node나 frontend 빌드를 강제하지 않는다. 기본 jar에는 SPA가 없으므로 `/app/*` 화면은 404다. `/api` adapter는 기존 API를 내부 servlet dispatch로 호출해 multipart/async streaming과 에러를 유지한다. 임의 서버로 프록시하거나 Spring 컨트롤러를 복제하지 않는다.
+`bootDashboardJar`는 한 릴리스 동안 `bootJar`의 별칭으로 남는다. 별도의 `-dashboard.jar`는 더 이상 만들지 않는다. `/api` adapter는 기존 API를 내부 servlet dispatch로 호출해 multipart/async streaming과 에러를 유지한다. 임의 서버로 프록시하거나 Spring 컨트롤러를 복제하지 않는다.
 
 ## 기존 주소 전환과 되돌리기
 
-기본값:
+기본값(2026-10-19부터):
 
 ```yaml
 lab:
   dashboard:
-    redirect-enabled: false
+    redirect-enabled: true
     frontend-origin: ""
 ```
 
-전환을 원하는 API 실행에 다음 옵션을 추가한다.
+전환은 목적지가 있을 때만 동작한다. `frontend-origin`이 비어 있으면 이 jar에 내장된 `/app`으로, 지정하면 그 origin으로 보낸다. 내장 화면도 origin도 없으면(예: `-PskipFrontend` jar, `bootRun`) 시작 로그에 경고를 남기고 기존 화면을 그대로 제공한다.
 
 ```bash
-# 독립 배포: API의 실행 옵션
---lab.dashboard.redirect-enabled=true \
+# 독립 frontend 서버로 보내기
 --lab.dashboard.frontend-origin=http://127.0.0.1:4173
 
-# 내장 배포: origin은 빈 값인 기본값 유지
---lab.dashboard.redirect-enabled=true
+# 전환을 끄고 기존 화면을 기본으로 유지
+--lab.dashboard.redirect-enabled=false
 ```
 
-frontend-origin은 경로/query/fragment/사용자 정보 없는 HTTP(S) origin만 받는다. 빈 값이면 현재 origin의 `/app`을 사용하므로 내장 jar가 필요하다. 설정 변경은 API를 재시작해야 한다.
+frontend-origin은 경로/query/fragment/사용자 정보 없는 HTTP(S) origin만 받는다. 설정 변경은 API를 재시작해야 한다.
 
 | 기존 GET 화면 | 새 화면 |
 | --- | --- |
@@ -90,7 +89,7 @@ frontend-origin은 경로/query/fragment/사용자 정보 없는 HTTP(S) origin�
 
 전환은 no-store 302이고 나머지 query 값은 보존한다. `run`은 경로로 옮기며 `legacy` 제어값은 전달하지 않는다. API와 POST는 화면 전환 대상이 아니다. 임의 query로 redirect 목적지 origin을 바꿀 수 없다.
 
-되돌리려면 `redirect-enabled=false`로 API를 재시작한다. 파일/DB 변경은 필요 없다. 전환 중에도 `/experiments/ui?legacy=true`, `/lab/io/ui?legacy=true`, `/runs/ui?legacy=true`로 기존 화면과 **설정 내보내기**에 접근한다. 이 우회는 현재 화면에만 적용하며 다른 기존 링크를 누르면 전환 설정이 다시 적용된다.
+되돌리려면 `redirect-enabled=false`로 API를 재시작한다. 파일/DB 변경은 필요 없다. 기존 화면은 **다음 릴리스에서 제거할 예정**이며, 그때까지 상단에 제거 안내를 표시한다. 전환 중에도 `/experiments/ui?legacy=true`, `/lab/io/ui?legacy=true`, `/runs/ui?legacy=true`로 기존 화면과 **설정 내보내기**에 접근한다. 이 우회는 현재 화면에만 적용하며 다른 기존 링크를 누르면 전환 설정이 다시 적용된다.
 
 ## 검증과 진단
 

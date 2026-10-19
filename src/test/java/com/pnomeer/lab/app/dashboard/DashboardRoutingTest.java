@@ -34,8 +34,23 @@ class DashboardRoutingTest {
         res = new MockHttpServletResponse();new DashboardRoutingFilter(false,"").doFilter(new MockHttpServletRequest("GET","/runs/ui"),res,new MockFilterChain());assertNull(res.getHeader("Location"));
         res = new MockHttpServletResponse();new DashboardRoutingFilter(true,"").doFilter(new MockHttpServletRequest("GET","/api/runs/ui/options"),res,new MockFilterChain());
         assertEquals("/runs/ui/options",res.getForwardedUrl());assertNull(res.getHeader("Location"));
+        for (String api : new String[]{"/run-series", "/run-series/s1/regression", "/run-sweeps", "/run-sweeps/w1", "/maintenance/retention"}) {
+            res = new MockHttpServletResponse(); new DashboardRoutingFilter(true,"").doFilter(new MockHttpServletRequest("POST","/api" + api),res,new MockFilterChain());
+            assertEquals(api, res.getForwardedUrl());
+        }
         res = new MockHttpServletResponse();new DashboardRoutingFilter(true,"").doFilter(new MockHttpServletRequest("GET","/api/app/runs"),res,new MockFilterChain());assertEquals(404,res.getStatus());
         res = new MockHttpServletResponse();new DashboardRoutingFilter(true, "").doFilter(new MockHttpServletRequest("GET", "/api/runs/%2e%2e/ui"),res,new MockFilterChain());assertEquals(404,res.getStatus());
         assertThrows(IllegalArgumentException.class,()->new DashboardRoutingFilter(true,"https://example.com/path"));
+    }
+    @Test void redirectsByDefaultOnlyWhenADestinationExists() throws Exception {
+        var res = new MockHttpServletResponse();
+        new DashboardRoutingFilter(true, "", true).doFilter(new MockHttpServletRequest("GET", "/experiments/ui"), res, new MockFilterChain());
+        assertEquals("/app/experiments", res.getHeader("Location")); // embedded dashboard on the same origin
+        res = new MockHttpServletResponse();
+        new DashboardRoutingFilter(true, "", false).doFilter(new MockHttpServletRequest("GET", "/experiments/ui"), res, new MockFilterChain());
+        assertNull(res.getHeader("Location")); // API-only build keeps the legacy screen
+        res = new MockHttpServletResponse();
+        new DashboardRoutingFilter(true, "http://127.0.0.1:4173", false).doFilter(new MockHttpServletRequest("GET", "/"), res, new MockFilterChain());
+        assertEquals("http://127.0.0.1:4173/app/runs", res.getHeader("Location"));
     }
 }

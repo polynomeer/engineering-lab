@@ -12,11 +12,22 @@ import org.springframework.web.util.UriComponentsBuilder;
 /** Only GET view routes opt into migration. API bodies and streams stay in the servlet pipeline. */
 @Component
 public class DashboardRoutingFilter extends OncePerRequestFilter {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DashboardRoutingFilter.class);
     private final boolean redirect;
     private final String origin;
-    public DashboardRoutingFilter(@Value("${lab.dashboard.redirect-enabled:false}") boolean redirect,
+    @org.springframework.beans.factory.annotation.Autowired
+    public DashboardRoutingFilter(@Value("${lab.dashboard.redirect-enabled:true}") boolean redirect,
             @Value("${lab.dashboard.frontend-origin:}") String origin) {
-        this.redirect = redirect;
+        this(redirect, origin, new org.springframework.core.io.ClassPathResource("static/app/index.html").exists());
+    }
+    /**
+     * Redirects need a destination: a standalone frontend origin or the dashboard embedded in this jar.
+     * An API-only build (-PskipFrontend, bootRun) keeps serving the legacy screens instead of 404s.
+     */
+    DashboardRoutingFilter(boolean redirect, String origin, boolean embedded) {
+        this.redirect = redirect && (!origin.isBlank() || embedded);
+        if (redirect && !this.redirect)
+            log.warn("stage=dashboard reason=legacy redirect requested but no embedded dashboard or frontend-origin; legacy screens stay");
         if (!origin.isBlank()) {
             URI uri = URI.create(origin);
             if (!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getHost() == null
@@ -38,7 +49,10 @@ public class DashboardRoutingFilter extends OncePerRequestFilter {
             // A prefix alias, not an unrestricted proxy or a nested dispatcher.
             if (!(target.equals("/runs") || target.startsWith("/runs/") || target.equals("/experiments")
                     || target.startsWith("/experiments/") || target.equals("/modules") || target.startsWith("/ingest/")
-                    || target.startsWith("/lab/io/") || target.startsWith("/dashboard/v1/"))) {
+                    || target.startsWith("/lab/io/") || target.startsWith("/dashboard/v1/")
+                    || target.equals("/run-series") || target.startsWith("/run-series/")
+                    || target.equals("/run-sweeps") || target.startsWith("/run-sweeps/")
+                    || target.startsWith("/maintenance/"))) {
                 response.sendError(404); return;
             }
             var wrapped = new HttpServletResponseWrapper(response) {
