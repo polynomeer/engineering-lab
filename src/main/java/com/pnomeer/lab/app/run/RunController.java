@@ -27,7 +27,8 @@ public class RunController {
         RunStatus state;
         try { state = status == null || status.isBlank() ? null : RunStatus.valueOf(status); }
         catch (IllegalArgumentException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status: " + status); }
-        var runs = store.list(experimentType, scenario, state, before, limit);
+        var runs = scenario == null && state == null ? store.list(experimentType, before, limit)
+                : store.list(experimentType, scenario, state, before, limit);
         return new RunPage(runs, runs.size() == limit ? runs.getLast().sequence() : null);
     }
     @GetMapping("/{runId}")
