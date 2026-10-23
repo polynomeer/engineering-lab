@@ -41,7 +41,8 @@ Engineering Lab은 실무 백엔드 문제를 재현 가능한 실험으로 만�
 | --- | --- | --- |
 | 결정 | [설계 결정 기록(ADR)](adr/README.md) | 계속 추가 |
 | 측정 결과 | [Pipeline Finding 2026-10-04](findings/2026-10-04-pipeline-throughput-heap.md) | 측정 완료 |
-| 릴리스 | [v0.2.0](releases/v0.2.0.md), [v0.2.0 운영 전환](releases/v0.2.0-deployment.md) | 운영 중 |
+| 릴리스 | [v0.3.0](releases/v0.3.0.md) | 소스 릴리스, 운영 전환 진행 |
+| 릴리스 | [v0.2.0](releases/v0.2.0.md), [v0.2.0 운영 전환](releases/v0.2.0-deployment.md) | 이전 버전 |
 | 릴리스 | [v0.1.0](releases/v0.1.0.md), [v0.1.0 운영 전환](releases/v0.1.0-deployment.md) | 이전 버전 |
 | 설계·계획 | [패턴 중심 플랫폼 설계](pattern-platform-design.md), [작업 계획](pattern-platform-plan.md) | P1–P7 완료 |
 | 설계·계획 | [대시보드·Career 통합 설계](dashboard-integration-design.md), [이행 계획](dashboard-integration-plan.md) | D1–D6 완료 |

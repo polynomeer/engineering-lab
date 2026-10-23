@@ -8,6 +8,12 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-10-24
+
+반복 측정·기준선·스윕과 증거 묶음, 대시보드 내장 jar. 저장 schema v4.
+
+[릴리스 기록](docs/releases/v0.3.0.md)
+
 - 기본 `bootJar`가 React 대시보드를 내장하고, 기존 화면 주소는 기본으로 `/app`에 전환한다(`lab.dashboard.redirect-enabled=true`). 패키징에 Node가 필요하며 `-PskipFrontend`로 제외할 수 있다.
 - 기존 Java 내장 화면은 이번 릴리스까지 `?legacy=true`로 열 수 있고 제거 안내를 표시한다. **다음 릴리스에서 제거한다.** `bootDashboardJar`도 이번 릴리스까지만 별칭으로 남는다.
 - 반복 측정·기준선 회귀 판정·파라미터 스윕, 캡처 보관 정리, Finding 초안, dead-letter 화면. 저장 schema v4(시작 시 자동 백업 후 이행).
