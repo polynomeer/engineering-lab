@@ -44,7 +44,12 @@ describe('finding drafts', () => {
       measuredSucceeded: 3,
       measures: [],
     });
-    const noisy = { ...view('B'), stability: { highVariationRoles: ['elapsed'] }, overlappingRunIds: ['x'] };
+    const noisy = {
+      ...view('B'),
+      stability: { highVariationRoles: ['elapsed'] },
+      overlappingRunIds: ['x'],
+      checks: [{ checkId: 'overlap', runs: 3, passed: 2, failed: 1 }, { checkId: 'order', runs: 3, passed: 3, failed: 0 }],
+    };
     const md = seriesComparisonDraft({
       baseline: view('A'),
       candidate: noisy,
@@ -59,5 +64,6 @@ describe('finding drafts', () => {
     expect(md).toContain('- Candidate 묶음은 변동 계수 10% 초과: elapsed');
     expect(md).toContain('- Candidate 묶음 반복 중 다른 Run 1개가 함께 실행됐다.');
     expect(md).not.toContain('- Baseline 묶음은');
+    expect(md).toContain('- Candidate 묶음에서 판정이 달라진 CHECK: overlap 2/3 통과');
   });
 });

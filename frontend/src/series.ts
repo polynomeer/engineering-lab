@@ -38,6 +38,8 @@ export type SeriesView = {
   measures: { role: string; name: string; unit: string; kind: string; statistics: Statistics }[];
   /** Other runs that executed while a repetition ran; absent from servers before this field existed. */
   overlappingRunIds?: string[];
+  /** Verdict counts per CHECK over finished measured repetitions. */
+  checks?: { checkId: string; runs: number; passed: number; failed: number }[];
   stability?: {
     variationThreshold: number;
     highVariationRoles: string[];
@@ -176,6 +178,9 @@ export async function pinBaseline(seriesId: string): Promise<void> {
     throw new Error('기준선은 성공한 묶음 중 측정 반복이 3회 이상인 경우만 지정할 수 있습니다.');
   if (!response.ok) throw new Error(`기준선을 지정하지 못했습니다 (${response.status}).`);
 }
+
+export const unstableChecks = (view: SeriesView) =>
+  (view.checks ?? []).filter((c) => c.passed > 0 && c.failed > 0).map((c) => c.checkId);
 
 /** Stops before the next repetition (series) or point (sweep); the run in progress finishes. */
 export async function cancelMeasurement(kind: 'run-series' | 'run-sweeps', id: string): Promise<void> {

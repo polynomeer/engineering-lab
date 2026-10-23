@@ -79,3 +79,27 @@ test('an Excel scenario uploads its workbook once and runs as a series from the 
   await expect(members.getByRole('row')).toHaveCount(4, { timeout: 30000 });
   await expect(page.getByRole('table', { name: 'measure별 통계' })).toContainText('rows.inserted', { timeout: 30000 });
 });
+
+test('repeating a CHECK scenario shows each check\'s pass rate and flags mixed verdicts', async ({ page }) => {
+  const id = '22222222-2222-3333-4444-555555555555';
+  const series = {
+    seriesId: id, experimentType: 'career.mcp-platform.sequence', scenarioId: 'checks-x5', definitionSha256: 'b'.repeat(64),
+    repetitions: 5, warmup: 0, status: 'FAILED', createdAtEpochMs: 1, completedAtEpochMs: 2, failureMessage: '1 of 5 measured repetitions did not succeed', sequence: 2,
+  };
+  await page.route('**/api/run-series/' + id, (r) =>
+    r.fulfill({
+      json: {
+        series, members: [], measuredSucceeded: 4, measures: [], overlappingRunIds: [], stability: null,
+        checks: [{ checkId: 'no-overlap', runs: 5, passed: 4, failed: 1 }, { checkId: 'final-order', runs: 5, passed: 5, failed: 0 }],
+      },
+    }),
+  );
+  await page.route('**/api/run-series/' + id + '/regression?*', (r) => r.fulfill({ json: { overall: 'NO_BASELINE', baselineSeriesId: null, candidateSeriesId: id, tolerancePct: 5, measures: [] } }));
+  await page.route('**/api/run-series/baselines?*', (r) => r.fulfill({ json: [] }));
+  await page.goto('/app/series/' + id);
+  const table = page.getByRole('table', { name: 'CHECK 안정성' });
+  await expect(table.getByRole('row', { name: /no-overlap/ })).toContainText('4 / 5');
+  await expect(table.getByRole('row', { name: /no-overlap/ })).toContainText('불안정');
+  await expect(table.getByRole('row', { name: /final-order/ })).toContainText('항상 통과');
+  await expect(page.getByRole('note', { name: '측정 환경 주의' })).toContainText('반복마다 판정이 달라진 CHECK: no-overlap');
+});

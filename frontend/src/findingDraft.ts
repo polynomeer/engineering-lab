@@ -146,6 +146,9 @@ export function seriesComparisonDraft(comparison: SeriesComparison): string {
       const notes: string[] = [];
       const noisy = view.stability?.highVariationRoles ?? [];
       if (noisy.length) notes.push(`- ${label} 묶음은 변동 계수 10% 초과: ${noisy.join(', ')}`);
+      const flaky = (view.checks ?? []).filter((c) => c.passed > 0 && c.failed > 0);
+      if (flaky.length)
+        notes.push(`- ${label} 묶음에서 판정이 달라진 CHECK: ${flaky.map((c) => `${c.checkId} ${c.passed}/${c.runs} 통과`).join(', ')}`);
       if (view.overlappingRunIds?.length) notes.push(`- ${label} 묶음 반복 중 다른 Run ${view.overlappingRunIds.length}개가 함께 실행됐다.`);
       return notes;
     }),

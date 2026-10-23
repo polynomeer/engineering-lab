@@ -8,6 +8,7 @@ import { seriesComparisonDraft } from './findingDraft';
 import { download } from './execution';
 import {
   activeSeries,
+  unstableChecks,
   directionLabels,
   overallLabels,
   pinBaseline,
@@ -152,12 +153,13 @@ function SeriesCautions({ view }: { view: SeriesView }) {
   const overlapping = view.overlappingRunIds ?? [];
   const stability = view.stability;
   const noisy = stability?.highVariationRoles ?? [];
+  const flaky = unstableChecks(view);
   const load =
     stability && stability.load1mMax !== null
       ? `측정 반복의 시작·종료 시점 1분 부하 ${stability.load1mMin?.toFixed(2)}–${stability.load1mMax.toFixed(2)}` +
         (stability.availableProcessors ? ` (CPU ${stability.availableProcessors}개)` : '')
       : null;
-  if (!overlapping.length && !noisy.length) return null;
+  if (!overlapping.length && !noisy.length && !flaky.length) return null;
   return (
     <section className="panel series-cautions" role="note" aria-label="측정 환경 주의">
       <h2>측정 환경 주의</h2>
@@ -166,6 +168,12 @@ function SeriesCautions({ view }: { view: SeriesView }) {
           변동 계수가 {Math.round((stability?.variationThreshold ?? 0.1) * 100)}%를 넘는 measure:{' '}
           <span className="mono">{noisy.join(', ')}</span>. 반복 사이 결과가 흔들려 차이를 판단하기 어렵습니다.
           {load && ` ${load}.`} 반복 수를 늘리거나 다른 작업이 없는 때 다시 측정하세요.
+        </p>
+      )}
+      {flaky.length > 0 && (
+        <p>
+          반복마다 판정이 달라진 CHECK: <span className="mono">{flaky.join(', ')}</span>. 같은 정의인데 통과와 실패가 섞였으므로
+          시나리오나 대상 시스템에 타이밍·순서 의존이 있는지 확인하세요.
         </p>
       )}
       {overlapping.length > 0 && (
@@ -283,6 +291,7 @@ export function SeriesDetail({ id }: { id: string }) {
           있습니다.
         </p>
       </section>
+      <CheckStability view={value} />
       <BaselinePanel view={value} />
       {!activeSeries(series.status) && (
         <div className="actions">
@@ -313,6 +322,30 @@ export function SeriesDetail({ id }: { id: string }) {
 }
 
 /** The scenario's pinned baseline, this series' verdict against it, and pinning. */
+/** Repeating a CHECK-centred scenario measures its stability: the same verdict on every run, or not. */
+function CheckStability({ view }: { view: SeriesView }) {
+  const checks = view.checks ?? [];
+  if (!checks.length) return null;
+  const verdict = (c: (typeof checks)[number]) =>
+    c.failed === 0 ? '항상 통과' : c.passed === 0 ? '항상 실패' : '불안정';
+  return (
+    <Table
+      label="CHECK 안정성"
+      headers={['CHECK', '통과 / 실행', '통과율', '판정']}
+      rows={checks.map((c) => [
+        <span className="mono">{c.checkId}</span>,
+        <span className="mono">
+          {c.passed} / {c.runs}
+        </span>,
+        <span className="mono">{c.runs ? Math.round((c.passed / c.runs) * 100) + '%' : '—'}</span>,
+        <span className={'verdict verdict-' + (c.failed === 0 ? 'ok' : c.passed === 0 ? 'regression' : 'changed')}>
+          {verdict(c)}
+        </span>,
+      ])}
+    />
+  );
+}
+
 function BaselinePanel({ view }: { view: SeriesView }) {
   const id = view.series.seriesId;
   const [revision, setRevision] = useState(0);

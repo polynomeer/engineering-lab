@@ -33,7 +33,7 @@ public record BaselineFile(int schemaVersion, String experimentType, String scen
         var series = new RunSeries(0, "file:" + sourceSeriesId, experimentType, scenarioId, definitionSha256,
                 Math.max(1, count), 0, RunStatus.SUCCEEDED, createdAtEpochMs, createdAtEpochMs, null);
         var rows = measures.stream().map(m -> new SeriesView.Measure(m.role(), m.name(), m.unit(), m.kind(), SeriesStatistics.of(m.values()))).toList();
-        return new SeriesView(series, List.of(), count, rows, List.of(), null);
+        return new SeriesView(series, List.of(), count, rows, List.of(), null, List.of());
     }
 
     /** Environment facts that differ between this baseline and the candidate's first measured run. */

@@ -51,4 +51,24 @@ class SeriesStatisticsTest {
         assertEquals(java.util.List.of("throughput"), stability.highVariationRoles());
         assertNull(stability.load1mMax());
     }
+
+    @Test void talliesTheLastVerdictPerCheckAndRunAndMarksMixedOnesUnstable() {
+        java.util.function.BiFunction<String, Long, List<com.pnomeer.lab.core.storage.RunCheck>> pages = (run, cursor) -> cursor >= 0 ? List.of() : switch (run) {
+            case "a" -> List.of(check(0, "order", true), check(1, "overlap", true));
+            case "b" -> List.of(check(0, "order", true), check(1, "overlap", false), check(2, "overlap", true)); // last verdict wins
+            default -> List.of(check(0, "order", true), check(1, "overlap", false));
+        };
+        var checks = RunSeriesService.tallyChecks(List.of("a", "b", "c"), pages);
+        assertEquals(List.of("order", "overlap"), checks.stream().map(SeriesView.Check::checkId).toList());
+        assertFalse(checks.get(0).unstable());
+        assertEquals(1.0, checks.get(0).passRate());
+        assertEquals(2, checks.get(1).passed());
+        assertEquals(1, checks.get(1).failed());
+        assertTrue(checks.get(1).unstable());
+    }
+
+    private static com.pnomeer.lab.core.storage.RunCheck check(long sequence, String id, boolean pass) {
+        return new com.pnomeer.lab.core.storage.RunCheck(sequence, id, pass ? com.pnomeer.lab.core.storage.RunCheck.Status.PASS
+                : com.pnomeer.lab.core.storage.RunCheck.Status.FAIL, "e", "o", "d");
+    }
 }

@@ -27,7 +27,7 @@ class RegressionCheckTest {
         var series = new RunSeries(1, id, "queue", "s", "a".repeat(64), values.length, 0, RunStatus.SUCCEEDED, 1, 2, null);
         var list = java.util.Arrays.stream(values).boxed().toList();
         return new SeriesView(series, List.of(), values.length,
-                List.of(new SeriesView.Measure("elapsed", "time.elapsedMs", "ms", "gauge", SeriesStatistics.of(list))), List.of(), null);
+                List.of(new SeriesView.Measure("elapsed", "time.elapsedMs", "ms", "gauge", SeriesStatistics.of(list))), List.of(), null, List.of());
     }
 
     @Test void overallFailsOnRegressionAndIsInconclusiveWithTooFewRepetitions() {

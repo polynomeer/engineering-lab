@@ -98,6 +98,7 @@ class RunSeriesApiIntegrationTest {
         assertEquals(3, view.get("measuredSucceeded").asInt());
         assertEquals(0.1, view.get("stability").get("variationThreshold").asDouble(), 1e-9);
         assertTrue(view.get("stability").get("highVariationRoles").isArray());
+        assertTrue(view.get("checks").isEmpty()); // queue contention records no CHECKs
         // Every repetition is an ordinary Run with the same definition hash and no series label in its parameters.
         var first = runs.find(members.get(1).get("runId").asString()).orElseThrow();
         var last = runs.find(members.get(3).get("runId").asString()).orElseThrow();

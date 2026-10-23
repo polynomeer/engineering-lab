@@ -176,7 +176,30 @@ public class RunSeriesService {
         var measures = contract.map(c -> c.measures().stream().map(measure -> new SeriesView.Measure(measure.role(), measure.name(),
                 measure.unit(), measure.kind().name(), SeriesStatistics.of(measured.stream().map(r -> value(r, measure)).toList()))).toList())
                 .orElse(List.of());
-        return new SeriesView(series, rows, measured.size(), measures, overlapping(rows), stability(measured, measures));
+        var finished = members.stream().filter(m -> !m.warmup()).map(m -> runsById.get(m.runId()))
+                .filter(r -> r != null && TERMINAL.contains(r.status())).toList();
+        return new SeriesView(series, rows, measured.size(), measures, overlapping(rows), stability(measured, measures), tallyChecks(finished.stream().map(StoredRun::runId).toList(),
+                (runId, cursor) -> runStore.checks(runId, cursor, RunCheck.MAX_PAGE)));
+    }
+
+    /** Verdicts per check over finished measured repetitions; a run counts once per check (its last verdict). */
+    static List<SeriesView.Check> tallyChecks(List<String> runIds, java.util.function.BiFunction<String, Long, List<RunCheck>> pages) {
+        var tally = new TreeMap<String, int[]>();
+        for (var runId : runIds) {
+            var last = new LinkedHashMap<String, RunCheck.Status>();
+            long cursor = -1;
+            for (int page = 0; page < 10; page++) { // at most 1,000 checks per run
+                var checks = pages.apply(runId, cursor);
+                checks.forEach(c -> last.put(c.checkId(), c.status()));
+                if (checks.size() < RunCheck.MAX_PAGE) break;
+                cursor = checks.getLast().sequence();
+            }
+            last.forEach((id, status) -> {
+                int[] counts = tally.computeIfAbsent(id, k -> new int[2]);
+                counts[status == RunCheck.Status.PASS ? 0 : 1]++;
+            });
+        }
+        return tally.entrySet().stream().map(e -> new SeriesView.Check(e.getKey(), e.getValue()[0] + e.getValue()[1], e.getValue()[0], e.getValue()[1])).toList();
     }
 
     static SeriesView.Stability stability(List<StoredRun> measured, List<SeriesView.Measure> measures) {

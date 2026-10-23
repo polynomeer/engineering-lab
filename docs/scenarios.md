@@ -105,6 +105,8 @@ stdout은 JSON lines다. validate는 검증 결과/hash, list는 catalog 배열�
 
 기준선 파일은 측정값 원본이라 서버 저장소 없이 같은 판정을 다시 계산한다. `--check-baseline-file`은 `--check-baseline`과 함께 쓸 수 없다. 판정 줄의 `cautions`에 정의 hash 차이와 CPU 수·최대 heap·Java·OS 차이가 적히고 stderr에도 출력된다. 다른 기계에서 만든 기준선과의 비교는 근거가 약하므로, 야간 [Performance regression](../.github/workflows/regression.yml) 워크플로는 CI runner에서 측정한 파일(`experiments/concurrency/queue-contention/baselines/`)만 쓴다.
 
+CHECK 중심 실험(Career 검증 시나리오)은 측정 계약에 measure가 없어 분포 대신 CHECK 안정성을 보여 준다. 끝난 측정 반복마다 CHECK별 마지막 판정을 세어 통과율을 내고, 통과와 실패가 섞인 CHECK는 "불안정"으로 표시한다. 같은 정의에서 판정이 달라지면 타이밍·순서 의존을 의심할 근거가 된다.
+
 종료 코드: 0 통과, 1 실패한 Run·묶음 또는 오류, 2 대기 timeout, 3 회귀, 4 판정 불가(기준선 없음 또는 어느 쪽이든 성공한 측정 반복 3회 미만).
 
 ### 파라미터 스윕

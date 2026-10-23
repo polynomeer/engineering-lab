@@ -82,7 +82,7 @@ curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID/metrics?af
 | --- | --- | --- |
 | POST | `/run-series?repetitions=5&warmup=1` | `POST /runs`와 같은 시나리오 문서(JSON/YAML, Excel은 multipart `scenario`+`file`). 202와 `seriesId`, `definitionSha256` |
 | GET | `/run-series?experimentType=...&limit=20` | 최신순 묶음 목록(limit 1–100) |
-| GET | `/run-series/{seriesId}` | `series`, `members`(position·runId·warmup·status), `measuredSucceeded`, `measures`(measure별 `statistics`), `overlappingRunIds`(반복 실행 중 같은 서버에서 실행된 다른 Run, 최대 20개), `stability`(변동 계수 10% 초과 measure `highVariationRoles`, 측정 반복의 1분 부하 범위 `load1mMin`/`load1mMax`, `availableProcessors`) |
+| GET | `/run-series/{seriesId}` | `series`, `members`(position·runId·warmup·status), `measuredSucceeded`, `measures`(measure별 `statistics`), `overlappingRunIds`(반복 실행 중 같은 서버에서 실행된 다른 Run, 최대 20개), `stability`(변동 계수 10% 초과 measure `highVariationRoles`, 측정 반복의 1분 부하 범위 `load1mMin`/`load1mMax`, `availableProcessors`), `checks`(끝난 측정 반복의 CHECK별 `runs`·`passed`·`failed`; Run마다 마지막 판정 하나로 센다) |
 | PUT | `/run-series/{seriesId}/baseline` | 성공하고 측정 반복이 3회 이상인 묶음을 그 실험·시나리오 ID의 기준선으로 지정(교체). 조건 미달은 409 |
 | POST | `/run-series/{seriesId}/cancel` | 대기·실행 중인 묶음을 다음 반복 전에 멈춘다(202). 실행 중인 반복은 끝까지 돌고 묶음은 `INTERRUPTED`, 사유 `Cancelled by request after N of M runs`. 끝난 묶음은 409 |
 | GET | `/run-series/baselines?limit=50` | 지정된 기준선 묶음, 최근 지정순 |
