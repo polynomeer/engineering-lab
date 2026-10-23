@@ -9,7 +9,7 @@ const external = process.env.DASHBOARD_URL;
 const apiPort = process.env.E2E_API_PORT ?? '18080';
 const webPort = process.env.E2E_WEB_PORT ?? '4180';
 const api = `http://127.0.0.1:${apiPort}`;
-// Legacy-page tests default to port 18080; set LEGACY_URL too when E2E_API_PORT changes.
+// Old-address redirect tests default to port 18080; set API_URL too when E2E_API_PORT changes.
 if (!external) process.env.E2E_STORAGE_ROOT ??= mkdtempSync(join(tmpdir(), 'lab-dashboard-e2e-'));
 
 export default defineConfig({
@@ -39,7 +39,7 @@ export default defineConfig({
         {
           command: `npx vite --host 127.0.0.1 --port ${webPort} --strictPort`,
           url: `http://127.0.0.1:${webPort}/app/`,
-          env: { LAB_API_TARGET: api, VITE_LEGACY_BASE: api },
+          env: { LAB_API_TARGET: api },
           timeout: 60_000,
           reuseExistingServer: false,
         },

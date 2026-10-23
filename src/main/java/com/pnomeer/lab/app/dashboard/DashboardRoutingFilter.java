@@ -16,18 +16,16 @@ public class DashboardRoutingFilter extends OncePerRequestFilter {
     private final boolean redirect;
     private final String origin;
     @org.springframework.beans.factory.annotation.Autowired
-    public DashboardRoutingFilter(@Value("${lab.dashboard.redirect-enabled:true}") boolean redirect,
-            @Value("${lab.dashboard.frontend-origin:}") String origin) {
-        this(redirect, origin, new org.springframework.core.io.ClassPathResource("static/app/index.html").exists());
+    public DashboardRoutingFilter(@Value("${lab.dashboard.frontend-origin:}") String origin) {
+        this(origin, new org.springframework.core.io.ClassPathResource("static/app/index.html").exists());
     }
     /**
-     * Redirects need a destination: a standalone frontend origin or the dashboard embedded in this jar.
-     * An API-only build (-PskipFrontend, bootRun) keeps serving the legacy screens instead of 404s.
+     * Old screen addresses redirect to the dashboard: a standalone frontend origin, or the dashboard embedded
+     * in this jar. An API-only build (-PskipFrontend, bootRun) has no destination, so they are plain 404s.
      */
-    DashboardRoutingFilter(boolean redirect, String origin, boolean embedded) {
-        this.redirect = redirect && (!origin.isBlank() || embedded);
-        if (redirect && !this.redirect)
-            log.warn("stage=dashboard reason=legacy redirect requested but no embedded dashboard or frontend-origin; legacy screens stay");
+    DashboardRoutingFilter(String origin, boolean embedded) {
+        this.redirect = !origin.isBlank() || embedded;
+        if (!redirect) log.info("stage=dashboard reason=no embedded dashboard or frontend-origin; old screen addresses return 404");
         if (!origin.isBlank()) {
             URI uri = URI.create(origin);
             if (!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getHost() == null
@@ -66,11 +64,12 @@ public class DashboardRoutingFilter extends OncePerRequestFilter {
             request.getRequestDispatcher(target).forward(request, wrapped);
             return;
         }
-        if (redirect && request.getMethod().equals("GET") && !"true".equals(request.getParameter("legacy"))) {
+        if (redirect && request.getMethod().equals("GET")) {
             String destination = destination(path, request);
             if (destination != null) {
                 var uri = UriComponentsBuilder.fromUriString(origin + destination);
                 request.getParameterMap().forEach((key, values) -> {
+                    // legacy=true was the escape hatch to the removed screens; old bookmarks drop it.
                     if (!key.equals("legacy") && !(path.equals("/runs/ui") && key.equals("run")))
                         for (String value : values) uri.queryParam(key, value);
                 });

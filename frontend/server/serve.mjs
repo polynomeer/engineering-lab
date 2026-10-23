@@ -55,11 +55,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   const path = raw.split('?')[0];
-  if (path === '/ui') {
-    res.writeHead(302, { Location: target.origin + '/ui?legacy=true' }).end();
-    return;
-  }
-  if (path === '/') {
+  // The old home page (/ui) was removed; both entry points land on the dashboard.
+  if (path === '/' || path === '/ui') {
     res.writeHead(302, { Location: '/app/catalog' }).end();
     return;
   }

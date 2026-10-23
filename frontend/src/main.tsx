@@ -179,13 +179,6 @@ function App() {
                 <a href="/app/tools/ingestion-db"><ArchiveIcon aria-hidden="true" />현재 DB 조회</a>
                 <a href="/app/tools/io-echo"><LightningBoltIcon aria-hidden="true" />IO 단건 데모</a>
                 <a href="/app/settings"><GearIcon aria-hidden="true" />설정 이전</a>
-            <a
-              href={
-                new URL('/ui?legacy=true', import.meta.env.VITE_LEGACY_BASE ?? location.origin).href
-              }
-            >
-              기존 실험 실행 ↗
-            </a>
               </nav>
             </details>
           </details>

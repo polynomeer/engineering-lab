@@ -47,7 +47,7 @@ DB가 완전히 접근 불가능하면 실패 상태 자체도 쓰지 못할 수
 
 cursor는 DB의 단조 증가 sequence이며 배타적 경계다. 이름·시간 문자열로 정렬하지 않는다. 기본 page 크기는 100 또는 설정된 page-limit 중 작은 값이다. 잘못된 크기/경계는 400, 없는 run은 404다. 전체 metric 목록을 한 응답에 쌓지 않는다.
 
-기존 `/experiments/jobs*`, `/ingest/jobs*`도 DB에서 복원한다. 목록은 최대 최신 100개, timeline은 preview-limit 이내다. QUEUED는 기존 화면에 RUNNING, INTERRUPTED는 FAILED로 표시된다. Excel 화면의 원래 progress 형식은 공통 metric에서 복원한다. 원본 실험 데이터 테이블은 별도 in-memory DB이므로 재시작 후 DB row 화면이 비어 있어도 과거 실행 결과는 남는다.
+기존 `/experiments/jobs*`, `/ingest/jobs*`도 DB에서 복원한다. 목록은 최대 최신 100개, timeline은 preview-limit 이내다. 이 API 응답에서 QUEUED는 RUNNING, INTERRUPTED는 FAILED로 표시된다. Excel 작업 API의 원래 progress 형식은 공통 metric에서 복원한다. 원본 실험 데이터 테이블은 별도 in-memory DB이므로 재시작 후 DB row 화면이 비어 있어도 과거 실행 결과는 남는다.
 
 `POST /runs`로 registry의 JSON/YAML 정의를 제출할 수 있다. Excel은 scenario/file multipart를 사용한다. [시나리오 가이드](scenarios.md)의 CLI는 같은 API를 사용하며, 기존 실험별 POST도 유지된다. 기존 `lab_artifact` 테이블에 사용자 제공 artifact 참조 metadata를 등록/조회한다. 등록 API는 원본 파일을 업로드하지 않는다. 내장 수집기의 관리 JFR/log 파일은 종료 Run의 검증된 다운로드 API로 제공한다. 비교와 NDJSON export는 [증거 가이드](run-evidence.md)를 참조한다.
 

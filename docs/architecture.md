@@ -23,7 +23,7 @@ New module metrics extend the catalog without replacing existing definitions.
 See [the extension guide](adding-experiments.md). This is package-level modularity;
 the standalone frontend supports Run evidence browsing (D1) and schema-driven queue/IO
 execution forms with presets and comparison exports (D2 first unit). Excel upload and progress adapters plus DB/IO tools are implemented.
-Browser state import/export preserves legacy keys and commits selected settings in one localStorage write. Opt-in legacy redirects, a streaming standalone server and optional bootDashboardJar reuse the same SPA build. External worker integration remains planned work. Career build
+Browser state import reads legacy keys and previously exported legacy JSON and commits selected settings in one localStorage write. The default bootJar embeds the SPA and a streaming standalone server reuses the same build; the old Java-rendered screens are removed and their addresses redirect to the dashboard (404 when no dashboard is available). External worker integration remains planned work. Career build
 projects are discovered from explicit `lab-module.properties` declarations, so new
 projects do not require edits to a fixed Gradle include list.
 

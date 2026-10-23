@@ -25,16 +25,14 @@ npm run dev
 
 `http://127.0.0.1:5173/app/runs`를 엽니다. **실험 실행**에서 큐·IO Run을 만들고 접수된 실행 상세로 이동합니다. Excel은 catalog에서 선택하고 DB·IO 도구는 왼쪽 링크를 이용합니다. 기존 API 서버는 기본 8080 포트를 사용합니다.
 
-다른 API 주소는 LAB_API_TARGET으로 지정합니다. VITE_LEGACY_BASE는 필요할 때만 기존 화면 링크 주소를 덮어씁니다.
+다른 API 주소는 LAB_API_TARGET으로 지정합니다.
 
 ```bash
-LAB_API_TARGET=http://127.0.0.1:18080 \
-VITE_LEGACY_BASE=http://127.0.0.1:18080 npm run dev
+LAB_API_TARGET=http://127.0.0.1:18080 npm run dev
 ```
 
 `LAB_API_TARGET`은 서버 측 proxy 대상이고 브라우저 요청은 `/api/*`로 제한됩니다.
-`VITE_LEGACY_BASE`는 기존 화면 링크용 공개 주소이며 비밀값을 넣지 않습니다.
-API 기본값은 `http://127.0.0.1:8080`입니다. VITE_LEGACY_BASE를 생략하면 현재 origin의 `/ui?legacy=true`를 사용하고 독립 서버가 API 홈에 연결합니다. 같은 빌드 산출물을 두 방식으로 배포할 때는 생략하세요.
+API 기본값은 `http://127.0.0.1:8080`입니다. 같은 빌드 산출물을 독립 배포와 내장 배포에 함께 사용합니다.
 
 ## 검증
 
@@ -53,7 +51,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-포트는 `E2E_API_PORT`, `E2E_WEB_PORT`로 바꿉니다. API 포트를 바꾸면 기존 화면 테스트용 `LEGACY_URL`도 함께 지정합니다. 직접 띄운 서버를 쓰려면 `DASHBOARD_URL=http://127.0.0.1:5173 npm run test:e2e`처럼 지정합니다. 이때 Playwright는 서버를 시작하지 않습니다. Career worker·Docker가 필요한 테스트는 해당 환경 변수가 없으면 건너뜁니다.
+포트는 `E2E_API_PORT`, `E2E_WEB_PORT`로 바꿉니다. API 포트를 바꾸면 기존 주소 전환 테스트용 `API_URL`(API 서버 origin, 기본 `http://127.0.0.1:18080`)도 함께 지정합니다. 직접 띄운 서버를 쓰려면 `DASHBOARD_URL=http://127.0.0.1:5173 npm run test:e2e`처럼 지정합니다. 이때 Playwright는 서버를 시작하지 않습니다. Career worker·Docker가 필요한 테스트는 해당 환경 변수가 없으면 건너뜁니다.
 
 기본 screenshot은 무시되는 `test-results/`에 저장됩니다. 문서 캡처를 갱신할 때만
 `DOC_SCREENSHOTS=1 npm run test:e2e`를 사용하고 변경 이미지를 검토합니다.
@@ -85,18 +83,18 @@ capabilities는 schemaVersion=1과 올바른 features 객체만 인식합니다.
 
 활성 Run 상세는 2초 간격으로 이전 요청 완료 후 갱신합니다. 오류 backoff는 최대 15초이며,
 탭 비활성·페이지 이탈·Run 종료 시 polling을 멈춥니다. 실행 증거도 자체 요청이 끝난 뒤 갱신하므로 느린 응답을 Run 목록 갱신이 반복 취소하지 않습니다. 관측값과 검증 결과는 각각 한 페이지만 보유합니다.
-기존 URL의 선택적 302와 독립 서버·내장 패키징은 [배포 가이드](../docs/dashboard-deployment.md)를 따릅니다. 기본값은 기존 화면 유지입니다.
+기존 화면 URL의 302 전환과 독립 서버·내장 패키징은 [배포 가이드](../docs/dashboard-deployment.md)를 따릅니다. 기존 Java 내장 화면은 제거했습니다.
 새 설정은 `engineering-lab.dashboard.presets.v1`에 최근 12개만 보관하며 읽기는 1 MiB/100개로 제한합니다.
 새 실험은 input=NONE, SINGLE_PASS, 정수/boolean/선택형 string schema일 때 추가 UI 분기 없이 실행 폼을 제공합니다.
 POST 실패 시 자동 재시도하지 않습니다. 네트워크 오류·5xx·접수 응답 손상은 접수 불확실로 표시합니다.
 
 `npm run build`는 `dist/`에 산출물을 만듭니다. `npm run preview`는 로컬 산출물 확인용이며 운영 서버가 아닙니다.
 
-설정 백업/이전은 `/app/settings`를 사용합니다. 구화면 내보내기 스크립트는 `src/main/resources/static/dashboard/export-settings.js`에 있고 원본 key를 변경하지 않습니다. 상세 제한과 이전 절차는 [사용 가이드](../docs/standalone-dashboard.md)를 참고하세요. 브라우저 E2E의 구화면 주소는 `LEGACY_URL`(기본 `http://127.0.0.1:18080/experiments/ui`)로 변경합니다.
+설정 백업/이전은 `/app/settings`를 사용합니다. v0.3.0까지의 기존 화면에서 내보낸 JSON(`engineering-lab-legacy` v1)과 같은 origin의 기존 key를 읽을 수 있으며 원본 key를 변경하지 않습니다. 기존 화면은 제거되어 새로 내보낼 수 없습니다. 상세 제한과 이전 절차는 [사용 가이드](../docs/standalone-dashboard.md)를 참고하세요.
 
-독립 배포는 `npm run serve`를 사용합니다. 루트 `./gradlew bootJar`가 이 frontend를 빌드해 기본 jar에 내장합니다(`-PskipFrontend`로 제외). `npm run test:serve`는 빌드 후 독립 서버의 streaming/headers/실패 응답을 검증합니다. 전체 브라우저 검증에 URL 전환을 켠 API를 쓰면 `EXPECT_REDIRECT=1`, 산출물 일치 검증에는 `VERIFY_BUILD=1`을 지정합니다.
+독립 배포는 `npm run serve`를 사용합니다. 루트 `./gradlew bootJar`가 이 frontend를 빌드해 기본 jar에 내장합니다(`-PskipFrontend`로 제외). `npm run test:serve`는 빌드 후 독립 서버의 streaming/headers/실패 응답을 검증합니다. 대시보드를 내장했거나 `lab.dashboard.frontend-origin`을 지정한 API로 전체 브라우저 검증을 하면 `EXPECT_REDIRECT=1`(없으면 기존 주소가 404인지 확인), 산출물 일치 검증에는 `VERIFY_BUILD=1`을 지정합니다.
 
-D3 호환 검증은 신규 API와 실제 D2 서버(`94c1913`)를 서로 다른 임시 DB로 띄워 수행했습니다. 구버전 서버 검증 시 `EXPECT_LEGACY=1`을 지정합니다. 신규 API의 기존 비교 화면을 촬영하려면 `CAPABILITY_SCREENSHOT=1 npm run test:e2e -- --grep 'extension catalog'`를 실행합니다. `LEGACY_URL`은 해당 API의 기존 화면 주소여야 합니다. API 계약과 지원 범위는 [Run 증거 문서](../docs/run-evidence.md#지원-기능과-catalog-확장)를 참고하세요.
+D3 호환 검증은 신규 API와 실제 D2 서버(`94c1913`)를 서로 다른 임시 DB로 띄워 수행했습니다. 신규 endpoint가 없는 구버전 API 서버를 검증할 때 `EXPECT_LEGACY=1`을 지정합니다. API 계약과 지원 범위는 [Run 증거 문서](../docs/run-evidence.md#지원-기능과-catalog-확장)를 참고하세요.
 
 ## Career sequence 브라우저 검증
 
@@ -139,7 +137,7 @@ CAREER_REOPEN_IDS=before-run-id,atomic-run-id npm run test:e2e -- --grep 'stored
 필터는 URL에 저장하며 기존 브라우저 저장 설정과 Run 데이터는 수정하지 않는다.
 
 ```bash
-DASHBOARD_URL=http://127.0.0.1:5173 LEGACY_URL=http://127.0.0.1:8080 npm run test:e2e -- tests/patterns.spec.ts tests/dashboard.spec.ts tests/design.spec.ts tests/execution.spec.ts
+DASHBOARD_URL=http://127.0.0.1:5173 npm run test:e2e -- tests/patterns.spec.ts tests/dashboard.spec.ts tests/design.spec.ts tests/execution.spec.ts
 ```
 
 `patterns.spec.ts`는 P1 정의와 16개 연결의 fixture에 합성 descriptor를 붙여 전체 링크·필터·오류를
@@ -164,7 +162,7 @@ DASHBOARD_URL=http://127.0.0.1:5173 LEGACY_URL=http://127.0.0.1:8080 npm run tes
 기본 비활성 서버의 전체 UI suite에서는 이 선택 사례 테스트를 건너뜁니다.
 
 ```bash
-CHECKSUM_E2E=1 DASHBOARD_URL=http://127.0.0.1:15178 LEGACY_URL=http://127.0.0.1:18095 \
+CHECKSUM_E2E=1 DASHBOARD_URL=http://127.0.0.1:15178 API_URL=http://127.0.0.1:18095 \
   npm run test:e2e -- tests/checksum-extension.spec.ts tests/measurement.spec.ts tests/dashboard.spec.ts
 ```
 

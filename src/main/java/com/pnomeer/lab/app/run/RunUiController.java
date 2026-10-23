@@ -1,7 +1,5 @@
 package com.pnomeer.lab.app.run;
 
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +14,4 @@ public class RunUiController {
     }
     @GetMapping("/runs/ui/options")
     public java.util.Map<String, Number> options() { return java.util.Map.of("workerReportDownload", 1, "pageSize", pageSize, "artifactDownloadMaxBytes", artifactDownloadMaxBytes); }
-    @GetMapping(value="/runs/ui", produces="text/html")
-    public Resource ui() { return new ClassPathResource("static/run-browser/index.html"); }
 }

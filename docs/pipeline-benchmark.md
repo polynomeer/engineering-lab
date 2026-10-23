@@ -25,6 +25,6 @@
 
 5 ms 간격 MemoryMXBean 표본의 최대 heap used, JVM 최대 heap, GC 누적 시간 차이, pipeline 진행 callback의 queue 최대 표본을 기록한다. 표본 최대는 순간 최대의 하한이고 queue의 250 ms 표본은 짧은 포화를 놓칠 수 있다. `-Xmx128m`은 JVM heap 제한으로 native memory/RSS/디스크 상한을 뜻하지 않는다. warmup을 포함한 프로세스가 제한 안에서 완료한 사실과 작은 입력/큰 입력의 결과를 함께 해석한다. 이를 임의 크기 입력의 상수 메모리 증명으로 해석하지 않는다.
 
-각 trial은 성공 상태, produced/inserted/error 수, preview 상한, SQL 저장 수·고유 번호 수·번호 합, 전체 dead-letter 페이지 수, queue 표본 상한을 확인한다. NDJSON에는 Run ID, Git SHA/dirty, JVM/OS/CPU/heap, 입력 hash, 설정, metrics, 종료 레코드가 있고 case에 export SHA-256을 기록한다. UI 서버의 기본 `.lab` DB와 별도 저장소이므로 해당 Run이 기본 `/runs/ui`에 나타나지는 않는다.
+각 trial은 성공 상태, produced/inserted/error 수, preview 상한, SQL 저장 수·고유 번호 수·번호 합, 전체 dead-letter 페이지 수, queue 표본 상한을 확인한다. NDJSON에는 Run ID, Git SHA/dirty, JVM/OS/CPU/heap, 입력 hash, 설정, metrics, 종료 레코드가 있고 case에 export SHA-256을 기록한다. UI 서버의 기본 `.lab` DB와 별도 저장소이므로 해당 Run이 기본 실행 기록(`/app/runs`)에 나타나지는 않는다.
 
 단일 머신·고정 순서·제한된 반복이다. 디스크 캐시와 JIT/GC/백그라운드 부하 영향을 분리하지 않으며 통계적 유의성이나 운영 DB 성능을 주장하지 않는다. 다음 최적화는 native 결과에서 병목을 확인한 후 별도 가설로 진행한다.

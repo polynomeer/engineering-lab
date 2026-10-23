@@ -74,7 +74,7 @@ export function ExecutionPage({
             <ExecutionForm key={descriptor.id} descriptor={descriptor} catalog={catalog} />
           )
         ) : (
-          <p>이 실험의 입력 화면은 이행 중입니다. 상단의 기존 실험 실행 화면을 이용하세요.</p>
+          <p>이 실험은 아직 대시보드 입력 화면이 없습니다. API(`POST /runs`)나 CLI로 실행하세요.</p>
         ))}
     </>
   );
@@ -391,8 +391,8 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
       )}
       <h2>저장한 설정</h2>
       <p className="note">
-        현재 브라우저 주소에서 저장한 설정입니다. 기존 화면의 설정은 왼쪽 설정 이전에서 가져올 수
-        있습니다.
+        현재 브라우저 주소에서 저장한 설정입니다. 기존 화면에서 내보낸 설정은 왼쪽 설정 이전에서 가져올
+        수 있습니다.
       </p>
       <div className="actions">
         {saved

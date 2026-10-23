@@ -92,7 +92,7 @@ curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID/metrics?af
 | GET | `/run-series/compare?baseline=...&candidate=...` | 같은 실험의 두 묶음을 measure별로 비교. `sameDefinition`, `medianChangePct`, `separation` |
 
 - 반복은 하나씩 순서대로 실행한다. warmup Run도 일반 Run으로 저장하지만 통계에서 제외한다. 반복 수는 정의 hash에 들어가지 않는다.
-- 묶음(스윕이면 스윕 전체)이 측정하는 동안 다른 경로로 들어온 Run 접수(`POST /runs`, 기존 화면 포함)는 409로 거절한다(`lab.series.exclusive=false`로 끌 수 있음). 묶음은 시작 전에 이미 접수된 Run이 끝나기를 Run 하나의 대기 시간만큼 기다린다. 그래도 겹친 Run은 `overlappingRunIds`에 나타난다.
+- 묶음(스윕이면 스윕 전체)이 측정하는 동안 다른 경로로 들어온 Run 접수(`POST /runs`, 기존 실험별 POST API 포함)는 409로 거절한다(`lab.series.exclusive=false`로 끌 수 있음). 묶음은 시작 전에 이미 접수된 Run이 끝나기를 Run 하나의 대기 시간만큼 기다린다. 그래도 겹친 Run은 `overlappingRunIds`에 나타난다.
 - 모든 Run summary에는 실행 시작·종료 시점의 호스트 1분 부하(`host.load1m.start`, `host.load1m.end`)와 종료 시점 CPU 사용률(`host.cpuPct.end`)이 gauge로 남는다. 플랫폼이 값을 주지 않으면 생략한다. 1분 평균이라 직전 작업과 실험실 자신의 부하를 포함한다.
 - `statistics`는 `count`, `min`, `max`, `mean`, `median`, `p95`(nearest rank), `standardDeviation`(표본), `coefficientOfVariation`이다. 값이 없으면 null이며 0으로 채우지 않는다.
 - `separation`은 보수적 판정이다. 어느 쪽이든 성공한 측정 반복이 3개 미만이면 `INSUFFICIENT`, 관측 범위(min–max)가 겹치면 `OVERLAPPING`(차이 불분명), 모든 반복이 상대 범위 밖이면 `SEPARATED`다. 통계적 유의성 검정이 아니다.
@@ -256,7 +256,7 @@ curl --fail 'http://localhost:8080/lab/io/virtual-thread/echo?msg=hello&delayMs=
 curl --fail 'http://localhost:8080/lab/io/reactive/echo?msg=hello&delayMs=20'
 ```
 
-text/plain 응답이며 호출 자체는 영속 Run을 생성하지 않습니다. 브라우저 `/lab/io/ui`도 이 endpoint를 사용합니다. `pinning`은 virtual-thread 쪽 조건이고 현재 JDK의 pinning 발생 증명이 아닙니다.
+text/plain 응답이며 호출 자체는 영속 Run을 생성하지 않습니다. 대시보드의 IO 단건 데모(`/app/tools/io-echo`)도 이 endpoint를 사용합니다. `pinning`은 virtual-thread 쪽 조건이고 현재 JDK의 pinning 발생 증명이 아닙니다.
 
 ## 5. 오류 해석
 

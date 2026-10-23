@@ -140,7 +140,7 @@ test('unknown capability version falls back and real API failures remain visible
   await expect(page.getByRole('alert').first()).toContainText('503');
 });
 
-test('extension catalog and legacy comparison work together against the new server', async ({ page, request }, info) => {
+test('extension catalog and run comparison work together against the new server', async ({ page, request }, info) => {
   test.skip(process.env.EXPECT_LEGACY === '1', 'Extension endpoints are absent on the legacy server');
   const caps = await (await request.get('/api/dashboard/v1/capabilities')).json();
   expect(caps.schemaVersion).toBe(1);
@@ -158,9 +158,7 @@ test('extension catalog and legacy comparison work together against the new serv
   await expect.poll(async () => (await (await request.get('/api/runs/' + runId)).json()).status).toBe('SUCCEEDED');
   const evidence = await (await request.get('/api/dashboard/v1/runs/' + runId + '/execution')).json();
   expect(evidence.execution.evidenceComplete).toBe(true);
-  const origin = new URL(process.env.LEGACY_URL ?? 'http://127.0.0.1:18080').origin;
-  await page.goto(origin + '/runs/ui?legacy=true&baseline=' + runId + '&candidate=' + runId);
-  await expect(page.getByRole('rowheader', { name: 'execution.definition', exact: true })).toBeVisible();
-  await page.getByRole('rowheader', { name: 'execution.definition', exact: true }).scrollIntoViewIfNeeded();
-  await page.screenshot({ path: process.env.CAPABILITY_SCREENSHOT === '1' ? '../docs/images/15-extension-legacy-comparison.png' : info.outputPath('legacy-extension.png'), fullPage: false });
+  await page.goto('/app/compare?baseline=' + runId + '&candidate=' + runId);
+  await expect(page.getByText('execution.definition', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: info.outputPath('extension-comparison.png'), fullPage: false });
 });

@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-test('deployment keeps legacy queries, rollback, API status and exact built assets', async ({
+test('deployment redirects old screen addresses with their queries, keeps API status and exact built assets', async ({
   request,
   page,
 }) => {
-  const origin = new URL(process.env.LEGACY_URL ?? 'http://127.0.0.1:18080/experiments/ui').origin;
+  const origin = new URL(process.env.API_URL ?? 'http://127.0.0.1:18080').origin;
   const redirect = process.env.EXPECT_REDIRECT === '1';
   for (const [path, destination] of [
     ['/experiments/ui', '/app/experiments'],
@@ -20,7 +20,8 @@ test('deployment keeps legacy queries, rollback, API status and exact built asse
     const url = new URL(path, origin);
     url.searchParams.set('msg', 'a & 한글');
     const response = await request.get(url.href, { maxRedirects: 0 });
-    expect(response.status()).toBe(redirect ? 302 : 200);
+    // Without an embedded dashboard or frontend-origin there is no destination: the screens are gone.
+    expect(response.status()).toBe(redirect ? 302 : 404);
     if (redirect) {
       const location = new URL(response.headers().location, origin);
       expect(location.pathname).toBe(destination);
@@ -29,8 +30,11 @@ test('deployment keeps legacy queries, rollback, API status and exact built asse
         if (url.searchParams.has(key))
           expect(location.searchParams.get(key)).toBe(url.searchParams.get(key));
     }
+    // Old bookmarks with the removed escape hatch land on the dashboard too, without the parameter.
     url.searchParams.set('legacy', 'true');
-    expect((await request.get(url.href, { maxRedirects: 0 })).status()).toBe(200);
+    const bookmarked = await request.get(url.href, { maxRedirects: 0 });
+    expect(bookmarked.status()).toBe(redirect ? 302 : 404);
+    if (redirect) expect(new URL(bookmarked.headers().location, origin).searchParams.has('legacy')).toBe(false);
   }
   expect((await request.get('/api/runs/ui/options')).headers()['content-type']).toContain(
     'application/json',

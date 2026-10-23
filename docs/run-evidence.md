@@ -25,18 +25,16 @@ UI는 `GET /runs/ui/options`에서 서버 page limit 이하의 표시 크기와 
 
 ## 화면과 Finding
 
-서버 시작 후 `/runs/ui`를 연다. 홈의 Browse and compare 링크에서도 접근한다.
+대시보드의 `/app/runs`에서 Run을 조회한다. 기존 `/runs/ui` 주소는 대시보드로 전환되며 화면은 제거했다.
 
-- 왼쪽 registry에서 실험을 선택하면 파라미터 schema와 해당 실험의 저장된 Run을 조회한다.
-- 목록은 최대 20개씩 (`lab.storage.page-limit`가 더 작으면 해당 상한) Older/Newest로 이동하며 상세는 상태·실패 이유·가설·환경·Git·파라미터·summary·artifact·metric 페이지를 제공한다.
-- 상세의 Use as baseline/candidate로 대상을 정한 뒤 Compare runs를 누른다. 두 선택 ID만 sessionStorage에 보관하며 실행 데이터는 저장소에서 조회한다.
-- `/runs/ui?run=<id>` 또는 `/runs/ui?baseline=<id>&candidate=<id>`를 저장해 다시 연다. 브라우저 뒤로 가기도 지원한다.
-- 좁은 화면의 비교 표는 표 안에서 가로 스크롤한다. 로딩/빈 결과/오류를 명시하고 저장된 문자열은 HTML로 해석하지 않는다.
-- 상세 Artifacts 표의 Download JFR/Download log/Download REPORT 링크로 관리 파일을 받는다. 새 탭에서 요청하므로 원래 상세 화면을 유지하고 오류 응답은 새 탭에 표시한다. JavaScript Blob으로 전체 파일을 버퍼링하지 않는다. 실행 중·서버 크기 상한 초과·참조 전용 항목에는 링크 대신 사유를 표시한다. 파일 존재/checksum의 최종 판단은 클릭 시 서버가 수행한다.
-- 실행 중에는 Refresh run으로 갱신한다. 자동 polling은 하지 않는다.
+- 실행 기록은 실험·시나리오 ID 시작·상태 필터를 서버에서 적용한다. 목록은 options의 page 크기(기본 20, 서버 상한 이하)로 이전/최신 실행을 이동한다.
+- 상세 `/app/runs/<id>`는 상태·실패 이유·가설·환경·Git·파라미터·summary·artifact·metric 페이지를 제공한다. 실행 중인 Run은 자동으로 다시 조회한다.
+- 상세의 **비교 기준으로 선택** 후 비교 Run ID를 입력해 `/app/compare?baseline=<id>&candidate=<id>`를 연다. 주소를 저장해 다시 열 수 있다.
+- 비교 화면은 비교 요약 CSV/JSON, Finding 초안(.md), 증거 묶음(.zip)을 내려받는다. 상세는 NDJSON export와 증거 묶음을 제공한다.
+- 상세 첨부 증거 표의 다운로드 링크로 관리 파일을 받는다. 새 탭에서 요청하므로 원래 상세 화면을 유지하고 오류 응답은 새 탭에 표시한다. 서버 크기 상한 초과·참조 전용 항목에는 링크 대신 사유를 표시한다. 파일 존재/checksum의 최종 판단은 클릭 시 서버가 수행한다.
 - [Finding 템플릿](findings/TEMPLATE.md)에 증거와 해석을 기록한다. 결과 자동 판정이나 Finding 자동 저장은 제공하지 않는다.
 
-기존 화면의 어두운 색상 계열을 유지하고 system font, 명시적 표 헤더, 44px 조작 영역과 키보드 focus를 적용했다. 단위·의미는 `/metrics/schema`의 catalog v2에서 확인한다. 알려지지 않은 metric 이름의 단위는 추정하지 않는다.
+단위·의미는 `/metrics/schema`의 catalog v2에서 확인한다. 알려지지 않은 metric 이름의 단위는 추정하지 않는다.
 
 <a id="jfr-run-download"></a>
 
@@ -93,7 +91,7 @@ curl --fail --output run-v2.ndjson 'http://localhost:8080/dashboard/v1/runs/<run
 
 `/runs/compare`는 기존 응답 필드 안에 `execution.*` 조건과 cautions를 추가한다. IN_PROCESS는 서버 환경/Git, LOCAL_JVM은 실제 worker 환경/Git/artifact hash를 사용한다. 미확인 worker 환경은 null이며 서버 JVM으로 대체하지 않는다. 실행 종류·모듈·protocol·측정 범위·완료 상태가 다르거나 worker Git이 불명/dirty인 경우 주의사항을 포함한다. 두 Run 모두 execution이 없으면 기존 비교 응답을 유지한다.
 
-기존 화면은 계속 기존 API를 사용하며 비교의 공통 조건·주의사항 형식으로 확장 정보를 받는다. 실행/check 전용 화면과 실제 worker 연결은 후속 단계다.
+기존 비교 API 사용자는 공통 조건·주의사항 형식으로 확장 정보를 받는다.
 
 ## 지원 기능과 catalog 확장
 

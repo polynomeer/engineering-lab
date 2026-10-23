@@ -2,58 +2,52 @@
 
 [README](../README.md) · [문서 안내](README.md) · [API 참조](api-reference.md) · [문제 해결](operations.md)
 
-이 가이드는 서버 시작부터 실험 실행, 두 결과 비교, 증거 내보내기까지 안내합니다. 캡처는 **2026-10-04 실제 로컬 앱**에서 합성 데이터를 실행한 화면입니다. 캡처 속 ID·시각·성능 수치는 예시이며 그대로 재사용하지 않습니다. 화면의 영어 버튼 이름을 그대로 표기했습니다.
+이 가이드는 서버 시작부터 실험 실행, 두 결과 비교, 증거 내보내기까지 안내합니다. 모든 화면은 jar에 내장된 React 대시보드(`/app`)입니다. 화면의 버튼 이름을 그대로 표기했습니다.
 
-최신 독립 React 대시보드는 [패턴 탐색·실행·증거 비교 가이드](standalone-dashboard.md)를
-따르세요. 아래 캡처와 경로는 호환 유지 중인 서버 내장 UI입니다.
+패턴 탐색·Career 실행 등 전체 화면 설명은 [대시보드 사용 가이드](standalone-dashboard.md)를 참고하세요. 기존 Java 내장 화면(`/ui`, `/experiments/ui`, `/ingest/ui`, `/lab/io/ui`, `/runs/ui`)은 제거했으며 해당 주소는 대시보드로 전환됩니다. 이 가이드의 캡처는 제거한 화면을 보여 주어 삭제했고, 대시보드 기준으로 다시 촬영할 예정입니다.
 
-## 1. 서버 시작과 홈
+## 1. 서버 시작과 첫 화면
 
-저장소 루트에서 다음을 실행합니다. JDK 25가 필요합니다.
+저장소 루트에서 다음을 실행합니다. JDK 25와 Node 24.19.0이 필요합니다. 기본 `bootJar`가 대시보드를 함께 빌드합니다.
 
 ```bash
 ./gradlew test
-./gradlew bootRun --args='--server.address=127.0.0.1'
+./gradlew bootJar
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1
 ```
 
-서버를 실행한 터미널은 그대로 두고 [http://localhost:8080/ui](http://localhost:8080/ui)를 엽니다. 기본 화면이 나오면 준비 완료입니다.
+서버를 실행한 터미널은 그대로 두고 [http://localhost:8080/app/runs](http://localhost:8080/app/runs)를 엽니다. **실행 기록** 화면이 나오면 준비 완료입니다. `bootRun`과 `-PskipFrontend` jar에는 대시보드가 없으므로 이 가이드에는 사용하지 않습니다.
 
-![홈의 세 실험 진입점과 실행 증거 링크](images/01-home.jpg)
+- **새 실험 실행**: 큐·IO·Excel 실험의 실행 설정을 엽니다(`/app/experiments`).
+- **새로고침**: 현재 화면의 목록·상세를 다시 불러옵니다.
+- 메뉴의 **현재 DB 조회**: 현재 서버의 입력 데이터 테이블을 봅니다(`/app/tools/ingestion-db`).
+- 메뉴의 **IO 단건 데모**: 브라우저에서 IO endpoint를 한 번씩 호출합니다(`/app/tools/io-echo`).
 
-- **Open pipeline dashboard**: 이미 제출한 Excel 작업을 확인합니다.
-- **Open DB view**: 현재 서버의 입력 데이터 테이블을 봅니다.
-- **Open experiment dashboard**: 큐와 IO 실험을 실행합니다.
-- **Open IO comparison**: 브라우저에서 직접 endpoint를 호출해 비교합니다.
-- **Browse and compare persisted run evidence**: DB에 보존된 Run을 조회·비교합니다.
-
-첫 실행에는 목록과 집계가 비어 있어도 정상입니다. 홈 집계는 최근 작업 목록 기준이며 저장소 전체 통계가 아닙니다.
+첫 실행에는 목록이 비어 있어도 정상입니다.
 
 ## 2. 큐 경합 실험 실행
 
-[실험 대시보드](http://localhost:8080/experiments/ui)를 엽니다. 왼쪽 **Start Queue Contention Experiment**에서 다음 값을 사용합니다.
+[실험 실행](http://localhost:8080/app/experiments?experiment=concurrency.queue-contention) 화면을 엽니다. **실험 선택**에서 큐 경합 실험을 고르고 **설정 열기**를 눌러도 됩니다. **실행 조건**에 다음 값을 사용합니다.
 
 | 입력 | 값 | 의미 |
 | --- | ---: | --- |
-| Scenario ID | `queue-contention-demo` | 실행 조건을 부르는 이름 |
-| Queue Capacity | 2 | 대기 가능한 항목 수 |
-| Producer Threads | 2 | 생산자 수 |
-| Consumer Threads | 1 | 소비자 수 |
-| Items / Producer | 100 | 생산자 한 개가 생성할 항목 수 |
-| Consumer Delay (ms) | 2 | 소비 항목별 인위적 대기 |
+| 시나리오 ID | `queue-contention-demo` | 실행 조건을 부르는 이름 |
+| 가설 | 자유 입력 | 이 실행으로 확인할 내용 |
+| queueCapacity | 2 | 대기 가능한 항목 수 |
+| producerThreads | 2 | 생산자 수 |
+| consumerThreads | 1 | 소비자 수 |
+| itemsPerProducer | 100 | 생산자 한 개가 생성할 항목 수 |
+| consumerDelayMs | 2 | 소비 항목별 인위적 대기 |
 
-**Run Queue Experiment**를 누릅니다. 접수되면 `Started <jobId>`가 표시되고, 하단 작업 카드에서 RUNNING → SUCCEEDED를 확인할 수 있습니다. 성공 시 produced/consumed는 각각 200입니다.
+**실험 실행**을 누릅니다. 접수되면 **접수된 실행 상세 보기** 링크가 표시되고, 상세에서 RUNNING → SUCCEEDED를 확인할 수 있습니다. 실행 중인 Run은 상세 화면이 자동으로 다시 조회합니다. 성공 시 produced/consumed는 각각 200입니다.
 
-![큐·IO 실험 시작 폼과 실행 결과](images/02-experiments.jpg)
+**queue-quick-demo**, **queue-backpressure-stress**, **queue-burst-producers**는 입력값을 바꾸는 기본 프리셋입니다. 적용한 값을 확인한 뒤 실행 버튼을 누릅니다. 최대 큐 깊이·평균 enqueue 대기·blocking 횟수로 소비자가 느릴 때의 배압을 관찰합니다. 한 번 실행 결과만으로 일반적인 성능 우위를 판단하지 않습니다. 같은 조건을 여러 번 실행하려면 **반복 측정**을 사용하고 결과는 [반복 측정](http://localhost:8080/app/series) 화면에서 봅니다.
 
-**Quick Demo**, **Backpressure Stress**, **Burst Producers**는 입력값을 바꾸는 preset입니다. 적용한 값을 확인한 뒤 실행 버튼을 누릅니다. 최대 큐 깊이·평균 enqueue 대기·blocking 횟수로 소비자가 느릴 때의 배압을 관찰합니다. 차트의 한 번 실행 결과만으로 일반적인 성능 우위를 판단하지 않습니다.
-
-하단 **open metrics**는 실행별 상세 화면입니다. **Compare A/B**와 **Export JSON/CSV**는 legacy 화면의 제한된 preview 비교입니다. 환경·입력 조건과 전체 metric 증거를 비교하려면 다음 Run evidence 화면을 사용합니다. 서로 다른 두 실행을 선택했는지도 확인합니다.
-
-## 3. IO 실험: 저장되는 실행과 간편 비교
+## 3. IO 실험: 저장되는 실행과 단건 데모
 
 ### 실행 증거를 남기는 방법
 
-같은 `/experiments/ui` 오른쪽 **Start IO Endpoint Comparison**에서 Requests / Mode=12, Delay=20, Pinning=0, Pin Delay=20으로 **Run IO Experiment**를 누릅니다. 성공하면 virtual/reactive done이 각각 12이며 Run은 저장소에 남습니다.
+[실험 실행](http://localhost:8080/app/experiments?experiment=io.endpoint-comparison)에서 IO endpoint 비교 실험을 열고 requests=12, delayMs=20, pinning=false, pinDelayMs=20으로 **실험 실행**을 누릅니다. 성공하면 virtual/reactive done이 각각 12이며 Run은 저장소에 남습니다.
 
 CLI로도 같은 실험군을 실행할 수 있습니다.
 
@@ -61,15 +55,13 @@ CLI로도 같은 실험군을 실행할 수 있습니다.
 ./gradlew -q lab --args='run experiments/io/endpoint-comparison/scenarios/baseline.json --wait'
 ```
 
-### 브라우저에서 간단히 비교하는 방법
+### 브라우저에서 한 번씩 호출하는 방법
 
-[IO Lab](http://localhost:8080/lab/io/ui)에서 Message=`hello`, Delay=20, Requests=12, Pinning=0을 입력하고 **Run Comparison**을 누릅니다.
+[IO 단건 데모](http://localhost:8080/app/tools/io-echo)에서 메시지=`hello`, 지연 (ms)=20, Pinning=false를 입력하고 **Virtual thread 요청** 또는 **Reactive 요청**을 누릅니다.
 
-![완료된 브라우저 IO 비교와 요청별 지연 차트](images/09-io.jpg)
+요청마다 시각·방식·왕복 ms·응답이 표에 추가됩니다. 이 화면은 Run을 만들지 않으며 최근 20개 응답을 이 주소의 브라우저 저장소에만 보관합니다. **데모 CSV**로 현재 응답 목록을 내려받습니다. 반복 요청 부하의 비교는 위의 IO endpoint 비교 실험을 사용합니다.
 
-**Completed.** 이후 평균 지연·총 시간·Req/s·표본 차트가 표시됩니다. 이 페이지의 Run History는 브라우저 저장소에만 남고 `/runs/ui`에 새로운 Run을 만들지 않습니다. **Clear History**는 이 브라우저의 간편 비교 이력을 지웁니다.
-
-Pinning 옵션은 synchronized 안의 대기를 켜는 실험 조건입니다. 이름이나 화면의 Faster 표시가 JDK 동작의 원인 분석을 대신하지 않습니다. 브라우저 네트워크 시간과 서버 내부 실험 지표도 측정 범위가 다릅니다.
+Pinning 옵션은 synchronized 안의 대기를 켜는 실험 조건입니다. 이름이나 왕복 시간 차이가 JDK 동작의 원인 분석을 대신하지 않습니다. 브라우저 왕복 시간과 서버 내부 실험 지표도 측정 범위가 다릅니다.
 
 ## 4. Excel 실행
 
@@ -86,30 +78,36 @@ Pinning 옵션은 synchronized 안의 대기를 켜는 실험 조건입니다. �
 
 ### 자신의 파일 업로드
 
-A열 필수 문자열, B열 필수 문자열, C열 정수로 첫 시트를 작성하고 첫 행에 헤더를 둡니다. 파일은 `.xlsx`여야 합니다. 작은 샘플을 만들어 실행하려면:
+A열 필수 문자열, B열 필수 문자열, C열 정수로 첫 시트를 작성하고 첫 행에 헤더를 둡니다. 파일은 `.xlsx`여야 합니다. 작은 샘플을 만듭니다.
 
 ```bash
 ./scripts/create-test-xlsx.sh build/test-data/sample.xlsx 500
+```
+
+[Excel 실험 실행](http://localhost:8080/app/experiments?experiment=pipeline.excel-ingestion) 화면에서 두 방법으로 업로드합니다.
+
+- **Excel 업로드**: 파일과 모드(`PIPELINE` 또는 `SINGLE_THREAD`)를 고르고 **업로드 실행**을 누릅니다. 접수되면 **Excel 작업 상세 보기** 링크가 표시됩니다.
+- **실행 조건**: **입력 워크북 (.xlsx)**에 파일을 올리고 시나리오 ID·가설·설정을 입력한 뒤 **실험 실행**을 누릅니다. 브라우저가 SHA-256을 계산해 정의에 기록하며 반복 측정·스윕에도 같은 파일을 씁니다.
+
+API로 직접 올릴 수도 있습니다.
+
+```bash
 curl --fail --silent --show-error \
   -F 'file=@build/test-data/sample.xlsx' \
   'http://localhost:8080/ingest/excel?mode=PIPELINE'
 ```
 
-`mode=SINGLE_THREAD`로 바꾸면 단일 스레드 실행입니다. 다시 업로드하면 새 Run을 생성하고 같은 행이 다시 저장될 수 있습니다. `/ingest/ui`에는 업로드 버튼이 없으므로 CLI 또는 이 API를 사용합니다.
+`mode=SINGLE_THREAD`로 바꾸면 단일 스레드 실행입니다. 다시 업로드하면 새 Run을 생성하고 같은 행이 다시 저장될 수 있습니다.
 
 ### 결과 확인
 
-[Excel 목록](http://localhost:8080/ingest/ui)에서 파일명·모드·상태·produced / inserted / errors를 확인합니다. **open detail view**로 개별 차트를 엽니다.
-
-![두 모드의 Excel 처리 완료 목록](images/06-ingestion.jpg)
+**Excel 실행 기록**(`/app/runs?experiment=pipeline.excel-ingestion`)에서 상태를 확인하고 Run을 엽니다. 상세의 **Excel 처리 현황**에서 파일·모드와 읽은 행·저장한 행·검증 오류를 확인합니다.
 
 짧은 실행은 250 ms 진행 표본이 거의 없거나 없을 수 있습니다. 빈 차트나 0 rate만으로 저장 실패를 판단하지 말고 최종 상태와 summary를 확인합니다. `SUCCEEDED`여도 검증 오류가 있을 수 있습니다.
 
-[DB view](http://localhost:8080/ingest/ui/db)는 실제 현재 데이터 테이블입니다. Row limit을 변경하고 **Apply**로 조회 수를 조절합니다.
+[현재 DB 조회](http://localhost:8080/app/tools/ingestion-db)는 실제 현재 데이터 테이블입니다. **최신 행 수**를 바꾸고 **DB 조회**를 눌러 조회 수를 조절합니다.
 
-![현재 H2 메모리 DB에 저장된 다섯 행](images/07-database.jpg)
-
-캡처에서는 과거 Run의 합계 inserted가 10인데 현재 DB는 5행입니다. 중간에 서버를 재시작했기 때문입니다. Run 증거는 파일 DB에 유지되지만 기본 ingestion DB는 메모리 DB여서 재시작하면 초기화됩니다. DB view는 Run별 필터가 아닌 현재 테이블 전체 조회입니다.
+Run의 합계 inserted와 현재 DB 행 수는 다를 수 있습니다. Run 증거는 파일 DB에 유지되지만 기본 ingestion DB는 메모리 DB여서 서버를 재시작하면 초기화됩니다. 이 화면은 Run별 필터가 아닌 현재 테이블 전체 조회입니다.
 
 ## 5. 오류 행 조회
 
@@ -123,58 +121,51 @@ curl --fail --silent --show-error \
   "http://localhost:8080/runs/$RUN_ID/dead-letters?after=-1&limit=100"
 ```
 
-`rows`에는 `rowIndex`, `stage`, `reason`, `cells`가 있습니다. rowIndex는 0 기반이므로 실제 Excel 행 번호는 **rowIndex + 1**입니다. `nextAfter`가 있으면 다음 요청의 `after`에 넣어 끝까지 조회합니다. 실행 중 조회는 409입니다. 화면에는 전용 dead-letter 표가 없으며 API를 사용합니다.
+`rows`에는 `rowIndex`, `stage`, `reason`, `cells`가 있습니다. rowIndex는 0 기반이므로 실제 Excel 행 번호는 **rowIndex + 1**입니다. `nextAfter`가 있으면 다음 요청의 `after`에 넣어 끝까지 조회합니다. 실행 중 조회는 409입니다. 대시보드에서는 Excel Run 상세의 **Dead-letter** 탭에서 같은 내용을 봅니다.
 
 preview는 기본 100행까지지만 전체 오류 집계와 영속 오류 행은 별도입니다. 저장소 오류나 행당 64 KiB 초과가 발생하면 Run 자체가 실패합니다.
 
-## 6. Run evidence에서 상세 읽기
+## 6. 실행 기록에서 상세 읽기
 
-[Run evidence](http://localhost:8080/runs/ui)를 엽니다. 왼쪽 실험군을 선택해 필터링하고 오른쪽 시나리오 이름을 누릅니다. **Older/Newest**로 목록 페이지를 이동합니다.
+[실행 기록](http://localhost:8080/app/runs)을 엽니다. **실험 필터**, **시나리오 ID 시작**, **상태**를 고르고 **기록 조회**를 누르면 서버에서 조건에 맞는 Run만 조회합니다. **이전 실행**/**최신 실행**으로 목록 페이지를 이동하고 Run을 눌러 상세를 엽니다.
 
-![영속 Run 목록과 세 실험군 필터](images/03-runs.jpg)
-
-상세는 다음 순서로 읽습니다.
+상세는 **전체**, **검증 결과**, **메트릭**, **실행 환경**, **아티팩트** 탭으로 나뉩니다. Excel Run에는 **Dead-letter** 탭이 추가됩니다. 다음 순서로 읽습니다.
 
 1. **상태**: 성공 여부와 실패 이유를 확인합니다.
-2. **Hypothesis**: 선언적 시나리오가 기록한 검증 대상입니다. UI/legacy POST 실행에는 없을 수 있습니다.
-3. **Recorded conditions**: Java/OS/heap/CPU와 Git commit·dirty를 확인합니다.
-4. **Parameters and canonical scenario**: 펼쳐서 실제 설정·입력 hash·정의를 봅니다.
-5. **Summary**: 최종 행 수·오류·재시도 등 집계를 확인합니다.
-6. **Artifacts / Metric observations**: 파일과 원본 metric 페이지를 봅니다.
+2. **가설**: 실행 시 기록한 검증 대상입니다. 기존 POST API로 실행한 Run에는 없을 수 있습니다.
+3. **입력과 실행 환경**: Java/OS/heap/CPU와 Git commit·dirty, 실제 설정·입력 hash를 확인합니다.
+4. **원본 메트릭 요약**: 최종 행 수·오류·재시도 등 집계를 확인합니다.
+5. **관측 기록 / 첨부 증거**: 원본 metric 페이지와 파일을 봅니다.
 
-![Run 상세의 상태와 내보내기 버튼](images/04-run-detail.jpg)
-
-상세는 자동 갱신하지 않습니다. 실행 중에는 **Refresh run**을 누릅니다. 주소의 `?run=<id>`는 같은 evidence 저장소를 사용하는 서버에서 다시 열 수 있습니다. 서버나 저장소가 달라지면 같은 주소의 ID를 찾지 못할 수 있습니다.
+실행 중인 Run은 상세 화면이 자동으로 다시 조회하며, 상단 **새로고침**으로 직접 갱신할 수도 있습니다. 주소 `/app/runs/<id>`는 같은 evidence 저장소를 사용하는 서버에서 다시 열 수 있습니다. 서버나 저장소가 달라지면 같은 주소의 ID를 찾지 못할 수 있습니다.
 
 ## 7. 두 Run 비교
 
-1. baseline으로 사용할 Run 상세에서 **Use as baseline**을 누릅니다.
-2. 다른 Run을 열고 **Use as candidate**를 누릅니다.
-3. 상단 **Compare runs**를 누릅니다. ID를 입력란에 직접 붙여 넣어도 됩니다.
-4. 경고와 **Recorded conditions**의 Different를 먼저 읽습니다.
-5. 아래 **Measurements**에서 이름·단위·누락 여부를 확인하고 값을 해석합니다.
+1. baseline으로 사용할 Run 상세에서 **비교 기준으로 선택**을 누릅니다. [비교](http://localhost:8080/app/compare) 화면의 **기준 Run ID**가 채워집니다.
+2. **비교 Run ID**에 candidate Run ID를 붙여 넣고 **비교하기**를 누릅니다. 주소는 `/app/compare?baseline=<id>&candidate=<id>`입니다.
+3. 경고와 **비교 조건 확인**의 조건 차이를 먼저 읽습니다.
+4. 측정값의 이름·단위·누락 여부를 확인하고 **변화율**을 해석합니다.
+5. **비교 요약 CSV**, **비교 JSON**, **Finding 초안 (.md)**, **증거 묶음 (.zip)**으로 결과를 보관합니다.
 
-![같은 실험군의 두 실행을 비교할 때 조건 차이를 알리는 화면](images/08-comparison.jpg)
-
-캡처는 UI 제출과 선언적 CLI 제출을 비교하므로 시나리오 정의·Git 상태 차이 경고가 있습니다. 화면 오류가 아니라 비교의 전제 조건을 알리는 표시입니다. 문서 작성 중 캡처한 Run은 dirty=true이며, 성능 Finding의 깨끗한 커밋 측정과 구분합니다.
+UI 제출과 선언적 CLI 제출을 비교하면 시나리오 정의·Git 상태 차이 경고가 표시될 수 있습니다. 화면 오류가 아니라 비교의 전제 조건을 알리는 표시입니다. dirty=true인 Run은 성능 Finding의 깨끗한 커밋 측정과 구분합니다.
 
 조건이 다른 결과를 곧바로 개선율로 표현하지 않습니다. 같은 입력 checksum·환경·관측 설정으로 비교하고 반복 측정합니다. 이 화면은 자동으로 승자를 정하지 않습니다.
 
 ## 8. 증거와 관측 파일 보관
 
-종료된 Run 상세의 **Export evidence (NDJSON)**를 누르면 Run·원본 metric·artifact 참조를 내려받습니다. 마지막 줄에 `type=end`가 있어야 하며 metricCount/artifactCount를 확인합니다. 원본 XLSX·dead-letter 전체·JFR/log 파일은 이 export에 포함되지 않습니다.
+종료된 Run 상세의 **증거 내보내기 (NDJSON)**를 누르면 Run·원본 metric·artifact 참조를 내려받습니다. **증거 묶음 (.zip)**은 export와 확인된 캡처·SHA256SUMS를 한 파일로 묶습니다. 마지막 줄에 `type=end`가 있어야 하며 metricCount/artifactCount를 확인합니다. 원본 XLSX·dead-letter 전체·JFR/log 파일은 이 export에 포함되지 않습니다.
 
 JFR·로그는 **실험 실행 전 서버에서 활성화**해야 합니다. 기본 실행에서는 목록이 비어 있는 것이 정상입니다.
 
 ```bash
-./gradlew bootRun --args='--server.address=127.0.0.1 --lab.observation.jvm-enabled=true --lab.observation.jvm-interval-ms=1000 --lab.trace.enabled=true --lab.jfr.enabled=true --lab.logs.enabled=true'
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1 \
+  --lab.observation.jvm-enabled=true --lab.observation.jvm-interval-ms=1000 \
+  --lab.trace.enabled=true --lab.jfr.enabled=true --lab.logs.enabled=true
 ```
 
 기존 서버를 정상 종료한 뒤 실행하고 새 Run을 만듭니다. 과거 실행의 파일을 소급 생성하지 않습니다.
 
-![Run 상세의 JFR·로그 다운로드와 checksum](images/05-artifacts.jpg)
-
-**Download JFR / Download log**는 파일 크기·checksum을 서버에서 확인한 후 내려받습니다. 새 탭에서 오류가 보이면 [운영 문서](operations.md)의 artifact 항목을 확인합니다. 임의의 사용자 제공 참조에는 다운로드가 지원되지 않을 수 있습니다.
+**아티팩트** 탭의 **다운로드 ↗**는 파일 크기·SHA-256을 서버에서 확인한 후 내려받습니다. 새 탭에서 오류가 보이면 [운영 문서](operations.md)의 artifact 항목을 확인합니다. 임의의 사용자 제공 참조에는 다운로드가 지원되지 않을 수 있습니다.
 
 SHA-256 확인 예:
 
@@ -193,12 +184,14 @@ shasum -a 256 run-evidence.ndjson
 
 ## 캡처 재현 정보
 
-실험 폼은 `119d1a0`의 스크립트 오류 수정 후 캡처했으며 큐·IO 버튼의 실제 성공을 확인했습니다. 홈은 잘못된 gradient 백분율 수정 후 다시 캡처했습니다. 브라우저 기본 화면 폭 1280px에서 원본 페이지를 캡처했고 값이나 경고를 합성하지 않았습니다. 실험 폼은 상단 영역을 잘라 보여주고, 긴 목록/IO 화면은 전체 페이지, 상세/다운로드/비교는 해당 위치의 viewport입니다.
+대시보드 캡처는 frontend 브라우저 테스트를 `DOC_SCREENSHOTS=1`로 실행할 때만 [images](images/)에 갱신되며, 실행 방법은 [frontend 안내](../frontend/README.md)를 따릅니다. 캡처는 합성 데이터로 작성합니다.
 
-문서용 서버는 기존 `.lab/`과 분리했습니다.
+문서용 서버는 기존 `.lab/`과 분리합니다.
 
 ```bash
-./gradlew bootRun --args='--server.address=127.0.0.1 --server.port=18080 --lab.storage.root=build/docs-demo --lab.observation.jvm-enabled=true --lab.observation.jvm-interval-ms=1000 --lab.trace.enabled=true --lab.jfr.enabled=true --lab.logs.enabled=true'
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1 --server.port=18080 \
+  --lab.storage.root=build/docs-demo --lab.observation.jvm-enabled=true --lab.observation.jvm-interval-ms=1000 \
+  --lab.trace.enabled=true --lab.jfr.enabled=true --lab.logs.enabled=true
 ```
 
 이 서버를 따라 실행하면 본문의 URL을 18080으로, CLI에 `--server http://127.0.0.1:18080`을 적용합니다. 문서용 데이터는 `build/` 산출물이므로 영구 보관용이 아닙니다. 캡처 파일은 [images](images/)에 저장돼 Git에서 함께 관리됩니다.

@@ -6,11 +6,11 @@
 
 단순히 실행 시간만 출력하지 않고 실행마다 Run ID, 입력·설정, Git 상태, JVM/OS 환경, 메트릭, 결과를 보존합니다. 같은 정의를 반복 실행해 분포로 비교하고, 기준선 대비 회귀를 판정하고, 파라미터를 스윕해 균형점을 찾은 뒤 Finding 문서로 해석을 남길 수 있습니다.
 
-![실행 증거 목록](docs/images/03-runs.jpg)
+![대시보드의 실행 기록과 검증 증거](docs/images/20-dark-observatory-desktop.png)
 
 > 독립 대시보드의 패턴 탐색·실행·비교는 **[최신 대시보드 사용법](docs/standalone-dashboard.md)**을, v0.2.0 변경 사항은 [릴리스 기록](docs/releases/v0.2.0.md)을 참고하세요.
 
-> 처음 사용하는 경우 **[화면 캡처 사용 가이드](docs/user-guide.md)**를 따라가세요. 전체 문서는 [문서 안내](docs/README.md)에서 찾을 수 있습니다.
+> 처음 사용하는 경우 **[단계별 사용 가이드](docs/user-guide.md)**를 따라가세요. 전체 문서는 [문서 안내](docs/README.md)에서 찾을 수 있습니다.
 
 ## 저장소 구성
 
@@ -29,7 +29,7 @@ Career Lab의 다섯 모듈은 별도 Gradle 다중 프로젝트로 관리합니
 Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard-integration-design.md)와
 [단계별 계획](docs/dashboard-integration-plan.md)을 작성했으며, worker 통신·프로세스 실행과 중앙 저장 어댑터, [첫 sequence worker 배포물](career-lab/mcp-platform/README.md#별도-jvm-sequence-worker-d4)을 구현했습니다. 첫 sequence 실험의 [선택적 중앙 API 등록](docs/career-worker-deployment.md)을 지원합니다. architecture/validation도 [DB 없는 checks 컨테이너 worker](docs/mcp-checks-worker.md)로 같은 API와 검증 화면에 연결합니다. equity-system의 deletion/redis-lock/registration은 [전용 equity worker](docs/equity-worker.md)로 연동합니다. Batch/Excel의 두 memory 실험도 [독립 JVM memory worker](docs/batch-memory-worker.md)로 공통 화면에 연결합니다. mds-distribution의 settlement-guard/idempotency는 [MDS worker](docs/mds-worker.md)의 CHECK로 확인합니다. creator-studio의 세 시나리오는 [Creator worker](docs/creator-worker.md)로 연결합니다. [대시보드 실행·검증 결과 화면](docs/standalone-dashboard.md#career-sequence-실행과-검증-결과)도 지원합니다. 종료가 확인된 sequence 실행은 [선택적 서버 시작 시 복구](docs/sequence-container-recovery.md#종료-확인-기록이-있는-실행의-시작-시-복구)를 지원하며, 기본값은 비활성입니다.
 
-별도 실행하는 [독립 대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기존 실행 화면도 계속 제공합니다. [독립·내장 배포와 기존 URL 전환](docs/dashboard-deployment.md)을 지원하며 기본은 기존 화면 유지입니다.
+[대시보드 사용 가이드](docs/standalone-dashboard.md)에서 큐·IO·Excel 실행, 프리셋 저장·복원, Run 조회·비교·CSV/JSON 내보내기를 사용할 수 있습니다. 기본 `bootJar`가 대시보드를 내장하며 독립 frontend 서버로도 배포할 수 있습니다. 기존 Java 내장 화면은 제거했고 기존 URL은 대시보드로 전환됩니다([배포와 기존 URL 전환](docs/dashboard-deployment.md)).
 
 새 실험을 추가할 때는 [모듈 확장 가이드](docs/adding-experiments.md)를 따릅니다. 기존 세 실험도 모듈별 정의·등록 구조를 사용합니다.
 
@@ -73,7 +73,7 @@ Career Lab을 같은 대시보드에 연결하는 [후속 설계](docs/dashboard
 - 저장소의 Gradle Wrapper 사용: 별도 Gradle 설치는 필요 없습니다. Wrapper는 9.3.1입니다.
 - 최초 빌드는 Gradle/Maven 의존성 다운로드를 위한 네트워크가 필요합니다.
 - 아래 명령은 저장소 루트의 macOS/Linux `bash` 또는 `zsh` 기준입니다. API 예제는 `curl`을 사용합니다.
-- 기본 실험과 테스트에는 Docker, 외부 DB, Node.js 빌드가 필요 없습니다.
+- 기본 실험과 테스트에는 Docker, 외부 DB, Node.js 빌드가 필요 없습니다. 대시보드를 내장하는 `bootJar`에는 Node 24.19.0이 필요합니다.
 
 macOS에서 JDK를 선택해야 한다면:
 
@@ -86,10 +86,11 @@ java -version
 
 ```bash
 ./gradlew test
-./gradlew bootRun --args='--server.address=127.0.0.1'
+./gradlew bootJar
+java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1
 ```
 
-브라우저에서 [홈](http://localhost:8080/ui)을 엽니다. 로컬 실험용이며 인증·권한 관리가 없으므로 예제는 루프백 주소에 바인딩합니다. 종료는 서버 터미널에서 `Ctrl+C`입니다.
+브라우저에서 [대시보드](http://localhost:8080/app/runs)를 엽니다. Node 없이 `./gradlew bootRun --args='--server.address=127.0.0.1'`로 실행하면 API와 CLI만 사용할 수 있습니다. 로컬 실험용이며 인증·권한 관리가 없으므로 예제는 루프백 주소에 바인딩합니다. 종료는 서버 터미널에서 `Ctrl+C`입니다.
 
 ### 3. 첫 실험 실행
 
@@ -103,7 +104,7 @@ java -version
 
 첫 출력에 `runId`, 마지막 출력에 최종 상태와 summary가 나옵니다. 이 예제는 생산자 2개가 각 100개를 만들므로 성공 시 `items.produced=200`, `items.consumed=200`입니다. 지연이나 처리량은 실행 환경에 따라 달라집니다.
 
-[Run evidence](http://localhost:8080/runs/ui)에서 해당 실행을 열어 확인합니다. 서버 주소를 바꿨다면 CLI에 `--server http://localhost:18080`을 추가합니다.
+대시보드의 [실행 기록](http://localhost:8080/app/runs)에서 해당 실행을 열어 확인합니다. 서버 주소를 바꿨다면 CLI에 `--server http://localhost:18080`을 추가합니다.
 
 ### 4. Excel·IO 예제 실행
 
@@ -116,19 +117,21 @@ Excel 예제에는 유효 데이터 5행의 XLSX fixture와 checksum이 포함�
 
 ## 사용 화면
 
-기본 주소는 `http://localhost:8080`입니다.
+기본 주소는 `http://localhost:8080`이며 화면은 기본 `bootJar`에 내장된 React 대시보드(`/app`)입니다.
 
 | 경로 | 역할 | 갱신·보관 방식 |
 | --- | --- | --- |
-| `/ui` 또는 `/` | 실험군별 진입점과 요약 | 최근 작업 목록의 집계 |
-| `/experiments/ui` | 큐·IO 실행 폼, preset, 작업 상세·간편 비교 | 실행은 DB에 보존, preset 이력은 브라우저 |
-| `/runs/ui` | registry, 영속 Run 목록·상세·비교·export | 상세는 **Refresh run**으로 갱신 |
-| `/ingest/ui` | Excel 실행 목록 | 1초 자동 갱신; 업로드 폼은 없음 |
-| `/ingest/ui/{jobId}` | Excel 진행 지표·차트 | 개별 실행 상세 |
-| `/ingest/ui/db` | 현재 `ingest_item` 행 조회 | 2초 자동 갱신, 재시작하면 기본 DB는 초기화 |
-| `/lab/io/ui` | 브라우저가 직접 호출하는 간편 IO 비교 | 이력은 브라우저 저장소, 영속 Run은 생성하지 않음 |
+| `/app/runs` | 영속 Run 목록, 시나리오 ID 시작·상태 서버 필터 | 상단 **새로고침**으로 갱신 |
+| `/app/runs/{id}` | Run 상세, NDJSON export, 증거 묶음(.zip), 첨부 파일 다운로드 | 실행 중에는 자동 재조회 |
+| `/app/compare?baseline=&candidate=` | 두 Run 비교, Finding 초안, 증거 묶음 | 주소로 다시 열기 |
+| `/app/experiments?experiment=...` | 큐·IO·Excel 실행 폼(Excel은 XLSX 업로드와 간편 업로드), 프리셋 | 실행은 DB에 보존, 저장한 설정은 브라우저 |
+| `/app/series` | 반복 측정 목록·비교 | 실행은 DB에 보존 |
+| `/app/tools/ingestion-db` | 현재 `ingest_item` 행 조회 | 재시작하면 기본 DB는 초기화 |
+| `/app/tools/io-echo` | 브라우저가 직접 호출하는 IO 단건 데모 | 이력은 브라우저 저장소, 영속 Run은 생성하지 않음 |
 
-사용 버튼·읽는 순서·화면별 캡처는 [사용 가이드](docs/user-guide.md)에 있습니다. HTTP 요청은 [API 참조](docs/api-reference.md)를 참고하세요.
+기존 Java 내장 화면(`/`, `/ui`, `/experiments/ui`, `/ingest/ui`, `/lab/io/ui`, `/runs/ui`)은 제거했습니다. 대시보드가 있으면 이 주소는 [전환표](docs/dashboard-deployment.md#기존-주소-전환과-되돌리기)대로 `/app`으로 302 전환되고, API만 빌드한 경우(`-PskipFrontend`, `bootRun`) 404입니다.
+
+사용 버튼과 읽는 순서는 [사용 가이드](docs/user-guide.md)에 있습니다. HTTP 요청은 [API 참조](docs/api-reference.md)를 참고하세요.
 
 ## Excel 입력과 처리 방식
 
@@ -270,9 +273,8 @@ src/main/java/com/pnomeer/lab/
   cli/              HTTP CLI
   metrics/          메트릭 모델과 의미·단위 catalog
   experiments/      pipeline, concurrency, io
-  app/              HTTP API와 화면
+  app/              HTTP API와 대시보드 라우팅
 src/main/resources/
-  static/run-browser/  Run 목록·상세·비교 UI
   lab/                 evidence 스키마 v1/v2/v3
 experiments/           Git 관리 시나리오와 fixture
 docs/                  사용·설계·운영·실험 결과
@@ -306,7 +308,7 @@ Spring 진입점 `EngineeringLabApplication`과 작은 XLSX 생성기도 `com.pn
 | 문서 | 내용 |
 | --- | --- |
 | [문서 안내](docs/README.md) | 목적별 읽는 순서 |
-| [사용 가이드](docs/user-guide.md) | 실제 화면 캡처와 단계별 사용법 |
+| [사용 가이드](docs/user-guide.md) | 대시보드 단계별 사용법 |
 | [API 참조](docs/api-reference.md) | 경로, 요청 예제, 응답·상태·페이지 규칙 |
 | [운영·문제 해결](docs/operations.md) | 실행, 백업·복원, 종료, 흔한 오류 |
 | [시나리오](docs/scenarios.md) | 정의 schema, CLI, 입력 hash |
@@ -321,7 +323,7 @@ controller가 worker·DB·전용 네트워크를 회수하고, opt-in 재시작 
 접수를 재개합니다. 중단 Run의 부분 증거는 유지합니다.
 [설정과 복구 범위](docs/career-worker-deployment.md#container-실행과-시작-시-복구-i5)를 따르세요.
 
-D6의 [통합 대시보드 운영 가이드](docs/dashboard-operations.md)는 worker 관측 범위, 관리 REPORT 다운로드, workspace 접수 예산, 빌드·시작·정지·복구와 구화면 parity를 정리합니다.
+D6의 [통합 대시보드 운영 가이드](docs/dashboard-operations.md)는 worker 관측 범위, 관리 REPORT 다운로드, workspace 접수 예산, 빌드·시작·정지·복구와 기존 화면 주소 전환을 정리합니다.
 
 다섯 Career 모듈을 함께 활성화하려면 [전체 모듈 로컬 배포·인수 검증](docs/local-deployment.md)의 준비·시작 스크립트를 사용합니다. 빌드 산출물과 image ID/hash를 고정하고 별도 저장소에 결과를 보존합니다.
 

@@ -23,8 +23,8 @@ REPORT 내용은 JSON일 수 있지만 protocol은 REPORT 바이트만 보장하
 `lab.artifacts.download.max-bytes` / `max-concurrent`를 따른다.
 
 신 frontend는 `/dashboard/v1/capabilities`의 `workerReportDownload=true`일 때만
-REPORT 링크를 표시한다. 구 서버에서는 참조 전용으로 유지한다. 기존 `/runs/ui`는
-동일 서버의 options 값 `workerReportDownload=1`을 사용한다. 기존 API 경로·참조
+REPORT 링크를 표시한다. 구 서버에서는 참조 전용으로 유지한다. `/runs/ui/options`
+응답에도 `workerReportDownload=1`이 있다. 기존 API 경로·참조
 스키마와 JFR/log 다운로드는 유지한다.
 
 ## 관측 범위와 용량 예산
@@ -132,20 +132,16 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 
 ## 전환 parity
 
-기본 `redirect-enabled=true`이며 내장 화면이 있을 때 기존 주소를 [주소 전환표](dashboard-deployment.md#기존-주소-전환과-되돌리기)대로 보낸다.
-기존 화면은 `?legacy=true`로 한 릴리스 더 열 수 있고 다음 릴리스에서 제거한다. 기존 API는 유지한다.
+기존 Java 내장 화면은 제거했다. 대시보드가 있으면 기존 주소를 [주소 전환표](dashboard-deployment.md#기존-주소-전환과-되돌리기)대로 302 전환하고, API만 빌드한 경우 404다. 기존 API는 유지한다.
 
-| 항목 | 독립 화면 | 기존 화면/API |
+| 항목 | 대시보드 | 기존 API |
 | --- | --- | --- |
-| queue/IO/Excel 실행·조회 | schema form와 전용 Excel 입력, 현재 DB/IO 도구 | 기존 URL·POST 유지 |
+| queue/IO/Excel 실행·조회 | schema form와 전용 Excel 입력, 현재 DB/IO 도구 | 기존 POST·조회 API 유지 |
 | 이력·비교·export | 기존 v1 + 실행/check v2 | 기존 v1 그대로 |
-| JFR/log/REPORT | 관리 다운로드, 구 서버 REPORT 참조 전용 | `/runs/ui` 관리 다운로드 지원 |
-| Career CHECK·worker 환경 | 실행/detail 지원 | 기존 `/runs/ui` 일반 이력/첨부 조회; CHECK는 확장 API/독립 화면 사용 |
-| browser 설정 | JSON export/import·origin 이전 | 원본 설정 보존, export helper |
-| redirect | opt-in 302, query 유지 | `legacy=true` 우회, 설정 false로 rollback |
-
-구화면에 Career 전용 CHECK 화면이 없다는 차이를 명시적으로 유지한다. API 제거나
-기본 redirect 변경은 이번 작업에 포함하지 않는다.
+| JFR/log/REPORT | 관리 다운로드, 구 서버 REPORT 참조 전용 | 다운로드 API 유지 |
+| Career CHECK·worker 환경 | 실행/detail 지원 | 확장 API |
+| browser 설정 | JSON export/import·origin 이전, v0.3.0까지 내보낸 JSON 가져오기 | 해당 없음 |
+| 기존 화면 주소 | 302 전환, `legacy`를 뺀 query 유지 | 대시보드가 없으면 404 |
 
 대용량 조회 검증은 `RunEvidenceTest`가 실제 H2에 metric 10,000개를 100개씩 저장하고
 저장소를 재개방해 export한다. 출력 body를 쌓지 않는 counting sink로 10,002줄을 세며,
@@ -172,11 +168,12 @@ DB 조회가 100개 페이지 101회(마지막 빈 페이지 포함)인지 확�
 처음 전체 browser 실행은 API 서버 미기동으로 실패해 중단했다. 전용 임시 API를
 기동한 뒤 아래 명령으로 전체 재검증했다. serve test의 sandbox 포트 제한도 로컬
 listen 권한으로 재실행해 통과했다. 테스트를 비활성화해 성공 처리하지 않았다.
+아래 명령의 환경 변수 이름은 현재 기준이다(당시 `API_URL` 대신 이전 이름을 사용).
 
 ```bash
 # 전용 API 18086, frontend 5196을 먼저 시작한다. frontend/에서 실행
 DASHBOARD_URL=http://127.0.0.1:5196 \
-LEGACY_URL=http://127.0.0.1:18086/experiments/ui \
+API_URL=http://127.0.0.1:18086 \
 MCP_CHECKS_EVIDENCE=../build/verification/d5-1 \
 EQUITY_EVIDENCE=../build/verification/d5-2 \
 MEMORY_EVIDENCE=../build/verification/d5-3 \

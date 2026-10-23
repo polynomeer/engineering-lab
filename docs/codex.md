@@ -43,13 +43,13 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
 | `com/pnomeer/lab/experiments/io/` | IO 비교 실험, blocking / virtual-thread / selector 서버, 부하 클라이언트 |
-| `com/pnomeer/lab/app/ingest/` | `/ingest/*`, 비동기 ingestion 작업 상태, 메트릭 변환, 대시보드 |
-| `com/pnomeer/lab/app/experiment/` | `/experiments/*`, 공통 실험 작업 API, 비교·프리셋·이력 UI |
-| `com/pnomeer/lab/app/io/` | `/lab/io/*`, IO 데모 API·UI, virtual-thread executor |
-| `com/pnomeer/lab/app/HomeController.java` | `/`, `/ui` 홈 |
+| `com/pnomeer/lab/app/ingest/` | `/ingest/*` API, 비동기 ingestion 작업 상태, 메트릭 변환 |
+| `com/pnomeer/lab/app/experiment/` | `/experiments/*`, 공통 실험 작업 API |
+| `com/pnomeer/lab/app/io/` | `/lab/io/*`, IO 데모 API, virtual-thread executor |
+| `com/pnomeer/lab/app/dashboard/` | 내장 `/app` 제공·`/api` adapter, `DashboardRoutingFilter`의 기존 화면 주소 302 전환(목적지가 없으면 404) |
 | `com/pnomeer/lab/tools/` | 테스트 XLSX 생성 도구 |
 
-- 기존 UI의 HTML/CSS/JavaScript는 컨트롤러의 Java text block에 있다. `/runs/ui`는 `RunUiController`와 `src/main/resources/static/run-browser/`의 HTML/CSS/JS를 사용한다. 기존 화면 변경 시 해당 컨트롤러와 테스트를 함께 확인한다. `frontend/`에는 별도 React/TypeScript/Vite Run 조회 화면이 있으며 [frontend 안내](../frontend/README.md)의 Node 버전과 검증 명령을 따른다. Java 문자열 escaping과 브라우저 동작을 모두 고려한다.
+- 화면은 `frontend/`의 React/TypeScript/Vite 대시보드뿐이다. 기존 Java 내장 화면은 제거했고 컨트롤러는 JSON/text API만 제공한다. `RunUiController`는 대시보드가 쓰는 `/runs/ui/options` API다. 화면 변경은 [frontend 안내](../frontend/README.md)의 Node 버전과 검증 명령을 따른다.
 - `src/main/resources/application.yml`: 런타임 기본값. 프로퍼티 변경 시 대응 properties와 README/운영 문서를 함께 갱신한다. 시나리오 schema/범위는 각 실험의 `*ExperimentModule`과 [시나리오 가이드](scenarios.md)를 함께 수정한다.
 - ingestion DB 스키마 변경 시 `src/main/resources/schema.sql`과 `src/test/resources/schema.sql`을 함께 확인한다. 실행 evidence 스키마는 `src/main/resources/lab/schema-v1.sql`과 additive `schema-v2.sql`/`schema-v3.sql`이며 v1/v2→v3 이행 전에 DB ZIP 백업을 만든다. [저장 가이드](run-storage.md)의 복원 절차를 따른다. 추가 변경도 명시적인 버전 전환이 필요하다.
 - `docs/architecture.md`, `docs/implementation-plan.md`, `docs/refactor-sequence.md`는 아키텍처 방향과 마이그레이션 계획이다. 계획에 나오는 모듈·기능을 구현 완료로 간주하지 않는다.
@@ -72,10 +72,10 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 | 컨테이너 격리 I1–I5 | 완료(명시적 CONTAINER 등록 시) | `runtime/WorkerContainerLifecycle`, `ContainerWorker*` | [격리 계획](worker-container-isolation.md) |
 | 패턴 플랫폼 P1–P7 | 완료(v0.2.0) | `registry/pattern/`, `registry/measurement/` | [패턴 계획](pattern-platform-plan.md), [릴리스](releases/v0.2.0.md) |
 | 반복 측정·기준선·스윕(F1·F2·F3), 캡처 보관 정리(O3) | 구현, 미릴리스(schema v4) | `app/series/`, `app/maintenance/` | [API 참조](api-reference.md), [시나리오와 CLI](scenarios.md), [ADR](adr/README.md) |
-| 기존 Java 내장 UI | 다음 릴리스에서 제거 예정. 기본 redirect, `?legacy=true`로만 열림(제거 안내 표시) | `app/*Controller` text block, `app/LegacyNotice` | [배포](dashboard-deployment.md#기존-주소-전환과-되돌리기) |
+| 기존 Java 내장 UI | 제거(v0.3.0 다음 릴리스). 기존 주소는 대시보드가 있으면 302 전환, 없으면 404 | `app/dashboard/DashboardRoutingFilter` | [배포](dashboard-deployment.md#기존-주소-전환과-되돌리기) |
 
 - 기본 앱은 IN_PROCESS 실행만 등록한다. Career sequence의 LOCAL_JVM/CONTAINER, architecture/validation의 CONTAINER는 설정으로 추가한다.
-- capabilities/catalog extension과 구형/신형 화면·API의 세 가지 호환 조합을 유지한다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다.
+- capabilities/catalog extension으로 대시보드와 구형/신형 API의 호환을 유지한다. `DashboardCatalogControllerTest`가 설정 반영과 추가 모듈 발견을 검증한다.
 - 대시보드의 준비 상태·실행/check 패널은 worker 환경과 controller 환경을 구분해 표시한다. Worker 정보가 없을 때 서버 환경으로 대신하지 않는다.
 
 통신 계약은 [worker v1](../contracts/worker/v1/README.md), Java 21 코드와 검증은 [worker-support](../career-lab/worker-support/README.md)를 따른다. 루트 통합 테스트에서 라이브러리를 실행하지만 Career sequence를 설정으로 등록했을 때만 capability의 외부 worker 지원을 켠다.
@@ -130,7 +130,7 @@ CI는 `.github/workflows/ci.yml`(push·PR: 루트 테스트, frontend 단위·�
 | Run 증거 | `RunEvidenceTest`, `ExecutionEvidenceControllerTest`, `RecordedExecutionTest`, `LocalJvmExecutorTest`, `WorkerArtifactImporterTest`, `ArtifactDownloadTest`, `RunUiIntegrationTest`; [증거 가이드](run-evidence.md), [Finding 템플릿](findings/TEMPLATE.md) |
 | API / UI | 해당 `*ControllerTest`, `ExperimentJobServiceTest`; UI 동작 변경은 브라우저에서도 확인 |
 
-테스트 리포트는 `build/reports/tests/test/index.html`에 생성된다. UI 확인 경로는 `/runs/ui`, `/ui`, `/ingest/ui`, `/experiments/ui`, `/lab/io/ui`다. XLSX 샘플 생성은 `./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500`을 사용한다. 상세 API와 IO 실행 명령은 [README](../README.md)를 참조한다.
+테스트 리포트는 `build/reports/tests/test/index.html`에 생성된다. UI 확인 경로는 내장 jar의 `/app/runs`, `/app/experiments`, `/app/compare`, `/app/tools/ingestion-db`, `/app/tools/io-echo`다. XLSX 샘플 생성은 `./scripts/create-test-xlsx.sh /tmp/sample.xlsx 500`을 사용한다. 상세 API와 IO 실행 명령은 [README](../README.md)를 참조한다.
 
 ## 구현 상태와 남은 요구사항
 

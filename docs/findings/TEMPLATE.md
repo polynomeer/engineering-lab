@@ -19,9 +19,9 @@
 
 - Experiment ID:
 - Scenario 파일 / Git commit / 정의 SHA-256:
-- Baseline Run ID / `/runs/ui?run=<id>`:
-- Candidate Run ID / `/runs/ui?run=<id>`:
-- 비교 URL `/runs/ui?baseline=<id>&candidate=<id>`:
+- Baseline Run ID / `/app/runs/<id>`:
+- Candidate Run ID / `/app/runs/<id>`:
+- 비교 URL `/app/compare?baseline=<id>&candidate=<id>`:
 - 각 Run의 상태·Git commit/dirty·JVM/OS·heap/CPU·input SHA-256:
 - Export 보관 위치 / SHA-256 / 마지막 end 레코드와 metricCount 확인:
 - Artifact ID / 보관 위치 / SHA-256 / 원본 파일 검증 방법:

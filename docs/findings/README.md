@@ -2,7 +2,7 @@
 
 [TEMPLATE.md](TEMPLATE.md)를 복사해 `<날짜>-<주제>.md`로 작성한다. 템플릿은 측정 결과가 아니며 미리 채운 성능 주장은 없다.
 
-1. `/runs/ui`에서 저장된 Run을 열고 baseline/candidate를 선택한다.
+1. `/app/runs/<id>`에서 저장된 Run을 열고 `/app/compare?baseline=<id>&candidate=<id>`로 baseline/candidate를 비교한다.
 2. 비교 화면의 조건 차이, 누락값, 상태, 단위를 확인한다.
 3. 종료 Run의 NDJSON export를 보관하고 마지막 end 레코드를 확인한다. 파일 SHA-256을 계산해 Finding에 적는다.
 4. 원본 artifact는 별도 보관하고 Run의 참조 metadata와 대조한다.

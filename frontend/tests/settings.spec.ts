@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
 const key = 'engineering-lab.experiments.dashboard';
 const legacy = {
   queue: {
@@ -12,20 +11,19 @@ const legacy = {
   },
   browser: { compareA: 'run-a', compareB: 'run-b', jobFilter: 'concurrency.queue-contention' },
 };
-test('different origins: legacy export, preview, selected import, restore and original retained', async ({
+const exported = { ...legacy, io: { scenarioId: 'migrated-io', requests: '20', delayMs: '10', pinning: '0', pinDelayMs: '5' } };
+test('a file exported from the removed screens: preview, selected import and restore', async ({
   page,
 }, info) => {
-  await page.goto(process.env.LEGACY_URL ?? 'http://127.0.0.1:18080/experiments/ui');
-  await page.locator('#scenarioId').fill('migrated-queue');
-  await page.evaluate(() => {
-    sessionStorage.setItem('lab.compare.baseline', 'run-a');
-    sessionStorage.setItem('lab.compare.candidate', 'run-b');
-  });
-  const event = page.waitForEvent('download');
-  await page.getByRole('button', { name: '설정 내보내기', exact: true }).click();
-  const file = await event;
-  const bytes = await readFile((await file.path())!);
-  expect(bytes.toString()).toContain('migrated-queue');
+  // The format the old screens' 'settings export' button wrote (engineering-lab-legacy v1).
+  const bytes = Buffer.from(
+    JSON.stringify({
+      format: 'engineering-lab-legacy',
+      version: 1,
+      local: { [key]: JSON.stringify(exported), 'engineering-lab.experiments.preset-history': null, 'engineering-lab.io-history': null },
+      session: { baseline: 'run-a', candidate: 'run-b' },
+    }),
+  );
   await page.goto('/app/settings');
   await expect(page.getByLabel('설정 JSON')).toBeEnabled();
   await page
@@ -52,10 +50,6 @@ test('different origins: legacy export, preview, selected import, restore and or
   await expect(page.getByLabel('시나리오 ID', { exact: false })).toHaveValue('migrated-queue');
   await page.goto('/app/compare');
   await expect(page.getByLabel('기준 Run ID')).toHaveValue('run-a');
-  await page.goto(process.env.LEGACY_URL ?? 'http://127.0.0.1:18080/experiments/ui');
-  expect(
-    await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).queue.scenarioId, key),
-  ).toBe('migrated-queue');
 });
 test('same origin import, malformed file, conflict policy, IO persistence and blocked storage', async ({
   page,

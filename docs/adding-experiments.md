@@ -37,7 +37,7 @@ Career라는 이름으로 별도 대시보드 구현을 요구하지 않는다. 
 
 `ExperimentCatalog`는 Java ServiceLoader로 metadata provider를 수집하고 module/experiment ID와 metric 중복을 검사한다. Spring은 `ExperimentRegistration<?>` bean들을 수집한다. 서버 시작 시 catalog와 실행 registration의 ID 집합·descriptor 일치 여부를 확인해 누락이나 다른 schema로 실행되는 것을 차단한다.
 
-`GET /modules`는 `[{module:{id,title,collection},experiments:[...]}]`를 반환한다. 현재 등록된 내장 모듈과 활성화한 MCP 시나리오를 포함하며 아직 worker 등록이 없는 Career 시나리오를 실행 가능한 것으로 표시하지 않는다. 기존 `/experiments` 응답 형태와 세 실험 ID는 유지한다. 기존 `/runs/ui`는 catalog의 새 실험과 공통 Run summary를 조회할 수 있다.
+`GET /modules`는 `[{module:{id,title,collection},experiments:[...]}]`를 반환한다. 현재 등록된 내장 모듈과 활성화한 MCP 시나리오를 포함하며 아직 worker 등록이 없는 Career 시나리오를 실행 가능한 것으로 표시하지 않는다. 기존 `/experiments` 응답 형태와 세 실험 ID는 유지한다. 대시보드 실행 기록(`/app/runs`)은 catalog의 새 실험과 공통 Run summary를 조회할 수 있다.
 
 CLI `validate`/`run`의 로컬 검증도 같은 provider를 사용한다. CLI 배포물에 없는 실험은 unknown으로 거부하므로 서버와 같은 module metadata를 포함한 배포물을 사용한다. 런타임에 임의 서버의 schema를 받아 신뢰하는 기능은 아직 없다.
 

@@ -8,6 +8,9 @@
 
 ## Unreleased
 
+- 기존 Java 내장 화면(`/ui`, `/experiments/ui`, `/ingest/ui`, `/lab/io/ui`, `/runs/ui`)과 `bootDashboardJar` 별칭, `lab.dashboard.redirect-enabled`를 제거했다. 기존 주소는 대시보드가 있으면 `/app`으로 전환되고, API만 빌드한 경우 404다.
+- 브라우저 테스트의 `LEGACY_URL`을 `API_URL`로 바꿨다.
+
 ## v0.3.0 — 2026-10-24
 
 반복 측정·기준선·스윕과 증거 묶음, 대시보드 내장 jar. 저장 schema v4.

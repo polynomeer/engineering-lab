@@ -50,6 +50,8 @@ test('serves the build and streams API bodies, statuses, headers and failures', 
   const home = await fetch(address + '/', {redirect: 'manual'});
   assert.equal(home.status, 302);
   assert.equal(home.headers.get('location'), '/app/catalog');
+  const oldHome = await fetch(address + '/ui', {redirect: 'manual'});
+  assert.equal(oldHome.headers.get('location'), '/app/catalog');
   assert.equal((await fetch(address + '/app/career')).status, 200);
   assert.equal((await fetch(address + '/app/runs/deep-link')).status, 200);
   assert.equal((await fetch(address + '/outside')).status, 404);

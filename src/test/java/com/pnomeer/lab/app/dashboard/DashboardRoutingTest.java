@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DashboardRoutingTest {
     @Test void redirectsOnlyViewGetsAndPreservesQuery() throws Exception {
-        var filter = new DashboardRoutingFilter(true, "http://127.0.0.1:4173");
+        var filter = new DashboardRoutingFilter("http://127.0.0.1:4173", false);
         var routes = Map.of("/experiments/ui", "/app/experiments", "/ingest/ui", "/app/experiments/pipeline.excel-ingestion",
             "/ingest/ui/db", "/app/tools/ingestion-db", "/lab/io/ui", "/app/tools/io-echo", "/ingest/ui/run-1", "/app/runs/run-1",
             "/experiments/ui/run-1", "/app/runs/run-1", "/runs/ui", "/app/runs");
@@ -29,28 +29,30 @@ class DashboardRoutingTest {
         assertTrue(res.getHeader("Location").endsWith("/app/runs/abc?before=7"));
     }
     @Test void keepsRollbackAndApiBoundaries() throws Exception {
-        var req = new MockHttpServletRequest("GET","/experiments/ui");req.setParameter("legacy","true");
-        var res = new MockHttpServletResponse();new DashboardRoutingFilter(true,"").doFilter(req,res,new MockFilterChain());assertNull(res.getHeader("Location"));
-        res = new MockHttpServletResponse();new DashboardRoutingFilter(false,"").doFilter(new MockHttpServletRequest("GET","/runs/ui"),res,new MockFilterChain());assertNull(res.getHeader("Location"));
-        res = new MockHttpServletResponse();new DashboardRoutingFilter(true,"").doFilter(new MockHttpServletRequest("GET","/api/runs/ui/options"),res,new MockFilterChain());
+        var req = new MockHttpServletRequest("GET","/experiments/ui");req.setParameter("legacy","true");req.setParameter("msg","kept");
+        var res = new MockHttpServletResponse();new DashboardRoutingFilter("",true).doFilter(req,res,new MockFilterChain());
+        assertEquals("/app/experiments?msg=kept",res.getHeader("Location")); // the removed screens' escape hatch is dropped
+        res = new MockHttpServletResponse();new DashboardRoutingFilter("",false).doFilter(new MockHttpServletRequest("GET","/api/runs/ui/options"),res,new MockFilterChain());
         assertEquals("/runs/ui/options",res.getForwardedUrl());assertNull(res.getHeader("Location"));
         for (String api : new String[]{"/run-series", "/run-series/s1/regression", "/run-sweeps", "/run-sweeps/w1", "/maintenance/retention"}) {
-            res = new MockHttpServletResponse(); new DashboardRoutingFilter(true,"").doFilter(new MockHttpServletRequest("POST","/api" + api),res,new MockFilterChain());
+            res = new MockHttpServletResponse(); new DashboardRoutingFilter("",false).doFilter(new MockHttpServletRequest("POST","/api" + api),res,new MockFilterChain());
             assertEquals(api, res.getForwardedUrl());
         }
-        res = new MockHttpServletResponse();new DashboardRoutingFilter(true,"").doFilter(new MockHttpServletRequest("GET","/api/app/runs"),res,new MockFilterChain());assertEquals(404,res.getStatus());
-        res = new MockHttpServletResponse();new DashboardRoutingFilter(true, "").doFilter(new MockHttpServletRequest("GET", "/api/runs/%2e%2e/ui"),res,new MockFilterChain());assertEquals(404,res.getStatus());
-        assertThrows(IllegalArgumentException.class,()->new DashboardRoutingFilter(true,"https://example.com/path"));
+        res = new MockHttpServletResponse();new DashboardRoutingFilter("",false).doFilter(new MockHttpServletRequest("GET","/api/app/runs"),res,new MockFilterChain());assertEquals(404,res.getStatus());
+        res = new MockHttpServletResponse();new DashboardRoutingFilter("", false).doFilter(new MockHttpServletRequest("GET", "/api/runs/%2e%2e/ui"),res,new MockFilterChain());assertEquals(404,res.getStatus());
+        assertThrows(IllegalArgumentException.class,()->new DashboardRoutingFilter("https://example.com/path", false));
     }
-    @Test void redirectsByDefaultOnlyWhenADestinationExists() throws Exception {
+    @Test void redirectsWheneverADestinationExists() throws Exception {
         var res = new MockHttpServletResponse();
-        new DashboardRoutingFilter(true, "", true).doFilter(new MockHttpServletRequest("GET", "/experiments/ui"), res, new MockFilterChain());
+        new DashboardRoutingFilter("", true).doFilter(new MockHttpServletRequest("GET", "/experiments/ui"), res, new MockFilterChain());
         assertEquals("/app/experiments", res.getHeader("Location")); // embedded dashboard on the same origin
         res = new MockHttpServletResponse();
-        new DashboardRoutingFilter(true, "", false).doFilter(new MockHttpServletRequest("GET", "/experiments/ui"), res, new MockFilterChain());
-        assertNull(res.getHeader("Location")); // API-only build keeps the legacy screen
+        var chain = new MockFilterChain();
+        new DashboardRoutingFilter("", false).doFilter(new MockHttpServletRequest("GET", "/experiments/ui"), res, chain);
+        assertNull(res.getHeader("Location")); // API-only build: no destination, the request falls through to a 404
+        assertNotNull(chain.getRequest());
         res = new MockHttpServletResponse();
-        new DashboardRoutingFilter(true, "http://127.0.0.1:4173", false).doFilter(new MockHttpServletRequest("GET", "/"), res, new MockFilterChain());
+        new DashboardRoutingFilter("http://127.0.0.1:4173", false).doFilter(new MockHttpServletRequest("GET", "/"), res, new MockFilterChain());
         assertEquals("http://127.0.0.1:4173/app/runs", res.getHeader("Location"));
     }
 }

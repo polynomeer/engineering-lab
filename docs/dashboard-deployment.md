@@ -4,7 +4,7 @@
 
 ## 공통 빌드
 
-`frontend/`에서 실행한다. 두 배포에서 같은 `dist/`를 사용하려면 `VITE_LEGACY_BASE`를 지정하지 않는다. 기본 기존 화면 링크는 현재 origin의 `/ui?legacy=true`이며 독립 서버가 API origin으로 연결해 준다.
+`frontend/`에서 실행한다. 독립 배포와 내장 배포는 같은 `dist/`를 사용한다.
 
 ```bash
 npx --yes npm@11.6.0 ci
@@ -36,7 +36,7 @@ LAB_API_TARGET=http://127.0.0.1:8080 PORT=4173 npm run serve
 - `LAB_API_TARGET`: 기본 `http://127.0.0.1:8080`, 경로·인증정보 없는 HTTP(S) origin. 브라우저는 `/api/*`에 요청하고 서버가 prefix를 제거한다.
 - multipart 요청과 NDJSON/파일 응답은 스트림으로 전달한다. 전체 body를 메모리에 모으지 않는다. upstream 무응답 제한은 120초이며 연결 실패는 JSON 502다.
 - 상태·Content-Type·Content-Disposition은 유지하고 같은 API origin의 Location을 `/api` 경로로 바꾼다.
-- `/app`의 화면 새로고침은 index.html, `/app/assets/*`는 실제 파일만 제공한다. 없는 asset/API를 HTML 성공으로 가리지 않는다. `/ui`는 기존 API 홈의 `legacy=true` 주소로 연결한다. 그 외 경로는 404다.
+- `/app`의 화면 새로고침은 index.html, `/app/assets/*`는 실제 파일만 제공한다. 없는 asset/API를 HTML 성공으로 가리지 않는다. `/ui`는 API origin의 기존 홈 주소로 연결하며, API 서버가 대시보드로 다시 전환하거나 404를 반환한다. 그 외 경로는 404다.
 
 ## 내장 배포 (기본)
 
@@ -48,29 +48,25 @@ java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar \
   --server.address=127.0.0.1 --server.port=8080
 ```
 
-`http://127.0.0.1:8080/app/runs`를 연다. `./gradlew test`와 `bootRun`은 Node를 쓰지 않는다. Node 없이 API만 패키징하려면 `./gradlew bootJar -PskipFrontend`를 쓴다. 이 jar에는 `/app` 화면이 없으며 기존 주소는 전환되지 않고 기존 화면을 계속 보여준다.
+`http://127.0.0.1:8080/app/runs`를 연다. `./gradlew test`와 `bootRun`은 Node를 쓰지 않는다. Node 없이 API만 패키징하려면 `./gradlew bootJar -PskipFrontend`를 쓴다. 이 jar에는 `/app` 화면이 없으며 `frontend-origin`을 지정하지 않으면 기존 화면 주소는 404다.
 
-`bootDashboardJar`는 한 릴리스 동안 `bootJar`의 별칭으로 남는다. 별도의 `-dashboard.jar`는 더 이상 만들지 않는다. `/api` adapter는 기존 API를 내부 servlet dispatch로 호출해 multipart/async streaming과 에러를 유지한다. 임의 서버로 프록시하거나 Spring 컨트롤러를 복제하지 않는다.
+별도의 `-dashboard.jar`나 `bootDashboardJar` 작업은 없다. 기본 `bootJar`를 사용한다. `/api` adapter는 기존 API를 내부 servlet dispatch로 호출해 multipart/async streaming과 에러를 유지한다. 임의 서버로 프록시하거나 Spring 컨트롤러를 복제하지 않는다.
 
 ## 기존 주소 전환과 되돌리기
 
-기본값(2026-10-19부터):
+기존 Java 내장 화면은 v0.3.0 다음 릴리스에서 제거했다. 기존 주소는 화면을 제공하지 않고 대시보드로 전환만 한다. 전환을 끄는 설정은 없다.
 
 ```yaml
 lab:
   dashboard:
-    redirect-enabled: true
     frontend-origin: ""
 ```
 
-전환은 목적지가 있을 때만 동작한다. `frontend-origin`이 비어 있으면 이 jar에 내장된 `/app`으로, 지정하면 그 origin으로 보낸다. 내장 화면도 origin도 없으면(예: `-PskipFrontend` jar, `bootRun`) 시작 로그에 경고를 남기고 기존 화면을 그대로 제공한다.
+전환은 목적지가 있을 때만 동작한다. `frontend-origin`이 비어 있으면 이 jar에 내장된 `/app`으로, 지정하면 그 origin으로 보낸다. 내장 화면도 origin도 없으면(예: `-PskipFrontend` jar, `bootRun`) 시작 로그에 안내를 남기고 기존 화면 주소는 404다.
 
 ```bash
 # 독립 frontend 서버로 보내기
 --lab.dashboard.frontend-origin=http://127.0.0.1:4173
-
-# 전환을 끄고 기존 화면을 기본으로 유지
---lab.dashboard.redirect-enabled=false
 ```
 
 frontend-origin은 경로/query/fragment/사용자 정보 없는 HTTP(S) origin만 받는다. 설정 변경은 API를 재시작해야 한다.
@@ -87,9 +83,9 @@ frontend-origin은 경로/query/fragment/사용자 정보 없는 HTTP(S) origin�
 | `/runs/ui?baseline={a}&candidate={b}` | `/app/compare?baseline={a}&candidate={b}` |
 | `/runs/ui?experiment={type}&before={cursor}` | `/app/runs?experiment={type}&before={cursor}` |
 
-전환은 no-store 302이고 나머지 query 값은 보존한다. `run`은 경로로 옮기며 `legacy` 제어값은 전달하지 않는다. API와 POST는 화면 전환 대상이 아니다. 임의 query로 redirect 목적지 origin을 바꿀 수 없다.
+전환은 no-store 302이고 나머지 query 값은 보존한다. `run`은 경로로 옮기며 예전 즐겨찾기에 남은 `legacy` 값은 전달하지 않는다. API와 POST는 화면 전환 대상이 아니다. 임의 query로 redirect 목적지 origin을 바꿀 수 없다.
 
-되돌리려면 `redirect-enabled=false`로 API를 재시작한다. 파일/DB 변경은 필요 없다. 기존 화면은 **다음 릴리스에서 제거할 예정**이며, 그때까지 상단에 제거 안내를 표시한다. 전환 중에도 `/experiments/ui?legacy=true`, `/lab/io/ui?legacy=true`, `/runs/ui?legacy=true`로 기존 화면과 **설정 내보내기**에 접근한다. 이 우회는 현재 화면에만 적용하며 다른 기존 링크를 누르면 전환 설정이 다시 적용된다.
+`?legacy=true` 우회와 기존 화면의 **설정 내보내기**는 제거했다. v0.3.0까지 내보낸 설정 JSON은 `/app/settings`에서 가져온다. 기존 화면이 필요하면 v0.3.0 jar를 사용한다.
 
 ## 검증과 진단
 
@@ -101,10 +97,10 @@ frontend-origin은 경로/query/fragment/사용자 정보 없는 HTTP(S) origin�
 # frontend/: 독립 서버가 14173, API가 18080인 예
 DASHBOARD_URL=http://127.0.0.1:14173 VERIFY_BUILD=1 npm run test:e2e
 
-# 내장 서버가 18081이고 전환을 켠 예
+# 내장 서버가 18081인 예: 기존 주소가 302로 전환되는지 확인
 DASHBOARD_URL=http://127.0.0.1:18081 \
-LEGACY_URL='http://127.0.0.1:18081/experiments/ui?legacy=true' \
+API_URL=http://127.0.0.1:18081 \
 EXPECT_REDIRECT=1 VERIFY_BUILD=1 npm run test:e2e
 ```
 
-`VERIFY_BUILD=1`은 응답 JS가 현재 dist의 파일과 byte 단위로 같은지 확인한다. 같은 실행·Excel multipart·NDJSON export·설정 이전 테스트와 URL/query/legacy 우회 테스트를 양쪽에 사용한다. 루트 `./gradlew test`도 필수다. 종료는 실행 터미널의 Ctrl-C를 사용하고 진행 중 Run의 drain 시간을 기다린다.
+`VERIFY_BUILD=1`은 응답 JS가 현재 dist의 파일과 byte 단위로 같은지 확인한다. 같은 실행·Excel multipart·NDJSON export·설정 이전 테스트와 기존 주소 전환·query 보존 테스트를 양쪽에 사용한다. `API_URL`은 기존 주소를 확인할 API 서버 origin이며 기본값은 `http://127.0.0.1:18080`이다. `EXPECT_REDIRECT=1`이 없으면 기존 주소가 404인지 확인한다. 루트 `./gradlew test`도 필수다. 종료는 실행 터미널의 Ctrl-C를 사용하고 진행 중 Run의 drain 시간을 기다린다.

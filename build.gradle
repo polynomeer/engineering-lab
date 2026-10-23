@@ -137,14 +137,6 @@ tasks.named('bootJar') {
     }
 }
 
-// Kept for one release so existing scripts keep working; the default jar now embeds the dashboard.
-tasks.register('bootDashboardJar') {
-    group = 'build'
-    description = 'Deprecated alias for bootJar, which now embeds the dashboard.'
-    dependsOn 'bootJar'
-    doLast { logger.warn('bootDashboardJar is deprecated: bootJar now embeds the dashboard (build/libs/engineering-lab-<version>.jar)') }
-}
-
 // Explicit Docker integration suite; run after building the independent Career deployment.
 sourceSets {
     careerTest {
