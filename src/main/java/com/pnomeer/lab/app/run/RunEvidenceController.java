@@ -66,6 +66,13 @@ public class RunEvidenceController {
         response.setHeader("Content-Disposition", "attachment; filename=run-evidence.ndjson");
         response.setHeader("Cache-Control", "no-store");
         var out = response.getOutputStream();
+        write(run, references, out);
+        out.flush();
+    }
+
+    /** The standard export: run, every metric page, the given artifact references, then an end record. */
+    void write(StoredRun run, List<ArtifactReference> references, java.io.OutputStream out) throws IOException {
+        String id = run.runId();
         line(out, Map.of("type", "run", "schemaVersion", 1, "data", run));
         long cursor = -1, count = 0;
         while (true) {
@@ -75,7 +82,6 @@ public class RunEvidenceController {
         }
         for (var reference : references) line(out, Map.of("type", "artifact-reference", "data", reference));
         line(out, Map.of("type", "end", "runId", id, "metricCount", count, "artifactCount", references.size()));
-        out.flush();
     }
     private void line(java.io.OutputStream out, Object record) throws IOException {
         out.write(json.writeValueAsBytes(record)); out.write('\n');

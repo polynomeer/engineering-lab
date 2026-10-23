@@ -1,3 +1,4 @@
+import { BundleButton } from './bundle';
 import { useEffect, useState } from 'react';
 import { get, type Descriptor } from './api';
 import { Table } from './components';
@@ -281,6 +282,11 @@ export function SeriesDetail({ id }: { id: string }) {
         </p>
       </section>
       <BaselinePanel view={value} />
+      {!activeSeries(series.status) && (
+        <div className="actions">
+          <BundleButton selection={{ series: [series.seriesId] }} />
+        </div>
+      )}
       <Table
         label="반복 구성"
         headers={['순서', 'Run', '구분', '상태', '소요 시간']}
@@ -461,6 +467,10 @@ export function SeriesCompare({ baseline, candidate }: { baseline: string; candi
         >
           Finding 초안 (.md)
         </button>
+        <BundleButton
+          selection={{ series: [value.baseline.series.seriesId, value.candidate.series.seriesId] }}
+          draft={() => seriesComparisonDraft(value)}
+        />
       </div>
       <p className="note">
         {value.sameDefinition

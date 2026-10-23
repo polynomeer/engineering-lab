@@ -52,7 +52,7 @@ public class DashboardRoutingFilter extends OncePerRequestFilter {
                     || target.startsWith("/lab/io/") || target.startsWith("/dashboard/v1/")
                     || target.equals("/run-series") || target.startsWith("/run-series/")
                     || target.equals("/run-sweeps") || target.startsWith("/run-sweeps/")
-                    || target.startsWith("/maintenance/"))) {
+                    || target.equals("/evidence-bundles") || target.startsWith("/maintenance/"))) {
                 response.sendError(404); return;
             }
             var wrapped = new HttpServletResponseWrapper(response) {

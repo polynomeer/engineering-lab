@@ -200,6 +200,7 @@ Git commit/dirty·Java/OS·JVM CPU 수·최대 heap·입력 SHA-256을 metadata�
 | `pipeline.backpressure.offer-timeout-ms` | 200 | timed offer 대기 |
 | `pipeline.error-preview-limit` | 100 | 메모리에 보유할 오류 행 미리보기 |
 | `pipeline.shutdown-timeout-ms` | 30000 | drain 및 별도 executor 종료 대기 |
+| `lab.bundle.max-artifact-bytes` | 268435456 | 증거 묶음 zip에 넣는 캡처 합계 상한. 넘는 캡처는 manifest에 제외 사유만 남김 |
 | `lab.retention.apply-enabled` | false | true일 때만 `POST /maintenance/retention`이 오래된 JFR·Run 로그를 삭제. 미리보기는 항상 가능 |
 | `lab.series.queue-capacity` | 4 | 대기할 수 있는 반복 묶음 수(1–32). 묶음은 하나씩 실행 |
 | `lab.series.run-timeout-ms` | 1800000 | 반복 Run 하나의 최대 대기 시간 |

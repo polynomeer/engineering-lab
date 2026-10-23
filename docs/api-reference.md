@@ -113,6 +113,17 @@ curl --fail --silent --show-error -H 'Content-Type: application/yaml' \
 - 실행 전에 모든 점의 정의를 검증하며 하나라도 범위를 벗어나면 400으로 거절하고 아무것도 실행하지 않는다.
 - 스윕 하나의 점들과 다른 묶음은 같은 직렬 실행기를 공유한다. 묶음 실행 중 접수한 스윕은 대기열에서 기다린다.
 
+### 증거 묶음(evidence bundle)
+
+| Method | 경로 | 설명 |
+| --- | --- | --- |
+| GET | `/evidence-bundles?series=...&run=...` | 묶음 최대 2개·Run 최대 120개(묶음 구성원 포함)를 zip 하나로 스트리밍 |
+| POST | `/evidence-bundles?series=...&run=...` | 같은 선택에 본문(`text/markdown`, 최대 256 KiB)을 `FINDING-DRAFT.md`로 포함 |
+
+- zip 구성: `series/<id>.json`(묶음 상세·통계), 묶음 2개 또는 단독 Run 2개면 `comparison.json`, Run마다 `runs/<runId>.ndjson`(`GET /runs/{id}/export`와 같은 형식), 관리 경로 캡처 `artifacts/<runId>/<파일>`, 선택한 Finding 초안, `manifest.json`(Run별 묶음·warmup 표시, 파일별 바이트·SHA-256, 제외한 artifact와 사유), `SHA256SUMS`(`sha256sum -c` 형식).
+- 캡처는 다운로드 API와 같은 규칙으로 크기·SHA-256을 검증한 뒤 넣는다. 합계가 `lab.bundle.max-artifact-bytes`(기본 256 MiB)를 넘거나 검증에 실패한 캡처는 넣지 않고 manifest에 사유를 남긴다. dead-letter 본문과 원본 입력 파일은 포함하지 않는다.
+- 모든 ID와 상태를 먼저 확인한다. 없는 ID는 404, 실행 중인 묶음·Run은 409, 선택이 비었거나 상한을 넘으면 400이다. 동시에 2개까지 만들며 넘으면 429다.
+
 ### 캡처 보관 정리(retention)
 
 | Method | 경로 | 설명 |

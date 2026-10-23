@@ -1,3 +1,4 @@
+import { BundleButton } from '../bundle';
 import type { Comparison } from '../api';
 import { ComparisonAssessment } from '../ComparisonAssessment';
 import { Table, format } from '../components';
@@ -72,6 +73,10 @@ export function Compare({ query, comparison }: { query: URLSearchParams; compari
             >
               Finding 초안 (.md)
             </button>
+            <BundleButton
+              selection={{ run: [comparison.baseline.runId, comparison.candidate.runId] }}
+              draft={() => runComparisonDraft(comparison)}
+            />
             <a href={runLink(comparison.baseline.runId)}>기준 실행 상세</a>
             <a href={runLink(comparison.candidate.runId)}>비교 실행 상세</a>
           </div>

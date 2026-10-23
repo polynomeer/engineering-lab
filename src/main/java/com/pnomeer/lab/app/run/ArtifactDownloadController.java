@@ -35,19 +35,8 @@ public final class ArtifactDownloadController {
         }
         var reference = store.artifacts(runId).stream().filter(ref -> ref.artifactId().equals(artifactId))
                 .findFirst().orElseThrow(() -> error(HttpStatus.NOT_FOUND,"Artifact not found"));
-        String directory, extension, mediaType;
-        String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
-        if (artifactId.matches("jfr_" + uuid)) {
-            directory = "jfr"; extension = ".jfr"; mediaType = "application/octet-stream";
-        } else if (artifactId.matches("log_" + uuid)) {
-            directory = "logs"; extension = ".ndjson"; mediaType = "application/x-ndjson";
-        } else if (artifactId.matches("worker_" + uuid)) {
-            directory = "worker-reports"; extension = ".bin"; mediaType = "application/octet-stream";
-        } else throw error(HttpStatus.CONFLICT,"Artifact is not a managed capture path");
-        String filename = artifactId + extension;
-        if (!reference.relativePath().equals(directory + "/" + filename) || !reference.mediaType().equals(mediaType)) {
-            throw error(HttpStatus.CONFLICT,"Artifact is not a managed capture path");
-        }
+        var managed = managed(reference).orElseThrow(() -> error(HttpStatus.CONFLICT,"Artifact is not a managed capture path"));
+        String directory = managed.directory(), filename = managed.filename(), mediaType = reference.mediaType();
         if (reference.byteSize() > properties.maxBytes()) throw error(HttpStatus.PAYLOAD_TOO_LARGE,"Artifact exceeds download limit");
         if (!slots.tryAcquire()) throw error(HttpStatus.TOO_MANY_REQUESTS,"Artifact download capacity reached");
         Path snapshot = null;
@@ -72,7 +61,31 @@ public final class ArtifactDownloadController {
         }
     }
 
+    /** Where a managed capture lives under the storage root; anything else is never served. */
+    record Managed(String directory, String filename) { }
+
+    static Optional<Managed> managed(ArtifactReference reference) {
+        String artifactId = reference.artifactId();
+        String directory, extension, mediaType;
+        String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
+        if (artifactId.matches("jfr_" + uuid)) {
+            directory = "jfr"; extension = ".jfr"; mediaType = "application/octet-stream";
+        } else if (artifactId.matches("log_" + uuid)) {
+            directory = "logs"; extension = ".ndjson"; mediaType = "application/x-ndjson";
+        } else if (artifactId.matches("worker_" + uuid)) {
+            directory = "worker-reports"; extension = ".bin"; mediaType = "application/octet-stream";
+        } else return Optional.empty();
+        String filename = artifactId + extension;
+        if (!reference.relativePath().equals(directory + "/" + filename) || !reference.mediaType().equals(mediaType)) return Optional.empty();
+        return Optional.of(new Managed(directory, filename));
+    }
+
     private void verifySnapshot(ArtifactReference ref, String directory, String filename, Path snapshot) throws IOException {
+        verifySnapshot(root, ref, directory, filename, snapshot);
+    }
+
+    /** Copies a managed capture to {@code snapshot} through no-follow opens, verifying its size and SHA-256. */
+    static void verifySnapshot(Path root, ArtifactReference ref, String directory, String filename, Path snapshot) throws IOException {
         MessageDigest digest;
         try { digest = MessageDigest.getInstance("SHA-256"); }
         catch (NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }

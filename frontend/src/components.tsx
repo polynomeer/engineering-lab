@@ -1,3 +1,4 @@
+import { bundlePath } from './bundle';
 import React, { useState } from 'react';
 import { CopyIcon } from '@radix-ui/react-icons';
 import { apiUrl, terminal, type Run } from './api';
@@ -70,6 +71,9 @@ export function Actions({ run }: { run: Run }) {
       <a href={'/app/compare?baseline=' + encodeURIComponent(run.runId)}>비교 기준으로 선택</a>
       {terminal(run) && (
         <a href={apiUrl(`/runs/${encodeURIComponent(run.runId)}/export`)}>증거 내보내기 (NDJSON)</a>
+      )}
+      {terminal(run) && (
+        <a href={apiUrl(bundlePath({ run: [run.runId] }))}>증거 묶음 (.zip)</a>
       )}
     </div>
   );

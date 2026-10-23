@@ -109,6 +109,9 @@ lab:
   scenario:
     max-document-bytes: 65536
     max-input-bytes: 52428800
+  bundle:
+    # Captures beyond this total are left out of evidence bundles and listed in the manifest.
+    max-artifact-bytes: 268435456
   retention:
     # Deleting old JFR/Run-log captures needs this flag and a preview token; previews are always allowed.
     apply-enabled: false
