@@ -19,6 +19,7 @@
 - 기준선 파일(`GET /run-series/{id}/baseline-file`, `lab baseline ID --export`)과 파일 기준 회귀 판정(`--check-baseline-file`), 야간 Performance regression 워크플로. `heap` measure는 낮을수록 좋음으로 판정한다.
 - Finding 문서가 인용한 Run을 색인해 Run 상세에 표시하고 보관 정리에서 제외한다(`/findings`, `lab.findings.directory`).
 - 반복 묶음·스윕 중지(`POST .../cancel`, 대시보드 중지 버튼). 실행 중인 Run은 끝까지 돌고 다음 반복부터 멈춘다.
+- 대시보드 실행 폼이 Excel 워크북을 받아 조건 지정 단일 실행·반복 측정·스윕을 제출한다.
 
 ## v0.1.0 — 2026-10-16
 

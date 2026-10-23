@@ -65,3 +65,17 @@ test('a running series can be asked to stop before its next repetition', async (
   expect(cancelled).toBe(true);
   await expect(page.getByRole('button', { name: '반복 측정 중지' })).toBeDisabled();
 });
+
+test('an Excel scenario uploads its workbook once and runs as a series from the form', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.goto('/app/experiments?experiment=pipeline.excel-ingestion');
+  await page.getByLabel('입력 워크북 (.xlsx)').setInputFiles('../experiments/pipeline/excel-ingestion/scenarios/fixtures/sample.xlsx');
+  await page.getByLabel('시나리오 ID').fill('e2e-excel-series-' + Date.now());
+  await page.getByLabel('가설').fill('반복마다 같은 워크북 복사본을 쓴다');
+  await page.getByLabel('측정 반복 횟수').fill('3');
+  await page.getByRole('button', { name: '반복 측정 실행 (3회)' }).click();
+  await page.getByRole('link', { name: '접수된 반복 측정 보기' }).click();
+  const members = page.getByRole('table', { name: '반복 구성' });
+  await expect(members.getByRole('row')).toHaveCount(4, { timeout: 30000 });
+  await expect(page.getByRole('table', { name: 'measure별 통계' })).toContainText('rows.inserted', { timeout: 30000 });
+});

@@ -19,9 +19,11 @@ import {
   readSaved,
   submitRun,
   supportsForm,
+  withWorkbook,
   type Draft,
   type Saved,
 } from './execution';
+import { validateWorkbook } from './LegacyTools';
 export function ExecutionPage({
   catalog,
   experiment,
@@ -55,7 +57,12 @@ export function ExecutionPage({
       {experiment && !descriptor && catalog.length > 0 && (
         <p role="alert">등록되지 않은 실험입니다.</p>
       )}
-      {descriptor &&
+      {descriptor && Input && supportsForm(descriptor) ? (
+        <>
+          <Input />
+          <ExecutionForm key={descriptor.id} descriptor={descriptor} catalog={catalog} />
+        </>
+      ) : descriptor &&
         (Input ? (
           <Input />
         ) : supportsForm(descriptor) ? (
@@ -84,6 +91,8 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
   const [seriesId, setSeriesId] = useState('');
   const [repeat, setRepeat] = useState({ repetitions: 1, warmup: 0 });
   const [sweepId, setSweepId] = useState('');
+  const takesWorkbook = descriptor.input === 'XLSX_UPLOAD';
+  const [workbook, setWorkbook] = useState<File>();
   const [sweepRows, setSweepRows] = useState([
     { parameter: '', values: '' },
     { parameter: '', values: '' },
@@ -151,13 +160,16 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
     setSweepId('');
     try {
       const grid = sweepGrid();
+      if (takesWorkbook) validateWorkbook(workbook);
+      const file = takesWorkbook ? workbook : undefined;
+      const document = file ? await withWorkbook(definition(descriptor, draft), file) : definition(descriptor, draft);
       if (Object.keys(grid).length) {
         if (sweepPointCount(grid) > MAX_SWEEP_POINTS)
           throw new Error(`스윕 점은 최대 ${MAX_SWEEP_POINTS}개입니다.`);
-        setSweepId(await submitSweep(definition(descriptor, draft), grid, repeat.repetitions, repeat.warmup));
+        setSweepId(await submitSweep(document, grid, repeat.repetitions, repeat.warmup, file));
       } else if (repeat.repetitions > 1 || repeat.warmup > 0)
-        setSeriesId(await submitSeries(definition(descriptor, draft), repeat.repetitions, repeat.warmup));
-      else setRunId(await submitRun(definition(descriptor, draft)));
+        setSeriesId(await submitSeries(document, repeat.repetitions, repeat.warmup, file));
+      else setRunId(await submitRun(document, file));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -189,6 +201,21 @@ function ExecutionForm({ descriptor, catalog }: { descriptor: Descriptor; catalo
       <form onSubmit={submit} className="execution-form">
         <fieldset disabled={busy}>
           <legend>실행 조건 · SINGLE_PASS</legend>
+          {takesWorkbook && (
+            <label>
+              입력 워크북 (.xlsx)
+              <input
+                type="file"
+                accept=".xlsx"
+                required
+                onChange={(e) => setWorkbook(e.target.files?.[0])}
+              />
+              <small>
+                파일을 한 번 올리면 반복·스윕의 모든 Run이 같은 내용의 복사본을 씁니다. SHA-256은 브라우저에서 계산해 정의에
+                기록합니다.
+              </small>
+            </label>
+          )}
           <label>
             시나리오 ID
             <input

@@ -145,7 +145,7 @@ export function definition(descriptor: Descriptor, draft: Draft) {
 }
 export function supportsForm(d: Descriptor) {
   return (
-    d.input === 'NONE' &&
+    (d.input === 'NONE' || d.input === 'XLSX_UPLOAD') &&
     d.measurementModes.includes('SINGLE_PASS') &&
     Object.values(d.parameters).every(
       (p) =>
@@ -155,12 +155,34 @@ export function supportsForm(d: Descriptor) {
     )
   );
 }
-export async function submitRun(document: ReturnType<typeof definition>): Promise<string> {
+/** The uploaded workbook's name inside the definition: a safe relative .xlsx name, never a client path. */
+export function workbookName(name: string) {
+  const base = name.replace(/\.xlsx$/i, '').replace(/[^A-Za-z0-9._-]/g, '_').replace(/^[._-]+/, '').slice(0, 200);
+  return (base || 'input') + '.xlsx';
+}
+
+/** Adds the workbook's name and SHA-256 to a definition, as the server checks the uploaded bytes against it. */
+export async function withWorkbook<T extends object>(document: T, file: File) {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+  return { ...document, input: { file: workbookName(file.name), sha256 } };
+}
+
+/** JSON for definitions without input; multipart scenario + file (+ extra parts) when a workbook is attached. */
+export function requestBody(document: unknown, file?: File, extra: Record<string, string> = {}): RequestInit {
+  if (!file) return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(document) };
+  const body = new FormData();
+  body.append('scenario', new Blob([JSON.stringify(document)], { type: 'application/json' }), 'scenario.json');
+  for (const [name, value] of Object.entries(extra)) body.append(name, value);
+  body.append('file', file);
+  return { body };
+}
+
+export async function submitRun(document: ReturnType<typeof definition>, file?: File): Promise<string> {
   try {
     const response = await fetch(apiUrl('/runs'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(document),
+      ...requestBody(document, file),
       signal: AbortSignal.timeout(15000),
     });
     if (response.status >= 400 && response.status < 500 && response.status !== 408)

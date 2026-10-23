@@ -114,3 +114,25 @@ describe('schema driven execution', () => {
     expect(comparisonCsv(comparison)).toContain('\r\n"caution"');
   });
 });
+
+describe('workbook uploads', () => {
+  it('turns any client file name into a safe relative .xlsx name', async () => {
+    const { workbookName } = await import('./execution');
+    expect(workbookName('C:\\fakepath\\매출 2026.XLSX')).toBe('C__fakepath____2026.xlsx');
+    expect(workbookName('../../etc.xlsx')).toBe('etc.xlsx');
+    expect(workbookName('.xlsx')).toBe('input.xlsx');
+  });
+
+  it('records the SHA-256 of the bytes and sends scenario, extra parts and file as multipart', async () => {
+    const { requestBody, withWorkbook } = await import('./execution');
+    const file = new File(['abc'], 'data.xlsx');
+    const document = await withWorkbook({ schemaVersion: 1 }, file);
+    expect(document.input).toEqual({
+      file: 'data.xlsx',
+      sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    });
+    const body = requestBody(document, file, { grid: '{"chunkSize":[1,2]}' }).body as FormData;
+    expect([...body.keys()]).toEqual(['scenario', 'grid', 'file']);
+    expect(requestBody({ a: 1 })).toEqual({ headers: { 'Content-Type': 'application/json' }, body: '{"a":1}' });
+  });
+});

@@ -1,3 +1,4 @@
+import { requestBody } from './execution';
 import { apiUrl } from './api';
 
 export type Statistics = {
@@ -104,15 +105,15 @@ export async function submitSeries(
   document: unknown,
   repetitions: number,
   warmup: number,
+  file?: File,
 ): Promise<string> {
   const query = new URLSearchParams({ repetitions: String(repetitions), warmup: String(warmup) });
   let response: Response;
   try {
     response = await fetch(apiUrl('/run-series?' + query), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(document),
-      signal: AbortSignal.timeout(15000),
+      ...requestBody(document, file),
+      signal: AbortSignal.timeout(file ? 60000 : 15000),
     });
   } catch {
     throw new Error(
@@ -236,15 +237,15 @@ export async function submitSweep(
   grid: Record<string, unknown[]>,
   repetitions: number,
   warmup: number,
+  file?: File,
 ): Promise<string> {
   const query = new URLSearchParams({ repetitions: String(repetitions), warmup: String(warmup) });
   let response: Response;
   try {
     response = await fetch(apiUrl('/run-sweeps?' + query), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ definition, grid }),
-      signal: AbortSignal.timeout(15000),
+      ...(file ? requestBody(definition, file, { grid: JSON.stringify(grid) }) : requestBody({ definition, grid })),
+      signal: AbortSignal.timeout(file ? 60000 : 15000),
     });
   } catch {
     throw new Error('접수 여부를 확인할 수 없습니다. 반복 측정 목록에서 확인한 뒤 다시 실행하세요.');
