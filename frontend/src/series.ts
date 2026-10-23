@@ -35,6 +35,8 @@ export type SeriesView = {
   }[];
   measuredSucceeded: number;
   measures: { role: string; name: string; unit: string; kind: string; statistics: Statistics }[];
+  /** Other runs that executed while a repetition ran; absent from servers before this field existed. */
+  overlappingRunIds?: string[];
 };
 export type Separation = 'INSUFFICIENT' | 'OVERLAPPING' | 'SEPARATED';
 export type SeriesComparison = {

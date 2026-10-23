@@ -4,6 +4,7 @@ import com.pnomeer.lab.app.run.ScenarioRunService;
 import com.pnomeer.lab.core.input.InputPayload;
 import com.pnomeer.lab.core.storage.*;
 import com.pnomeer.lab.registry.measurement.MeasurementContract;
+import com.pnomeer.lab.runtime.DurableExperimentRunner;
 import com.pnomeer.lab.scenario.ScenarioDefinition;
 import com.pnomeer.lab.scenario.ScenarioDocuments;
 import com.pnomeer.lab.scenario.ScenarioProperties;
@@ -30,12 +31,14 @@ public class RunSeriesService {
     private final TaskExecutor executor;
     private final SeriesProperties properties;
     private final ScenarioProperties scenarioProperties;
+    private final DurableExperimentRunner runner;
 
     public RunSeriesService(ScenarioRunService runs, ScenarioDocuments documents,
             com.pnomeer.lab.storage.JdbcRunStore store, @Qualifier("seriesTaskExecutor") TaskExecutor executor,
-            SeriesProperties properties, ScenarioProperties scenarioProperties) {
+            SeriesProperties properties, ScenarioProperties scenarioProperties, DurableExperimentRunner runner) {
         this.runs = runs; this.documents = documents; this.runStore = store; this.seriesStore = store;
         this.executor = executor; this.properties = properties; this.scenarioProperties = scenarioProperties;
+        this.runner = runner;
     }
 
     /** Takes ownership of {@code input}; it is closed when the series ends or is rejected. */
@@ -64,8 +67,9 @@ public class RunSeriesService {
     /** Runs the series on the calling thread and returns its final status. Closes {@code input}. */
     RunStatus coordinate(RunSeries series, ScenarioDefinition definition, InputPayload input) {
         String id = series.seriesId();
-        try (input) {
+        try (input; var reservation = reserve()) {
             seriesStore.startSeries(id);
+            awaitIdle(id);
             int failedMeasured = 0;
             for (int position = 0; position < series.total(); position++) {
                 boolean warmup = position < series.warmup();
@@ -87,6 +91,24 @@ public class RunSeriesService {
             log.warn("series_id={} stage=series reason={}", id, ex.getMessage());
             finish(id, RunStatus.FAILED, "Series stopped: " + ex.getMessage());
             return RunStatus.FAILED;
+        }
+    }
+
+    /** Sweeps hold one reservation across all points; the runner's reservation is re-entrant. */
+    DurableExperimentRunner.MeasurementReservation reserve() {
+        return properties.exclusive() ? runner.reserveMeasurement() : () -> { };
+    }
+
+    /** Runs admitted before the reservation would overlap the first repetition; give them time to finish. */
+    private void awaitIdle(String seriesId) throws InterruptedException {
+        long deadline = System.nanoTime() + properties.runTimeoutMs() * 1_000_000;
+        List<String> busy;
+        while (!(busy = seriesStore.unfinishedRunIds(20)).isEmpty()) {
+            if (System.nanoTime() > deadline) {
+                log.warn("series_id={} stage=series reason=other runs still active, measuring anyway: {}", seriesId, busy);
+                return;
+            }
+            Thread.sleep(properties.pollIntervalMs());
         }
     }
 
@@ -138,7 +160,18 @@ public class RunSeriesService {
         var measures = contract.map(c -> c.measures().stream().map(measure -> new SeriesView.Measure(measure.role(), measure.name(),
                 measure.unit(), measure.kind().name(), SeriesStatistics.of(measured.stream().map(r -> value(r, measure)).toList()))).toList())
                 .orElse(List.of());
-        return new SeriesView(series, rows, measured.size(), measures);
+        return new SeriesView(series, rows, measured.size(), measures, overlapping(rows));
+    }
+
+    private List<String> overlapping(List<SeriesView.Member> rows) {
+        var started = rows.stream().filter(m -> m.startedAtEpochMs() > 0).toList();
+        if (started.isEmpty()) return List.of();
+        long from = started.stream().mapToLong(SeriesView.Member::startedAtEpochMs).min().orElseThrow();
+        long to = started.stream().anyMatch(m -> m.completedAtEpochMs() == 0) ? Long.MAX_VALUE
+                : started.stream().mapToLong(SeriesView.Member::completedAtEpochMs).max().orElseThrow();
+        var own = rows.stream().map(SeriesView.Member::runId).collect(java.util.stream.Collectors.toSet());
+        // A run inside the window but between two repetitions is listed too: it is rare and worth a look.
+        return seriesStore.runsActiveBetween(from, to, 20 + own.size()).stream().filter(r -> !own.contains(r)).limit(20).toList();
     }
 
     public SeriesComparison compare(String baselineId, String candidateId) {

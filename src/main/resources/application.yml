@@ -117,6 +117,8 @@ lab:
     queue-capacity: 4
     run-timeout-ms: 1800000
     poll-interval-ms: 200
+    # While a series measures, runs submitted any other way get 409 so they cannot skew its numbers.
+    exclusive: true
   storage:
     root: .lab
     queue-capacity: 1000

@@ -268,6 +268,20 @@ public final class JdbcRunStore implements RunStore, RunSeriesStore, AutoCloseab
         return jdbc.query("select * from lab_sweep where experiment_type=? order by seq desc limit ?", this::readSweep, type, limit);
     }
 
+    @Override
+    public List<String> unfinishedRunIds(int limit) {
+        if (limit < 1 || limit > 1000) throw new IllegalArgumentException("limit must be 1..1000");
+        return jdbc.queryForList("select run_id from lab_run where status in ('QUEUED','RUNNING') order by seq limit ?", String.class, limit);
+    }
+
+    @Override
+    public List<String> runsActiveBetween(long from, long to, int limit) {
+        if (limit < 1 || limit > 1000) throw new IllegalArgumentException("limit must be 1..1000");
+        // A run with started_at 0 never executed; completed_at 0 means it is still running. Touching ends do not overlap.
+        return jdbc.queryForList("select run_id from lab_run where started_at > 0 and started_at < ?"
+                + " and (completed_at = 0 or completed_at > ?) order by started_at limit ?", String.class, to, from, limit);
+    }
+
     @SuppressWarnings("unchecked")
     private RunSweep readSweep(ResultSet row, int n) throws SQLException {
         return new RunSweep(row.getLong("seq"), row.getString("sweep_id"), row.getString("experiment_type"), row.getString("scenario_id"),

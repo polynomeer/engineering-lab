@@ -27,6 +27,10 @@ public interface RunSeriesStore {
     /** Ordered by position. */
     List<RunSweep.Point> sweepPoints(String sweepId);
     List<RunSweep> listSweeps(String experimentType, int limit);
+    /** Runs still QUEUED or RUNNING, oldest first. */
+    List<String> unfinishedRunIds(int limit);
+    /** Runs whose execution window [start, completion or now] overlaps (from, to); shared endpoints do not count, oldest first. */
+    List<String> runsActiveBetween(long fromEpochMs, long toEpochMs, int limit);
     /** Marks unfinished series and sweeps INTERRUPTED after a restart; never resumes them. */
     int recoverInterruptedSeries();
 }

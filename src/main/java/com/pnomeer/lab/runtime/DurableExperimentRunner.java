@@ -20,6 +20,16 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
     private final MetricWriterOptions options;
     private final int previewLimit;
     private final java.util.function.Function<String, Map<String, String>> measurementMetadata;
+    private Thread measurementOwner;
+    private int measurementDepth;
+
+    /** Thrown by {@link #prepare} while another thread holds the measurement reservation. */
+    public static final class MeasurementReserved extends IllegalStateException {
+        MeasurementReserved() { super("A repeated-run series is measuring; submit after it finishes or set lab.series.exclusive=false"); }
+    }
+
+    /** Re-entrant on the owning thread; the reservation ends when every holder has closed it. */
+    public interface MeasurementReservation extends AutoCloseable { @Override void close(); }
 
     public DurableExperimentRunner(RunStore store, Supplier<GitProvenance> provenance,
             MetricWriterOptions options, int previewLimit, int maxActiveRuns) {
@@ -140,8 +150,30 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         this.previewLimit = previewLimit;
     }
 
+    /**
+     * Reserves the runner for the calling thread, so runs prepared elsewhere cannot share this JVM with a
+     * repeated measurement. Runs already admitted keep running; callers detect them by their timestamps.
+     */
+    public synchronized MeasurementReservation reserveMeasurement() {
+        Thread current = Thread.currentThread();
+        if (measurementOwner != null && measurementOwner != current) throw new MeasurementReserved();
+        measurementOwner = current;
+        measurementDepth++;
+        var closed = new java.util.concurrent.atomic.AtomicBoolean();
+        return () -> {
+            synchronized (this) {
+                if (closed.compareAndSet(false, true) && measurementOwner == current && --measurementDepth == 0) measurementOwner = null;
+            }
+        };
+    }
+
+    private synchronized void requireMeasurementOwner() {
+        if (measurementOwner != null && measurementOwner != Thread.currentThread()) throw new MeasurementReserved();
+    }
+
     public <C extends ExperimentScenario> StoredRun prepare(Experiment<C> experiment, C scenario, String id) {
         admission.checkAccepting();
+        requireMeasurementOwner();
         var executor = executors.select(experiment.type()).executor();
         executor.preflight();
         var parameters = new HashMap<>(experiment.parameters(scenario));

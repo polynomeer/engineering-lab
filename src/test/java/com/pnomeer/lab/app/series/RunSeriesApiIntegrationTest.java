@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RunSeriesApiIntegrationTest {
     @Autowired RunSeriesController controller;
     @Autowired RunStore runs;
+    @Autowired com.pnomeer.lab.app.run.ScenarioRunService scenarioRuns;
+    @Autowired com.pnomeer.lab.scenario.ScenarioDocuments documents;
     private MockMvc mvc;
     private final JsonMapper json = JsonMapper.builder().build();
     private static String queue(int capacity) {
@@ -46,6 +48,24 @@ class RunSeriesApiIntegrationTest {
             Thread.sleep(50);
         }
         throw new AssertionError("Series did not finish: " + id);
+    }
+
+    @Test void rejectsOtherSubmissionsWhileASeriesMeasures() throws Exception {
+        String slow = queue(2).replace("\"itemsPerProducer\":20,\"consumerDelayMs\":1", "\"itemsPerProducer\":40,\"consumerDelayMs\":10");
+        String id = submit(slow, "?repetitions=2&warmup=0");
+        long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        while (!json.readTree(mvc.perform(get("/run-series/" + id)).andReturn().getResponse().getContentAsString())
+                .get("series").get("status").asString().equals("RUNNING")) {
+            assertTrue(System.nanoTime() < deadline, "series never started");
+            Thread.sleep(10);
+        }
+        var definition = documents.read(new java.io.ByteArrayInputStream(queue(8).getBytes()), com.pnomeer.lab.scenario.ScenarioDocuments.Format.JSON);
+        assertThrows(com.pnomeer.lab.runtime.DurableExperimentRunner.MeasurementReserved.class, () -> scenarioRuns.submit(definition, null));
+        var view = finished(id);
+        assertEquals("SUCCEEDED", view.get("series").get("status").asString());
+        assertEquals(0, view.get("overlappingRunIds").size());
+        // The reservation ends with the series.
+        assertNotNull(scenarioRuns.submit(definition, null));
     }
 
     @Test void runsWarmupThenRepetitionsAndSummarizesOnlyMeasuredRuns() throws Exception {

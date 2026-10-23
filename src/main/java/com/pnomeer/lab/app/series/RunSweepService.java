@@ -52,7 +52,7 @@ public class RunSweepService {
 
     void coordinate(RunSweep sweep, List<SweepGrid.Point> points, InputPayload input, int repetitions, int warmup) {
         String id = sweep.sweepId();
-        try (input) {
+        try (input; var reservation = series.reserve()) {
             store.startSweep(id);
             int failed = 0;
             for (var point : points) {

@@ -1549,3 +1549,9 @@ form {
 .sweep-heatmap th, .sweep-heatmap td { text-align: center; padding: 12px 16px; border: 1px solid var(--surface-hover); }
 .sweep-heatmap td .mono { color: var(--text-primary); }
 .sweep-field { display: grid; gap: 4px; }
+
+/* Series cautions: conditions that weaken a distribution, kept visually apart from the numbers. */
+.series-cautions { border-color: rgba(233, 180, 92, .55); background: rgba(233, 180, 92, .06); }
+.series-cautions h2 { font-size: 15px; margin: 0 0 6px; color: var(--accent); }
+.series-cautions p { margin: 0 0 6px; }
+.series-cautions ul { margin: 0; padding-left: 18px; font-size: 12px; }

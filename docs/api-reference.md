@@ -82,13 +82,14 @@ curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID/metrics?af
 | --- | --- | --- |
 | POST | `/run-series?repetitions=5&warmup=1` | `POST /runs`와 같은 시나리오 문서(JSON/YAML, Excel은 multipart `scenario`+`file`). 202와 `seriesId`, `definitionSha256` |
 | GET | `/run-series?experimentType=...&limit=20` | 최신순 묶음 목록(limit 1–100) |
-| GET | `/run-series/{seriesId}` | `series`, `members`(position·runId·warmup·status), `measuredSucceeded`, `measures`(measure별 `statistics`) |
+| GET | `/run-series/{seriesId}` | `series`, `members`(position·runId·warmup·status), `measuredSucceeded`, `measures`(measure별 `statistics`), `overlappingRunIds`(반복 실행 중 같은 서버에서 실행된 다른 Run, 최대 20개) |
 | PUT | `/run-series/{seriesId}/baseline` | 성공하고 측정 반복이 3회 이상인 묶음을 그 실험·시나리오 ID의 기준선으로 지정(교체). 조건 미달은 409 |
 | GET | `/run-series/baselines?limit=50` | 지정된 기준선 묶음, 최근 지정순 |
 | GET | `/run-series/{seriesId}/regression?tolerancePct=5` | 같은 실험·시나리오 ID의 기준선과 비교. `overall`(PASS·REGRESSION·INSUFFICIENT·NO_BASELINE)과 measure별 `direction`, `changePct`, `separation`, `verdict` |
 | GET | `/run-series/compare?baseline=...&candidate=...` | 같은 실험의 두 묶음을 measure별로 비교. `sameDefinition`, `medianChangePct`, `separation` |
 
 - 반복은 하나씩 순서대로 실행한다. warmup Run도 일반 Run으로 저장하지만 통계에서 제외한다. 반복 수는 정의 hash에 들어가지 않는다.
+- 묶음(스윕이면 스윕 전체)이 측정하는 동안 다른 경로로 들어온 Run 접수(`POST /runs`, 기존 화면 포함)는 409로 거절한다(`lab.series.exclusive=false`로 끌 수 있음). 묶음은 시작 전에 이미 접수된 Run이 끝나기를 Run 하나의 대기 시간만큼 기다린다. 그래도 겹친 Run은 `overlappingRunIds`에 나타난다.
 - `statistics`는 `count`, `min`, `max`, `mean`, `median`, `p95`(nearest rank), `standardDeviation`(표본), `coefficientOfVariation`이다. 값이 없으면 null이며 0으로 채우지 않는다.
 - `separation`은 보수적 판정이다. 어느 쪽이든 성공한 측정 반복이 3개 미만이면 `INSUFFICIENT`, 관측 범위(min–max)가 겹치면 `OVERLAPPING`(차이 불분명), 모든 반복이 상대 범위 밖이면 `SEPARATED`다. 통계적 유의성 검정이 아니다.
 

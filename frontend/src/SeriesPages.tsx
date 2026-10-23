@@ -145,6 +145,28 @@ function StatisticsRow({ stats, unit }: { stats: Statistics; unit: string }) {
   );
 }
 
+/** Conditions that make the distribution less trustworthy; shown above it, never folded into the numbers. */
+function SeriesCautions({ view }: { view: SeriesView }) {
+  const overlapping = view.overlappingRunIds ?? [];
+  if (!overlapping.length) return null;
+  return (
+    <section className="panel series-cautions" role="note" aria-label="측정 환경 주의">
+      <h2>측정 환경 주의</h2>
+      <p>
+        반복이 실행되는 동안 다른 Run {overlapping.length}개가 같은 서버에서 실행됐습니다. 이 묶음의 값에는 그 부하가
+        섞여 있을 수 있습니다.
+      </p>
+      <ul className="mono">
+        {overlapping.map((id) => (
+          <li key={id}>
+            <a href={'/app/runs/' + encodeURIComponent(id)}>{id}</a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function SeriesDetail({ id }: { id: string }) {
   const { value, error, retry } = useResource<SeriesView>(
     '/run-series/' + encodeURIComponent(id),
@@ -198,6 +220,7 @@ export function SeriesDetail({ id }: { id: string }) {
         <i style={{ width: (progress.finished / progress.total) * 100 + '%' }} />
       </div>
       {series.failureMessage && <p className="error">{series.failureMessage}</p>}
+      <SeriesCautions view={value} />
       <section className="panel">
         <div className="section-heading">
           <h2>measure 분포</h2>
