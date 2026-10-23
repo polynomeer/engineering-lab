@@ -16,6 +16,11 @@ public interface RunStore {
     Optional<StoredRun> find(String runId);
     /** Newest first; beforeSequence is exclusive. Null type means all experiments. */
     List<StoredRun> list(String experimentType, long beforeSequence, int limit);
+    /** Newest first; null filters match everything. {@code scenarioPrefix} matches IDs that start with it. */
+    default List<StoredRun> list(String experimentType, String scenarioPrefix, RunStatus status, long beforeSequence, int limit) {
+        if (scenarioPrefix == null && status == null) return list(experimentType, beforeSequence, limit);
+        throw new UnsupportedOperationException("Filtered listing unavailable");
+    }
     void appendMetrics(String runId, List<StoredMetric> metrics);
     /** Oldest first; afterSequence is exclusive, starting at -1. */
     List<StoredMetric> metrics(String runId, long afterSequence, int limit);

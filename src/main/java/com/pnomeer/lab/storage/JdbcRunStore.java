@@ -493,6 +493,22 @@ public final class JdbcRunStore implements RunStore, RunSeriesStore, AutoCloseab
     }
 
     @Override
+    public List<StoredRun> list(String type, String scenarioPrefix, RunStatus status, long before, int limit) {
+        checkLimit(limit);
+        var sql = new StringBuilder("select * from lab_run where seq < ?");
+        var args = new java.util.ArrayList<Object>(List.of(before));
+        if (type != null) { sql.append(" and experiment_type=?"); args.add(type); }
+        if (scenarioPrefix != null) {
+            sql.append(" and scenario_id like ? escape '!'");
+            args.add(scenarioPrefix.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
+        }
+        if (status != null) { sql.append(" and status=?"); args.add(status.name()); }
+        sql.append(" order by seq desc limit ?");
+        args.add(limit);
+        return jdbc.query(sql.toString(), this::readRun, args.toArray());
+    }
+
+    @Override
     public void appendMetrics(String id, List<StoredMetric> metrics) {
         if (metrics.size() > batchLimit) throw new IllegalArgumentException("Metric batch exceeds limit");
         if (metrics.isEmpty()) return;

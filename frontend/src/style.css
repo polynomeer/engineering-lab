@@ -1558,3 +1558,4 @@ form {
 .run-findings h2 { font-size: 15px; margin: 0 0 6px; }
 .run-findings ul { margin: 0 0 6px; padding-left: 18px; }
 .run-findings small { color: var(--text-muted); margin-left: 6px; }
+.history-field { display: grid; gap: 4px; }

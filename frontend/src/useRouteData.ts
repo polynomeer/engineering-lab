@@ -33,7 +33,7 @@ export function useRouteData(route: Route, pageSize: number, refresh: number, af
           const params = new URLSearchParams({
             limit: String(Math.min(pageSize, 100)),
           });
-          for (const key of ['experiment', 'before'])
+          for (const key of ['experiment', 'scenario', 'status', 'before'])
             if (route.query.get(key))
               params.set(key === 'experiment' ? 'experimentType' : key, route.query.get(key)!);
           setPage(await get('/runs?' + params, controller.signal));

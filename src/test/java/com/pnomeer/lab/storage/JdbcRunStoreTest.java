@@ -61,4 +61,23 @@ class JdbcRunStoreTest {
         }
         assertThrows(IllegalStateException.class, () -> new JdbcRunStore(root, 10, 2));
     }
+
+    @Test
+    void filtersByScenarioPrefixAndStatusWithLikeWildcardsTakenLiterally() {
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            for (String id : List.of("sweep.p0", "sweep.p1", "sweepX", "other")) {
+                store.create("queue", id, metadata(id));
+                store.start(id);
+                store.complete(id, id.equals("sweep.p1") ? RunStatus.FAILED : RunStatus.SUCCEEDED, ExperimentSummary.empty(), null);
+            }
+            store.create("queue", "s_x", metadata("underscore"));
+            store.create("queue", "sax", metadata("plain"));
+            var ids = (java.util.function.Function<List<StoredRun>, List<String>>) runs -> runs.stream().map(StoredRun::scenarioId).toList();
+            assertEquals(List.of("sweep.p1", "sweep.p0"), ids.apply(store.list("queue", "sweep.", null, Long.MAX_VALUE, 10)));
+            assertEquals(List.of("sweep.p1"), ids.apply(store.list(null, "sweep", RunStatus.FAILED, Long.MAX_VALUE, 10)));
+            assertEquals(List.of("s_x"), ids.apply(store.list(null, "s_", null, Long.MAX_VALUE, 10))); // '_' is not a wildcard
+            assertEquals(2, store.list(null, null, RunStatus.QUEUED, Long.MAX_VALUE, 10).size());
+            assertEquals(List.of(), store.list("io", "sweep", null, Long.MAX_VALUE, 10));
+        }
+    }
 }

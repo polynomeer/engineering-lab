@@ -29,6 +29,7 @@ class ScenarioApiIntegrationTest {
     @Autowired MeasurementController measurements;
     @Autowired ExecutionEvidenceController executionEvidence;
     @Autowired RunStore store;
+    @Autowired RunController runController;
     @Autowired IngestionService ingestion;
     private MockMvc mvc;
     private final JsonMapper json = JsonMapper.builder().build();
@@ -93,6 +94,21 @@ class ScenarioApiIntegrationTest {
         assertEquals(experimentsBefore, mvc.perform(get("/experiments")).andReturn().getResponse().getContentAsString());
         assertEquals(modulesBefore, mvc.perform(get("/modules")).andReturn().getResponse().getContentAsString());
     }
+    @Test void listsRunsFilteredByScenarioPrefixAndStatus() throws Exception {
+        String body = mvc.perform(post("/runs").contentType("application/json").content(QUEUE)).andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        var run = completed((String)json.readValue(body, Map.class).get("runId"));
+        String prefix = run.scenarioId().substring(0, 3);
+        var runs = runController.list(null, Long.MAX_VALUE, null, prefix, run.status().name()).runs();
+        assertFalse(runs.isEmpty());
+        for (var r : runs) {
+            assertTrue(r.scenarioId().startsWith(prefix));
+            assertEquals(run.status(), r.status());
+        }
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> runController.list(null, Long.MAX_VALUE, null, null, "BOGUS"));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> runController.list(null, Long.MAX_VALUE, null, "x".repeat(201), null));
+    }
+
     @Test void invalidDefinitionsDoNotCreateRuns() throws Exception {
         int before = store.list(null, Long.MAX_VALUE, 500).size();
         for (String invalid : List.of(QUEUE.replace("queueCapacity\":2", "queueCapacity\":\"2\""),

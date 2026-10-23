@@ -17,11 +17,17 @@ public class RunController {
     @GetMapping
     public RunPage list(@RequestParam(required=false) String experimentType,
             @RequestParam(defaultValue="9223372036854775807") long before,
-            @RequestParam(required=false) Integer limit) {
+            @RequestParam(required=false) Integer limit,
+            @RequestParam(required=false) String scenario, @RequestParam(required=false) String status) {
         limit = limit == null ? Math.min(100, properties.pageLimit()) : limit;
         validateLimit(limit);
         if (before < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "before must be positive");
-        var runs = store.list(experimentType, before, limit);
+        if (scenario != null && (scenario.isBlank() || scenario.length() > 200))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scenario must be 1..200 characters");
+        RunStatus state;
+        try { state = status == null || status.isBlank() ? null : RunStatus.valueOf(status); }
+        catch (IllegalArgumentException ex) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown status: " + status); }
+        var runs = store.list(experimentType, scenario, state, before, limit);
         return new RunPage(runs, runs.size() == limit ? runs.getLast().sequence() : null);
     }
     @GetMapping("/{runId}")

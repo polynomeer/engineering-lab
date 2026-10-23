@@ -64,7 +64,7 @@ CLI는 이 API의 클라이언트입니다. 오프라인 `validate`, 실행 대�
 
 | Method | 경로 | 응답의 주요 필드 |
 | --- | --- | --- |
-| GET | `/runs?limit=100&experimentType=...` | `runs`, `nextBefore` |
+| GET | `/runs?limit=100&experimentType=...&scenario=...&status=...` | `runs`, `nextBefore`. `scenario`는 시나리오 ID 시작 문자열(1–200자, 스윕 점 `<id>.p<N>`을 한 번에 찾을 때), `status`는 QUEUED·RUNNING·SUCCEEDED·FAILED·INTERRUPTED. 알 수 없는 상태는 400 |
 | GET | `/runs/{runId}` | 상태·시각·`runMetadata`·`summary`·`failureMessage` |
 | GET | `/runs/{runId}/metrics?after=-1&limit=100` | `metrics`, `nextAfter` |
 | GET | `/runs/{runId}/traces?after=-1&limit=100` | trace metric만 필터링한 `metrics`, `nextAfter` |
