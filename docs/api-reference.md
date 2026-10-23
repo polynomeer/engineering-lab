@@ -86,6 +86,8 @@ curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID/metrics?af
 | PUT | `/run-series/{seriesId}/baseline` | 성공하고 측정 반복이 3회 이상인 묶음을 그 실험·시나리오 ID의 기준선으로 지정(교체). 조건 미달은 409 |
 | GET | `/run-series/baselines?limit=50` | 지정된 기준선 묶음, 최근 지정순 |
 | GET | `/run-series/{seriesId}/regression?tolerancePct=5` | 같은 실험·시나리오 ID의 기준선과 비교. `overall`(PASS·REGRESSION·INSUFFICIENT·NO_BASELINE)과 measure별 `direction`, `changePct`, `separation`, `verdict` |
+| GET | `/run-series/{seriesId}/baseline-file` | 기준선 자격(성공, 측정 반복 3회 이상)이 있는 묶음의 측정값 원본·정의 hash·환경·Git commit을 담은 기준선 파일(JSON). 자격이 없으면 409 |
+| POST | `/run-series/{seriesId}/regression?tolerancePct=5` | 본문의 기준선 파일과 비교한다. 판정 규칙은 GET과 같다. 실험·시나리오 ID가 다르면 400. 정의 hash나 CPU 수·최대 heap·Java·OS가 다르면 `cautions`에 적는다 |
 | GET | `/run-series/compare?baseline=...&candidate=...` | 같은 실험의 두 묶음을 measure별로 비교. `sameDefinition`, `medianChangePct`, `separation` |
 
 - 반복은 하나씩 순서대로 실행한다. warmup Run도 일반 Run으로 저장하지만 통계에서 제외한다. 반복 수는 정의 hash에 들어가지 않는다.

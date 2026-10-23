@@ -95,6 +95,19 @@ public class RunSeriesController {
         return service.regression(seriesId, tolerancePct);
     }
 
+    @GetMapping("/{seriesId}/baseline-file")
+    public ResponseEntity<BaselineFile> baselineFile(@PathVariable String seriesId) {
+        var file = service.baselineFile(seriesId);
+        return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=" + file.scenarioId() + ".baseline.json").body(file);
+    }
+
+    /** Regression check against a baseline file in the body, e.g. one committed for CI. */
+    @PostMapping(value = "/{seriesId}/regression", consumes = "application/json")
+    public RegressionCheck regressionAgainstFile(@PathVariable String seriesId, @RequestBody BaselineFile baseline,
+            @RequestParam(defaultValue="5") double tolerancePct) {
+        return service.regression(seriesId, baseline, tolerancePct);
+    }
+
     private static void bounds(int repetitions, int warmup) {
         if (repetitions < 1 || repetitions > RunSeries.MAX_REPETITIONS || warmup < 0 || warmup > RunSeries.MAX_WARMUP)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

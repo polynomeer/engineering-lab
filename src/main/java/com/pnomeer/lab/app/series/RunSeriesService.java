@@ -214,6 +214,44 @@ public class RunSeriesService {
         return RegressionCheck.of(compare(baseline.get().seriesId(), seriesId), tolerancePct);
     }
 
+    /** Raw measured values of a baseline-worthy series, for committing or carrying to another store. */
+    public BaselineFile baselineFile(String seriesId) {
+        var view = view(seriesId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown series"));
+        if (view.series().status() != RunStatus.SUCCEEDED || view.measuredSucceeded() < SeriesStatistics.MIN_FOR_COMPARISON)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A baseline needs a succeeded series with at least " + SeriesStatistics.MIN_FOR_COMPARISON + " measured repetitions");
+        var measured = measuredRuns(view);
+        var contract = measured.stream().map(r -> MeasurementContract.read(r.runMetadata().parameters().get(MeasurementContract.PARAMETER), r.experimentType()))
+                .flatMap(Optional::stream).findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Series runs carry no measurement contract"));
+        var measures = contract.measures().stream().map(m -> new BaselineFile.Measure(m.role(), m.name(), m.unit(), m.kind().name(),
+                measured.stream().map(r -> value(r, m)).filter(Objects::nonNull).toList())).toList();
+        var first = measured.getFirst();
+        return new BaselineFile(BaselineFile.SCHEMA_VERSION, view.series().experimentType(), view.series().scenarioId(),
+                view.series().definitionSha256(), seriesId, System.currentTimeMillis(), first.runMetadata().git().commit(),
+                first.runMetadata().environment(), measures);
+    }
+
+    /** Checks a finished series against a baseline file instead of the store's pinned baseline. */
+    public RegressionCheck regression(String seriesId, BaselineFile baseline, double tolerancePct) {
+        if (!(tolerancePct >= 0 && tolerancePct <= 100)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tolerancePct must be 0..100");
+        var candidate = view(seriesId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown series"));
+        if (!baseline.experimentType().equals(candidate.series().experimentType()) || !baseline.scenarioId().equals(candidate.series().scenarioId()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Baseline file is for " + baseline.experimentType() + "/" + baseline.scenarioId());
+        var cautions = new ArrayList<String>();
+        if (!baseline.definitionSha256().equals(candidate.series().definitionSha256()))
+            cautions.add("Scenario definition differs from the baseline file");
+        var measured = measuredRuns(candidate);
+        if (!measured.isEmpty())
+            baseline.environmentDifferences(measured.getFirst().runMetadata().environment()).forEach(d -> cautions.add("Environment differs: " + d));
+        return RegressionCheck.of(SeriesComparison.of(baseline.view(), candidate), tolerancePct).withCautions(cautions);
+    }
+
+    private List<StoredRun> measuredRuns(SeriesView view) {
+        return view.members().stream().filter(m -> !m.warmup() && m.status() == RunStatus.SUCCEEDED)
+                .map(m -> runStore.find(m.runId())).flatMap(Optional::stream).toList();
+    }
+
     private static Double value(StoredRun run, MeasurementContract.Measure measure) {
         Number value = measure.kind() == MeasurementContract.Kind.counter
                 ? run.summary().counters().get(measure.name()) : run.summary().gauges().get(measure.name());

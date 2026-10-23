@@ -20,7 +20,8 @@ public final class LabCli {
     private static final int DOCUMENT_LIMIT = 65536, INPUT_LIMIT = 52428800, RESPONSE_LIMIT = 1048576;
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String USAGE = "lab list [--server URL] | validate FILE | run FILE [--server URL] [--repeat N [--warmup M]] "
-            + "[--wait [--timeout-seconds N] [--check-baseline [--tolerance-pct P]]] | baseline SERIES_ID [--server URL] "
+            + "[--wait [--timeout-seconds N] [--check-baseline | --check-baseline-file FILE [--tolerance-pct P]]] "
+            + "| baseline SERIES_ID [--export FILE] [--server URL] "
             + "| sweep FILE --grid NAME=V1,V2 [--grid ...] [--repeat N] [--warmup M] [--server URL] [--wait [--timeout-seconds N]] "
             + "| retention --older-than-days N [--apply] [--server URL]";
     /** Exit codes: 0 success, 1 failed run or error, 2 wait timeout, 3 regression, 4 no baseline or too few repetitions. */
@@ -59,6 +60,13 @@ public final class LabCli {
                 URI apply = options.server.resolve("/maintenance/retention?olderThanDays=" + options.olderThanDays
                         + "&token=" + java.net.URLEncoder.encode(String.valueOf(listed.get("token")), StandardCharsets.UTF_8));
                 out.println(JSON.writeValueAsString(request(client, apply, HttpRequest.BodyPublishers.noBody(), null, Duration.ofSeconds(60), "POST")));
+                return 0;
+            }
+            if (options.command.equals("baseline") && options.baselineFile != null) {
+                var file = request(client, options.server.resolve("/run-series/" + UUID.fromString(options.seriesId) + "/baseline-file"),
+                        null, null, Duration.ofSeconds(30));
+                Files.writeString(options.baselineFile, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(file) + "\n", StandardCharsets.UTF_8);
+                out.println(JSON.writeValueAsString(Map.of("seriesId", options.seriesId, "exported", options.baselineFile.toString())));
                 return 0;
             }
             if (options.command.equals("baseline")) {
@@ -145,9 +153,11 @@ public final class LabCli {
         out.println(JSON.writeValueAsString(view));
         if (!"SUCCEEDED".equals(object(view.get("series")).get("status"))) return 1;
         if (!options.checkBaseline) return 0;
-        Map<?, ?> check = object(request(client, options.server.resolve("/run-series/" + seriesId + "/regression?tolerancePct=" + options.tolerancePct),
-                null, null, Duration.ofSeconds(30)));
+        URI regression = options.server.resolve("/run-series/" + seriesId + "/regression?tolerancePct=" + options.tolerancePct);
+        Map<?, ?> check = options.baselineFile == null ? object(request(client, regression, null, null, Duration.ofSeconds(30)))
+                : object(request(client, regression, HttpRequest.BodyPublishers.ofFile(options.baselineFile), "application/json", Duration.ofSeconds(30)));
         out.println(JSON.writeValueAsString(check));
+        if (check.get("cautions") instanceof List<?> cautions) cautions.forEach(c -> err.println("Caution: " + c));
         return switch (String.valueOf(check.get("overall"))) {
             case "PASS" -> 0;
             case "REGRESSION" -> { err.println("Regression against baseline " + check.get("baselineSeriesId")); yield EXIT_REGRESSION; }
@@ -268,7 +278,7 @@ public final class LabCli {
 
     private record Options(String command, Path file, String seriesId, URI server, boolean waitForCompletion, int timeoutSeconds,
             Integer repeat, int warmup, boolean checkBaseline, double tolerancePct, Map<String, List<Object>> grid,
-            int olderThanDays, boolean apply) {
+            int olderThanDays, boolean apply, Path baselineFile) {
         static Options parse(String[] args) {
             if (args.length == 0 || !Set.of("run", "validate", "list", "baseline", "sweep", "retention").contains(args[0])) throw new ScenarioException(USAGE);
             String command = args[0]; int index = 1; Path file = null; String seriesId = null;
@@ -279,7 +289,7 @@ public final class LabCli {
             URI server = URI.create("http://localhost:8080"); boolean wait = false; int timeout = 120;
             Integer repeat = null; int warmup = 0; boolean check = false; double tolerance = 5.0;
             var grid = new LinkedHashMap<String, List<Object>>();
-            int olderThanDays = 0; boolean apply = false;
+            int olderThanDays = 0; boolean apply = false; Path baselineFile = null;
             Set<String> seen = new HashSet<>();
             while (index < args.length) {
                 String key = args[index++];
@@ -300,6 +310,8 @@ public final class LabCli {
                     if (grid.put(entry.getKey(), entry.getValue()) != null) throw new ScenarioException("Duplicate grid parameter: " + entry.getKey());
                 }
                 else if (key.equals("--tolerance-pct") && command.equals("run")) tolerance = Double.parseDouble(value);
+                else if (key.equals("--check-baseline-file") && command.equals("run")) { baselineFile = Path.of(value); check = true; }
+                else if (key.equals("--export") && command.equals("baseline")) baselineFile = Path.of(value);
                 else throw new ScenarioException("Unsupported option: " + key);
             }
             if (seen.contains("--timeout-seconds") && !wait) throw new ScenarioException("--timeout-seconds requires --wait");
@@ -310,13 +322,17 @@ public final class LabCli {
                 throw new ScenarioException("retention needs --older-than-days 1..3650");
             if (repeat != null && (repeat < 1 || repeat > 50 || warmup < 0 || warmup > 10))
                 throw new ScenarioException("--repeat must be 1..50 and --warmup 0..10");
+            if (seen.contains("--check-baseline") && seen.contains("--check-baseline-file"))
+                throw new ScenarioException("Use either --check-baseline or --check-baseline-file");
             if (check && (repeat == null || !wait)) throw new ScenarioException("--check-baseline requires --repeat and --wait");
+            if (seen.contains("--check-baseline-file") && !Files.isRegularFile(baselineFile))
+                throw new ScenarioException("Baseline file not found: " + baselineFile);
             if (seen.contains("--tolerance-pct") && !check) throw new ScenarioException("--tolerance-pct requires --check-baseline");
             if (!(tolerance >= 0 && tolerance <= 100)) throw new ScenarioException("--tolerance-pct must be 0..100");
             if (!("http".equals(server.getScheme()) || "https".equals(server.getScheme())) || server.getHost() == null
                     || server.getUserInfo() != null || server.getQuery() != null || server.getFragment() != null
                     || !(server.getPath().isEmpty() || server.getPath().equals("/"))) throw new ScenarioException("--server requires an HTTP(S) origin URL");
-            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance, grid, olderThanDays, apply);
+            return new Options(command, file, seriesId, server, wait, timeout, repeat, warmup, check, tolerance, grid, olderThanDays, apply, baselineFile);
         }
     }
 }

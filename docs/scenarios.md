@@ -94,11 +94,16 @@ stdout은 JSON lines다. validate는 검증 결과/hash, list는 catalog 배열�
 ./gradlew -q lab --args='baseline <seriesId>'
 # 새 묶음을 실행하고 기준선과 비교한다. CI에서 종료 코드로 판정한다
 ./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --repeat 5 --wait --check-baseline --tolerance-pct 5'
+# 기준선을 파일로 내보내고, 빈 저장소(예: CI)에서 그 파일과 비교한다
+./gradlew -q lab --args='baseline <seriesId> --export small-buffer.baseline.json'
+./gradlew -q lab --args='run experiments/concurrency/queue-contention/scenarios/small-buffer.yaml --repeat 5 --wait --check-baseline-file small-buffer.baseline.json'
 ```
 
 `--repeat`(1–50)는 `/run-series`로 제출하고, `--warmup`(0–10)은 통계에서 빼는 앞쪽 실행이다. Excel처럼 파일을 받는 시나리오는 파일을 한 번 올리고 서버가 반복마다 복사본을 쓴다. `--wait`이면 묶음 상세를 한 줄 더 출력하고, `--check-baseline`이면 회귀 판정을 한 줄 더 출력한다.
 
-회귀 판정은 measure마다 기준선 대비 중앙값 변화율과 관측 범위 겹침을 함께 본다. 변화가 허용 오차(`--tolerance-pct`, 기본 5) 이내이거나 범위가 겹치면 OK다. 범위가 분리되고 오차를 넘으면 방향에 따라 판정한다. `elapsed`는 증가, `throughput`은 감소가 REGRESSION이고 반대는 IMPROVEMENT다. 방향을 모르는 measure는 CHANGED로 표시하며 회귀처럼 실패로 센다. 측정 계약에는 방향이 없어서 이 두 역할만 코드에 명시했다.
+회귀 판정은 measure마다 기준선 대비 중앙값 변화율과 관측 범위 겹침을 함께 본다. 변화가 허용 오차(`--tolerance-pct`, 기본 5) 이내이거나 범위가 겹치면 OK다. 범위가 분리되고 오차를 넘으면 방향에 따라 판정한다. `elapsed`·`heap`은 증가, `throughput`은 감소가 REGRESSION이고 반대는 IMPROVEMENT다. 방향을 모르는 measure는 CHANGED로 표시하며 회귀처럼 실패로 센다. 측정 계약에는 방향이 없어서 이 세 역할만 코드에 명시했다.
+
+기준선 파일은 측정값 원본이라 서버 저장소 없이 같은 판정을 다시 계산한다. `--check-baseline-file`은 `--check-baseline`과 함께 쓸 수 없다. 판정 줄의 `cautions`에 정의 hash 차이와 CPU 수·최대 heap·Java·OS 차이가 적히고 stderr에도 출력된다. 다른 기계에서 만든 기준선과의 비교는 근거가 약하므로, 야간 [Performance regression](../.github/workflows/regression.yml) 워크플로는 CI runner에서 측정한 파일(`experiments/concurrency/queue-contention/baselines/`)만 쓴다.
 
 종료 코드: 0 통과, 1 실패한 Run·묶음 또는 오류, 2 대기 timeout, 3 회귀, 4 판정 불가(기준선 없음 또는 어느 쪽이든 성공한 측정 반복 3회 미만).
 

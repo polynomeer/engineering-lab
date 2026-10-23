@@ -98,6 +98,23 @@ class LabCliIntegrationTest {
         var check = json.readValue(second.out.lines().toList().get(2), Map.class);
         assertEquals("PASS", check.get("overall"));
         assertEquals(seriesId, check.get("baselineSeriesId"));
+
+        // The same baseline carried as a file, as CI does with a fresh store.
+        var exported = java.nio.file.Files.createTempFile("lab-baseline-", ".json");
+        var export = run("baseline", seriesId, "--export", exported.toString(), "--server", server);
+        assertEquals(0, export.code, export.err);
+        Map<?, ?> baselineFile = json.readValue(java.nio.file.Files.readString(exported), Map.class);
+        assertEquals(seriesId, baselineFile.get("sourceSeriesId"));
+        var fromFile = run("run", file, "--server", server, "--repeat", "3", "--wait", "--timeout-seconds", "120",
+                "--check-baseline-file", exported.toString(), "--tolerance-pct", "100");
+        assertEquals(0, fromFile.code, fromFile.err + fromFile.out);
+        var fileCheck = json.readValue(fromFile.out.lines().toList().get(2), Map.class);
+        assertEquals("PASS", fileCheck.get("overall"));
+        assertEquals("file:" + seriesId, fileCheck.get("baselineSeriesId"));
+        assertEquals(List.of(), fileCheck.get("cautions")); // same machine, same definition
+        assertEquals(1, run("run", file, "--repeat", "3", "--wait", "--check-baseline", "--check-baseline-file", exported.toString()).code);
+        assertEquals(1, run("run", file, "--repeat", "3", "--wait", "--check-baseline-file", "missing.json").code);
+        java.nio.file.Files.deleteIfExists(exported);
         assertEquals(1, run("run", file, "--warmup", "1").code); // --warmup needs --repeat
         assertEquals(1, run("run", file, "--repeat", "3", "--check-baseline").code); // the check needs --wait
     }

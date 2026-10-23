@@ -131,6 +131,7 @@ export async function submitSeries(
 export type Verdict = 'OK' | 'IMPROVEMENT' | 'REGRESSION' | 'CHANGED' | 'INSUFFICIENT';
 export type RegressionCheck = {
   overall: 'PASS' | 'REGRESSION' | 'INSUFFICIENT' | 'NO_BASELINE';
+  cautions?: string[];
   baselineSeriesId: string | null;
   candidateSeriesId: string;
   tolerancePct: number;

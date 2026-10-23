@@ -1,6 +1,6 @@
 import { BundleButton } from './bundle';
 import { useEffect, useState } from 'react';
-import { get, type Descriptor } from './api';
+import { apiUrl, get, type Descriptor } from './api';
 import { Table } from './components';
 import { SweepList } from './SweepPage';
 import { seriesComparisonDraft } from './findingDraft';
@@ -385,13 +385,24 @@ function BaselinePanel({ view }: { view: SeriesView }) {
           ])}
         />
       )}
-      {!isBaseline && (
-        <div className="actions">
+      <div className="actions">
+        {!isBaseline && (
           <button onClick={pin} disabled={busy || !eligible}>
             이 묶음을 기준선으로 지정
           </button>
-          {!eligible && <span className="note">성공한 측정 반복이 3회 이상이어야 합니다.</span>}
-        </div>
+        )}
+        {eligible && (
+          <a href={apiUrl(`/run-series/${encodeURIComponent(id)}/baseline-file`)} download>
+            기준선 파일 (.json)
+          </a>
+        )}
+        {!eligible && <span className="note">성공한 측정 반복이 3회 이상이어야 합니다.</span>}
+      </div>
+      {eligible && (
+        <p className="note">
+          기준선 파일은 측정값 원본을 담습니다. 저장소에 커밋하고 <code>lab run … --check-baseline-file</code>로 CI에서 같은
+          판정을 할 수 있습니다. 측정한 기계와 다른 환경이면 판정 결과에 주의 문구가 붙습니다.
+        </p>
       )}
       {message && <p role="status">{message}</p>}
     </section>
