@@ -112,6 +112,9 @@ lab:
   bundle:
     # Captures beyond this total are left out of evidence bundles and listed in the manifest.
     max-artifact-bytes: 268435456
+  findings:
+    # Finding documents whose cited run IDs are shown on runs and kept out of retention.
+    directory: docs/findings
   retention:
     # Deleting old JFR/Run-log captures needs this flag and a preview token; previews are always allowed.
     apply-enabled: false

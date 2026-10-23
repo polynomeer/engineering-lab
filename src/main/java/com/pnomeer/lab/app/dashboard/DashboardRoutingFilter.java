@@ -52,7 +52,8 @@ public class DashboardRoutingFilter extends OncePerRequestFilter {
                     || target.startsWith("/lab/io/") || target.startsWith("/dashboard/v1/")
                     || target.equals("/run-series") || target.startsWith("/run-series/")
                     || target.equals("/run-sweeps") || target.startsWith("/run-sweeps/")
-                    || target.equals("/evidence-bundles") || target.startsWith("/maintenance/"))) {
+                    || target.equals("/evidence-bundles") || target.startsWith("/maintenance/")
+                    || target.equals("/findings") || target.startsWith("/findings/"))) {
                 response.sendError(404); return;
             }
             var wrapped = new HttpServletResponseWrapper(response) {

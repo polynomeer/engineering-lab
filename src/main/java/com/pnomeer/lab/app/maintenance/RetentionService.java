@@ -30,18 +30,24 @@ public class RetentionService {
     private final Path root;
     private final RetentionProperties properties;
     private final Clock clock;
+    private final com.pnomeer.lab.app.findings.FindingIndex findings;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public RetentionService(JdbcRunStore store, StorageProperties storage, RetentionProperties properties) {
-        this(store, Path.of(storage.root()), properties, Clock.systemUTC());
+    public RetentionService(JdbcRunStore store, StorageProperties storage, RetentionProperties properties,
+            com.pnomeer.lab.app.findings.FindingIndex findings) {
+        this(store, Path.of(storage.root()), properties, Clock.systemUTC(), findings);
     }
     RetentionService(JdbcRunStore store, Path root, RetentionProperties properties, Clock clock) {
-        this.store = store; this.root = root; this.properties = properties; this.clock = clock;
+        this(store, root, properties, clock, com.pnomeer.lab.app.findings.FindingIndex.empty());
+    }
+    RetentionService(JdbcRunStore store, Path root, RetentionProperties properties, Clock clock,
+            com.pnomeer.lab.app.findings.FindingIndex findings) {
+        this.store = store; this.root = root; this.properties = properties; this.clock = clock; this.findings = findings;
     }
 
     public record Candidate(String runId, String artifactId, String relativePath, long byteSize) { }
     public record Preview(int olderThanDays, long cutoffEpochMs, List<Candidate> candidates, long totalBytes, boolean truncated,
-            int baselineProtectedRuns, boolean applyEnabled, String token) { }
+            int baselineProtectedRuns, int findingProtectedRuns, boolean applyEnabled, String token) { }
     public record Result(int deletedReferences, long deletedBytes, List<String> missingFiles) { }
 
     public Preview preview(int olderThanDays) {
@@ -50,11 +56,18 @@ public class RetentionService {
         long day = 86_400_000L;
         long cutoff = (clock.millis() / day) * day - (long) olderThanDays * day;
         var references = store.retentionCandidates(cutoff, MAX_CANDIDATES);
-        var candidates = references.stream().filter(RetentionService::managed)
-                .map(r -> new Candidate(r.runId(), r.artifactId(), r.relativePath(), r.byteSize())).toList();
+        // Runs a Finding cites keep their captures: the document points at them as evidence.
+        var cited = findings.citedRunIds();
+        var protectedRuns = new HashSet<String>();
+        var candidates = new ArrayList<Candidate>();
+        for (var r : references) {
+            if (!managed(r)) continue;
+            if (cited.contains(r.runId())) { protectedRuns.add(r.runId()); continue; }
+            candidates.add(new Candidate(r.runId(), r.artifactId(), r.relativePath(), r.byteSize()));
+        }
         long bytes = candidates.stream().mapToLong(Candidate::byteSize).sum();
-        return new Preview(olderThanDays, cutoff, candidates, bytes, references.size() == MAX_CANDIDATES,
-                store.baselineProtectedRuns(), properties.applyEnabled(), token(cutoff, candidates));
+        return new Preview(olderThanDays, cutoff, List.copyOf(candidates), bytes, references.size() == MAX_CANDIDATES,
+                store.baselineProtectedRuns(), protectedRuns.size(), properties.applyEnabled(), token(cutoff, candidates));
     }
 
     public Result apply(int olderThanDays, String token) {

@@ -70,4 +70,20 @@ class RetentionServiceTest {
             assertThrows(ResponseStatusException.class, () -> enabled.preview(0));
         }
     }
+
+    @Test void keepsCapturesOfRunsThatAFindingCites() throws Exception {
+        try (var store = new JdbcRunStore(root, 10, 2)) {
+            String cited = finished(store, "11111111-2222-3333-4444-555555555555");
+            capture(store, cited, "jfr");
+            String other = finished(store, "66666666-7777-8888-9999-000000000000");
+            String free = capture(store, other, "jfr");
+            Path docs = Files.createDirectories(root.resolve("findings"));
+            Files.writeString(docs.resolve("2026-10-23-cited.md"), "# Finding: cited\n\n- Run ID: `" + cited + "`\n");
+            Files.writeString(docs.resolve("TEMPLATE.md"), "- Run ID: `" + other + "`\n"); // the template never protects
+            var findings = new com.pnomeer.lab.app.findings.FindingIndex(docs.toString());
+            var preview = new RetentionService(store, root, new RetentionProperties(false), later, findings).preview(30);
+            assertEquals(List.of(free), preview.candidates().stream().map(RetentionService.Candidate::artifactId).toList());
+            assertEquals(1, preview.findingProtectedRuns());
+        }
+    }
 }

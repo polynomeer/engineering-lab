@@ -1,3 +1,4 @@
+import { RunFindings } from '../RunFindings';
 import { useState } from 'react';
 import { apiUrl, artifactReason, type Artifact, type MetricPage, type Run } from '../api';
 import { Actions, Badge, Raw, Table, format } from '../components';
@@ -162,6 +163,7 @@ export function RunDetail({
       <div className="run-actions" hidden={!['overview', 'artifacts'].includes(detailView)}>
         <Actions run={run} />
       </div>
+      {detailView === 'overview' && <RunFindings runId={run.runId} />}
       {run.failureMessage && <p className="error">{run.failureMessage}</p>}
       <section className="hypothesis-panel" hidden={!['environment'].includes(detailView)}>
         <h2>가설</h2>

@@ -136,7 +136,17 @@ curl --fail --silent --show-error -H 'Content-Type: application/yaml' \
 - 대상은 `jfr_*`, `log_*` artifact뿐이다. Worker REPORT, metric, dead-letter, Run 행은 지우지 않는다. 기준선으로 지정된 묶음의 Run은 항상 제외한다.
 - 기준 시각은 일 단위로 맞춘다. 같은 날의 미리보기와 적용은 같은 Run을 고른다. 한 번에 최대 1,000개를 다룬다.
 - artifact 참조를 먼저 지우고 파일을 지운다. 실패하면 고아 파일이 남을 수는 있어도 없는 파일을 가리키는 참조는 남지 않는다. 삭제마다 `<storage-root>/retention-log.ndjson`에 한 줄을 남긴다.
-- Finding 문서가 인용한 Run은 서버가 알 수 없다. 남겨야 하는 Run은 기준선으로 지정하거나 export·artifact를 따로 보관한다.
+- `lab.findings.directory`(기본 `docs/findings`)의 Finding 문서가 인용한 Run도 제외하고, 미리보기의 `findingProtectedRuns`에 그 수를 적는다. 디렉터리가 없는 배포(jar만 둔 경우)에서는 이 보호가 없으므로 남겨야 하는 Run은 기준선으로 지정하거나 증거 묶음으로 보관한다.
+
+### Finding 인용
+
+| Method | 경로 | 설명 |
+| --- | --- | --- |
+| GET | `/findings` | 색인한 Finding 문서(`file`, 첫 `# ` 제목, 인용 Run 수), 파일명 역순 |
+| GET | `/findings/{file}` | 색인된 문서의 Markdown 원문(`text/markdown`). 색인에 없는 이름은 404 |
+| GET | `/runs/{runId}/findings` | 이 Run ID를 본문에 적은 Finding 목록 |
+
+- `lab.findings.directory` 바로 아래 `*.md`(README·TEMPLATE 제외, 최대 500개, 파일당 1 MiB)에서 소문자 UUID 형식 Run ID를 찾는다. 30초마다 다시 읽는다. 대시보드 Run 상세에 인용한 Finding이 표시된다.
 
 ```bash
 ./gradlew -q lab --args='retention --older-than-days 30'          # 미리보기만

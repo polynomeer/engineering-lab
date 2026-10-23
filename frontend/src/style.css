@@ -1555,3 +1555,6 @@ form {
 .series-cautions h2 { font-size: 15px; margin: 0 0 6px; color: var(--accent); }
 .series-cautions p { margin: 0 0 6px; }
 .series-cautions ul { margin: 0; padding-left: 18px; font-size: 12px; }
+.run-findings h2 { font-size: 15px; margin: 0 0 6px; }
+.run-findings ul { margin: 0 0 6px; padding-left: 18px; }
+.run-findings small { color: var(--text-muted); margin-left: 6px; }
