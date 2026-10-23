@@ -42,6 +42,8 @@ public final class MetricCatalog {
         add(map, "ns", "span", "trace.durationNanos");
         add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos observation.jfr.lifecycleNanos observation.logs.captureNanos");
         add(map, "bytes", "run", "observation.jfr.bytes observation.logs.bytes");
+        add(map, "load", "host", "host.load1m.start host.load1m.end");
+        add(map, "%", "host", "host.cpuPct.end");
         add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes heap.sampledPeakBytes heap.maxBytes");
         add(map, "executors", "run", "shutdown.unfinishedExecutors");
         add(map, "threads", "process", "jvm.threads.platformLive");
@@ -79,7 +81,7 @@ public final class MetricCatalog {
             semantics = "OBSERVED_MAXIMUM"; aggregation = "Maximum of observed snapshots; unobserved peaks may be missed";
         } else if (Set.of("queue.depth", "queue.raw.size", "queue.mapped.size", "resource.heapUsedMb", "resource.heapMaxMb",
                 "resource.activeConnections", "resource.awaitingConnections", "storage.queue.depth", "jvm.heap.usedBytes",
-                "jvm.heap.committedBytes", "jvm.heap.maxBytes", "heap.maxBytes", "jvm.threads.platformLive").contains(name)) {
+                "jvm.heap.committedBytes", "jvm.heap.maxBytes", "heap.maxBytes", "jvm.threads.platformLive", "host.load1m.start", "host.load1m.end", "host.cpuPct.end").contains(name)) {
             semantics = "INSTANTANEOUS"; aggregation = "Use timestamped samples; never sum gauges across time";
         } else if (Set.of("queue.raw.saturationPct", "queue.mapped.saturationPct", "backpressure.producerSlowdownPct", "errors.validationRatePct").contains(name)) {
             semantics = "RATIO"; aggregation = "Inspect numerator and denominator; never sum percentages";

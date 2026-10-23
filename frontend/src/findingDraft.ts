@@ -141,6 +141,14 @@ export function seriesComparisonDraft(comparison: SeriesComparison): string {
     '## Limitations / Next Experiment',
     '',
     '- 같은 기계·같은 프로세스에서 순서대로 실행한 반복이다. 다른 환경으로 일반화하지 않는다.',
+    ...[baseline, candidate].flatMap((view, i) => {
+      const label = i === 0 ? 'Baseline' : 'Candidate';
+      const notes: string[] = [];
+      const noisy = view.stability?.highVariationRoles ?? [];
+      if (noisy.length) notes.push(`- ${label} 묶음은 변동 계수 10% 초과: ${noisy.join(', ')}`);
+      if (view.overlappingRunIds?.length) notes.push(`- ${label} 묶음 반복 중 다른 Run ${view.overlappingRunIds.length}개가 함께 실행됐다.`);
+      return notes;
+    }),
     `- ${TODO}`,
     '',
     '## Decision',

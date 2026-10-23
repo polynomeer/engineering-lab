@@ -143,6 +143,7 @@ describe('comparison helpers', () => {
       { kind: 'gauge', name: 'rate', unit: 'rows/s', baseline: 100, candidate: 350 },
       { kind: 'counter', name: 'retry', unit: 'count', baseline: 0, candidate: 2 },
       { kind: 'counter', name: 'missing', unit: 'count', baseline: null, candidate: 1 },
+      { kind: 'gauge', name: 'host.load1m.start', unit: 'load', baseline: 1, candidate: 4 },
     ]);
     expect(deltas.map((d) => d.change)).toEqual([250, null, null]);
   });

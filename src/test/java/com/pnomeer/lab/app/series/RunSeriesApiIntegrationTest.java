@@ -77,6 +77,8 @@ class RunSeriesApiIntegrationTest {
         assertTrue(members.get(0).get("warmup").asBoolean());
         assertFalse(members.get(3).get("warmup").asBoolean());
         assertEquals(3, view.get("measuredSucceeded").asInt());
+        assertEquals(0.1, view.get("stability").get("variationThreshold").asDouble(), 1e-9);
+        assertTrue(view.get("stability").get("highVariationRoles").isArray());
         // Every repetition is an ordinary Run with the same definition hash and no series label in its parameters.
         var first = runs.find(members.get(1).get("runId").asString()).orElseThrow();
         var last = runs.find(members.get(3).get("runId").asString()).orElseThrow();

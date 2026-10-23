@@ -14,6 +14,7 @@
 - 반복 측정 중에는 다른 Run 접수를 409로 거절하고, 그래도 겹친 Run은 묶음 상세에 표시한다(`lab.series.exclusive`).
 - Excel 측정 계약 1.1.0: 저장 처리량(`throughput.insertedRowsPerSec`)과 20ms 표본 최대 heap(`heap.sampledPeakBytes`)을 measure로 추가. 이전 Run은 실행 당시 계약을 그대로 쓴다.
 - Excel 시나리오 `forkedHeapMiB`: 실행마다 `-Xmx`를 건 자식 JVM에서 처리해 heap을 그 실행만의 값으로 기록한다.
+- Run마다 호스트 부하(`host.load1m.*`, `host.cpuPct.end`)를 기록하고, 변동 계수가 10%를 넘는 묶음은 상세와 Finding 초안에 경고한다.
 
 ## v0.1.0 — 2026-10-16
 

@@ -37,6 +37,13 @@ export type SeriesView = {
   measures: { role: string; name: string; unit: string; kind: string; statistics: Statistics }[];
   /** Other runs that executed while a repetition ran; absent from servers before this field existed. */
   overlappingRunIds?: string[];
+  stability?: {
+    variationThreshold: number;
+    highVariationRoles: string[];
+    load1mMin: number | null;
+    load1mMax: number | null;
+    availableProcessors: number | null;
+  } | null;
 };
 export type Separation = 'INSUFFICIENT' | 'OVERLAPPING' | 'SEPARATED';
 export type SeriesComparison = {

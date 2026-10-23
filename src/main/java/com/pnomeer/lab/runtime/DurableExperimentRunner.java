@@ -205,6 +205,7 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
         var lease = admission.acquire(run.runId(), selection, reason -> reject(run, reason));
         try (lease) {
             store.start(run.runId());
+            var hostLoad = new HashMap<>(com.pnomeer.lab.metrics.HostLoad.sample("start"));
             long started = System.currentTimeMillis();
             var preview = new ArrayDeque<MetricPoint>(previewLimit);
             var writer = new BoundedMetricWriter(store, run.runId(), options);
@@ -232,7 +233,10 @@ public final class DurableExperimentRunner implements ExperimentRunner, AutoClos
             var counters = new HashMap<>(summary.counters());
             counters.putAll(writer.counters());
             counters.put("storage.preview.limit", (long) previewLimit);
-            summary = new ExperimentSummary(counters, summary.gauges(), summary.details());
+            hostLoad.putAll(com.pnomeer.lab.metrics.HostLoad.sample("end"));
+            var gauges = new HashMap<>(hostLoad);
+            gauges.putAll(summary.gauges());
+            summary = new ExperimentSummary(counters, gauges, summary.details());
             try {
                 if (executionRecorded && status == RunStatus.SUCCEEDED) {
                     try { store.finishExecutionEvidence(run.runId()); }

@@ -148,21 +148,39 @@ function StatisticsRow({ stats, unit }: { stats: Statistics; unit: string }) {
 /** Conditions that make the distribution less trustworthy; shown above it, never folded into the numbers. */
 function SeriesCautions({ view }: { view: SeriesView }) {
   const overlapping = view.overlappingRunIds ?? [];
-  if (!overlapping.length) return null;
+  const stability = view.stability;
+  const noisy = stability?.highVariationRoles ?? [];
+  const load =
+    stability && stability.load1mMax !== null
+      ? `측정 반복의 시작·종료 시점 1분 부하 ${stability.load1mMin?.toFixed(2)}–${stability.load1mMax.toFixed(2)}` +
+        (stability.availableProcessors ? ` (CPU ${stability.availableProcessors}개)` : '')
+      : null;
+  if (!overlapping.length && !noisy.length) return null;
   return (
     <section className="panel series-cautions" role="note" aria-label="측정 환경 주의">
       <h2>측정 환경 주의</h2>
-      <p>
-        반복이 실행되는 동안 다른 Run {overlapping.length}개가 같은 서버에서 실행됐습니다. 이 묶음의 값에는 그 부하가
-        섞여 있을 수 있습니다.
-      </p>
-      <ul className="mono">
-        {overlapping.map((id) => (
-          <li key={id}>
-            <a href={'/app/runs/' + encodeURIComponent(id)}>{id}</a>
-          </li>
-        ))}
-      </ul>
+      {noisy.length > 0 && (
+        <p>
+          변동 계수가 {Math.round((stability?.variationThreshold ?? 0.1) * 100)}%를 넘는 measure:{' '}
+          <span className="mono">{noisy.join(', ')}</span>. 반복 사이 결과가 흔들려 차이를 판단하기 어렵습니다.
+          {load && ` ${load}.`} 반복 수를 늘리거나 다른 작업이 없는 때 다시 측정하세요.
+        </p>
+      )}
+      {overlapping.length > 0 && (
+        <>
+          <p>
+            반복이 실행되는 동안 다른 Run {overlapping.length}개가 같은 서버에서 실행됐습니다. 이 묶음의 값에는 그
+            부하가 섞여 있을 수 있습니다.
+          </p>
+          <ul className="mono">
+            {overlapping.map((id) => (
+              <li key={id}>
+                <a href={'/app/runs/' + encodeURIComponent(id)}>{id}</a>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

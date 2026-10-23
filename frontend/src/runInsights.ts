@@ -237,8 +237,9 @@ export type Delta = {
 };
 
 /** Relative change of candidate over baseline; zero or missing baselines are not divided. */
+/** Host load describes the machine, not the experiment; it stays in the detailed table only. */
 export function comparisonDeltas(values: Comparison['values']): Delta[] {
-  return values.map((v) => ({
+  return values.filter((v) => !v.name.startsWith('host.')).map((v) => ({
     name: v.name,
     unit: v.unit,
     baseline: v.baseline,

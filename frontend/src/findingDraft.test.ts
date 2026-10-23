@@ -44,9 +44,10 @@ describe('finding drafts', () => {
       measuredSucceeded: 3,
       measures: [],
     });
+    const noisy = { ...view('B'), stability: { highVariationRoles: ['elapsed'] }, overlappingRunIds: ['x'] };
     const md = seriesComparisonDraft({
       baseline: view('A'),
-      candidate: view('B'),
+      candidate: noisy,
       sameDefinition: false,
       measures: [{ role: 'elapsed', name: 'time.elapsedMs', unit: 'ms', baseline: stats(100, 0.02), candidate: stats(130, null),
         medianChangePct: 30, separation: 'SEPARATED' }],
@@ -55,5 +56,8 @@ describe('finding drafts', () => {
     expect(md).not.toContain('`A-w`');
     expect(md).toContain('| elapsed `time.elapsedMs` / ms | 100 (98–102) | 130 (128–132) | n=3/3 · CV 2%/미측정 · 중앙값 변화 30% | 묶음 통계 |');
     expect(md).toContain('elapsed: 구분됨');
+    expect(md).toContain('- Candidate 묶음은 변동 계수 10% 초과: elapsed');
+    expect(md).toContain('- Candidate 묶음 반복 중 다른 Run 1개가 함께 실행됐다.');
+    expect(md).not.toContain('- Baseline 묶음은');
   });
 });

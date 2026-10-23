@@ -160,7 +160,18 @@ public class RunSeriesService {
         var measures = contract.map(c -> c.measures().stream().map(measure -> new SeriesView.Measure(measure.role(), measure.name(),
                 measure.unit(), measure.kind().name(), SeriesStatistics.of(measured.stream().map(r -> value(r, measure)).toList()))).toList())
                 .orElse(List.of());
-        return new SeriesView(series, rows, measured.size(), measures, overlapping(rows));
+        return new SeriesView(series, rows, measured.size(), measures, overlapping(rows), stability(measured, measures));
+    }
+
+    static SeriesView.Stability stability(List<StoredRun> measured, List<SeriesView.Measure> measures) {
+        var unstable = measures.stream().filter(m -> m.statistics().count() >= SeriesStatistics.MIN_FOR_COMPARISON
+                && m.statistics().coefficientOfVariation() != null
+                && m.statistics().coefficientOfVariation() > SeriesView.Stability.HIGH_VARIATION).map(SeriesView.Measure::role).toList();
+        var loads = measured.stream().flatMap(r -> java.util.stream.Stream.of(r.summary().gauges().get("host.load1m.start"),
+                r.summary().gauges().get("host.load1m.end"))).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sorted().toArray();
+        Integer processors = measured.isEmpty() ? null : measured.getFirst().runMetadata().environment().availableProcessors();
+        return new SeriesView.Stability(SeriesView.Stability.HIGH_VARIATION, unstable,
+                loads.length == 0 ? null : loads[0], loads.length == 0 ? null : loads[loads.length - 1], processors);
     }
 
     private List<String> overlapping(List<SeriesView.Member> rows) {

@@ -42,4 +42,13 @@ class SeriesStatisticsTest {
         assertNull(SeriesStatistics.medianChange(SeriesStatistics.of(List.of(0.0)), fast));
         assertEquals(0.0, SeriesStatistics.medianChange(SeriesStatistics.of(List.of(0.0)), SeriesStatistics.of(List.of(0.0))));
     }
+
+    @Test void flagsOnlyMeasuresWithEnoughRunsAndVariationAboveTenPercent() {
+        var steady = new SeriesView.Measure("elapsed", "time.elapsedMs", "ms", "gauge", SeriesStatistics.of(java.util.List.of(100.0, 101.0, 99.0)));
+        var noisy = new SeriesView.Measure("throughput", "throughput.itemsPerSec", "items/s", "gauge", SeriesStatistics.of(java.util.List.of(50.0, 100.0, 75.0)));
+        var tooFew = new SeriesView.Measure("other", "x", "ms", "gauge", SeriesStatistics.of(java.util.List.of(1.0, 9.0)));
+        var stability = RunSeriesService.stability(java.util.List.of(), java.util.List.of(steady, noisy, tooFew));
+        assertEquals(java.util.List.of("throughput"), stability.highVariationRoles());
+        assertNull(stability.load1mMax());
+    }
 }
