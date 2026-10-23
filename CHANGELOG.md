@@ -13,6 +13,7 @@
 - 반복 측정·기준선 회귀 판정·파라미터 스윕, 캡처 보관 정리, Finding 초안, dead-letter 화면. 저장 schema v4(시작 시 자동 백업 후 이행).
 - 반복 측정 중에는 다른 Run 접수를 409로 거절하고, 그래도 겹친 Run은 묶음 상세에 표시한다(`lab.series.exclusive`).
 - Excel 측정 계약 1.1.0: 저장 처리량(`throughput.insertedRowsPerSec`)과 20ms 표본 최대 heap(`heap.sampledPeakBytes`)을 measure로 추가. 이전 Run은 실행 당시 계약을 그대로 쓴다.
+- Excel 시나리오 `forkedHeapMiB`: 실행마다 `-Xmx`를 건 자식 JVM에서 처리해 heap을 그 실행만의 값으로 기록한다.
 
 ## v0.1.0 — 2026-10-16
 

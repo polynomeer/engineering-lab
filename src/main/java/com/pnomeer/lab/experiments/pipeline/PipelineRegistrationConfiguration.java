@@ -13,10 +13,16 @@ public class PipelineRegistrationConfiguration {
     @Bean
     public ExperimentRegistration<PipelineExperimentScenario> pipelineRegistration(JdbcTemplate jdbc, TransactionTemplate transactions) {
         return new ExperimentRegistration<>(PipelineExperimentModule.DESCRIPTOR,
-                d -> new PipelineExperiment(new PipelineRunner(pipelineProperties(d), jdbc, transactions)),
+                d -> new PipelineExperiment(new PipelineRunner(pipelineProperties(d), jdbc, transactions), forkedHeapMiB(d)),
                 (d, input) -> new PipelineExperimentScenario(input,
                         PipelineRunner.RunMode.valueOf((String)d.parameters().get("mode")), progress -> { },
                         new PipelineExperimentCapture(), Path.of(d.input().file()).getFileName().toString(), d.scenario().id()));
+    }
+    private static int forkedHeapMiB(ScenarioDefinition d) {
+        int heap = ((Number)d.parameters().getOrDefault("forkedHeapMiB", 0)).intValue();
+        if (heap != 0 && heap < com.pnomeer.lab.experiments.pipeline.fork.ForkedPipeline.MIN_HEAP_MIB)
+            throw new ScenarioException("Invalid parameter: forkedHeapMiB (0 or 32..8192)");
+        return heap;
     }
     private static int integer(ScenarioDefinition d, String key) { return ((Number)d.parameters().get(key)).intValue(); }
     private static PipelineProperties pipelineProperties(ScenarioDefinition d) {

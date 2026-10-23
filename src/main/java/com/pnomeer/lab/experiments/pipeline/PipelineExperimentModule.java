@@ -18,7 +18,9 @@ public final class PipelineExperimentModule implements ExperimentModule {
                     Map.entry("maxAttempts", optionalInteger(1,10,"attempts",3)),
                     Map.entry("retryBackoffMs", optionalInteger(1,60000,"ms",100)),
                     Map.entry("shutdownTimeoutMs", optionalInteger(1,60000,"ms",30000)),
-                    Map.entry("errorPreviewLimit", optionalInteger(0,1000,"rows",100))), List.of("SINGLE_PASS"));
+                    Map.entry("errorPreviewLimit", optionalInteger(0,1000,"rows",100)),
+                    // 0 runs in the server JVM; 32..8192 runs each pass in a child JVM with this -Xmx.
+                    Map.entry("forkedHeapMiB", optionalInteger(0,8192,"MiB",0))), List.of("SINGLE_PASS"));
 
     @Override public ModuleDescriptor module() {
         return new ModuleDescriptor("pipeline", "Excel pipeline", "engineering");

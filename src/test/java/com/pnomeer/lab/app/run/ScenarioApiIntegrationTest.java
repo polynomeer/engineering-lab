@@ -103,6 +103,40 @@ class ScenarioApiIntegrationTest {
         mvc.perform(post("/runs").contentType("application/json").content(" ".repeat(65537))).andExpect(status().isBadRequest());
         assertEquals(before, store.list(null, Long.MAX_VALUE, 500).size());
     }
+    @Test void runsExcelInAForkedJvmWithItsOwnHeapLimitAndKeepsDeadLetters() throws Exception {
+        byte[] bytes;
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(); var out = new ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet(); sheet.createRow(0).createCell(0).setCellValue("header");
+            var row = sheet.createRow(1); row.createCell(0).setCellValue("a"); row.createCell(1).setCellValue("b"); row.createCell(2).setCellValue("1");
+            var invalid = sheet.createRow(2); invalid.createCell(0).setCellValue("a"); invalid.createCell(1).setCellValue(""); invalid.createCell(2).setCellValue("2");
+            workbook.write(out); bytes = out.toByteArray();
+        }
+        String definition = """
+                schemaVersion: 1
+                experiment: pipeline.excel-ingestion
+                scenario: {id: excel-forked, hypothesis: A forked JVM reports its own heap}
+                parameters: {mode: PIPELINE, rawCapacity: 4, mappedCapacity: 4, validatorThreads: 1, inserterThreads: 1, chunkSize: 2, offerTimeoutMs: 50, forkedHeapMiB: 96}
+                measurement: {mode: SINGLE_PASS}
+                input: {file: sample.xlsx, sha256: '%s'}
+                """.formatted(ScenarioDocuments.sha256(bytes));
+        var file = new MockMultipartFile("file", "sample.xlsx", "application/octet-stream", bytes);
+        var document = new MockMultipartFile("scenario", "scenario.yaml", "application/yaml", definition.getBytes(StandardCharsets.UTF_8));
+        String body = mvc.perform(multipart("/runs").file(document).file(file)).andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString();
+        var run = completed((String)json.readValue(body, Map.class).get("runId"));
+        assertEquals(RunStatus.SUCCEEDED, run.status(), run.failureMessage());
+        assertEquals("FORKED_JVM", run.runMetadata().parameters().get("execution.isolation"));
+        assertEquals("96", run.runMetadata().parameters().get("execution.forked.heapMiB"));
+        assertEquals(1L, run.summary().counters().get("rows.inserted"));
+        long max = run.summary().counters().get("heap.maxBytes");
+        assertTrue(max > 0 && max <= 96L * 1024 * 1024, "child heap limit, not the server's: " + max);
+        assertTrue(run.summary().counters().get("heap.sampledPeakBytes") > 0);
+        assertEquals(1, store.deadLetters(run.runId(), -1, 10).size());
+
+        String tooSmall = definition.replace("forkedHeapMiB: 96", "forkedHeapMiB: 16");
+        var rejected = new MockMultipartFile("scenario", "scenario.yaml", "application/yaml", tooSmall.getBytes(StandardCharsets.UTF_8));
+        mvc.perform(multipart("/runs").file(rejected).file(file)).andExpect(status().isBadRequest());
+    }
+
     @Test void bindsExcelSettingsPerRunAndValidatesUploadedHashBeforeCreation() throws Exception {
         byte[] bytes;
         try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(); var out = new ByteArrayOutputStream()) {

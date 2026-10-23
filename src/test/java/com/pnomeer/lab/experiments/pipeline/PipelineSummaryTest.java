@@ -14,7 +14,7 @@ class PipelineSummaryTest {
     @Test void reportsThroughputOverThePipelineWindowAndTheSampledHeap() {
         var heap = HeapSampler.start();
         heap.close();
-        var summary = PipelineExperiment.toSummary(result(500, 250), heap);
+        var summary = PipelineExperiment.toSummary(result(500, 250), heap.peakBytes(), heap.maxBytes(), heap.gcMillis());
         assertEquals(2000.0, summary.gauges().get("throughput.insertedRowsPerSec"), 1e-9);
         assertEquals(heap.peakBytes(), summary.counters().get("heap.sampledPeakBytes"));
         assertTrue(summary.counters().get("gc.timeMs") >= 0);
@@ -23,6 +23,6 @@ class PipelineSummaryTest {
     @Test void omitsThroughputForAZeroLengthWindow() {
         var heap = HeapSampler.start();
         heap.close();
-        assertFalse(PipelineExperiment.toSummary(result(10, 0), heap).gauges().containsKey("throughput.insertedRowsPerSec"));
+        assertFalse(PipelineExperiment.toSummary(result(10, 0), heap.peakBytes(), heap.maxBytes(), heap.gcMillis()).gauges().containsKey("throughput.insertedRowsPerSec"));
     }
 }

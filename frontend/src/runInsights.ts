@@ -83,7 +83,11 @@ export function runKpis(run: Run): Kpi[] {
       total: maxHeap !== null && maxHeap > 0 ? maxHeap / MIB : undefined,
       unit: 'MiB',
       detail:
-        (run.runMetadata.parameters['execution.kind'] === 'LOCAL_JVM' ? '독립 JVM' : '서버 JVM 전체(다른 작업 포함)') +
+        (run.runMetadata.parameters['execution.isolation'] === 'FORKED_JVM'
+          ? `독립 JVM(-Xmx${run.runMetadata.parameters['execution.forked.heapMiB']}m)`
+          : run.runMetadata.parameters['execution.kind'] === 'LOCAL_JVM'
+            ? '독립 JVM'
+            : '서버 JVM 전체(다른 작업 포함)') +
         ' · 20ms 표본 최대, 실제 peak의 하한',
     });
   if (invalid !== null)
