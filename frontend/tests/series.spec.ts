@@ -44,3 +44,24 @@ test('a repeated queue scenario runs as a series, becomes a baseline, and judges
   await page.getByRole('link', { name: '반복 측정 목록' }).click();
   await expect(page.getByRole('table', { name: '반복 측정 · 최신순' })).toBeVisible();
 });
+
+test('a running series can be asked to stop before its next repetition', async ({ page }) => {
+  const id = '11111111-2222-3333-4444-555555555555';
+  const series = {
+    seriesId: id, experimentType: 'concurrency.queue-contention', scenarioId: 'stop-me', definitionSha256: 'a'.repeat(64),
+    repetitions: 10, warmup: 0, status: 'RUNNING', createdAtEpochMs: 1, completedAtEpochMs: 0, failureMessage: null, sequence: 1,
+  };
+  await page.route('**/api/run-series/' + id, (r) =>
+    r.fulfill({ json: { series, members: [], measuredSucceeded: 0, measures: [], overlappingRunIds: [], stability: null } }),
+  );
+  let cancelled = false;
+  await page.route('**/api/run-series/' + id + '/cancel', (r) => {
+    cancelled = r.request().method() === 'POST';
+    return r.fulfill({ status: 202, json: series });
+  });
+  await page.goto('/app/series/' + id);
+  await page.getByRole('button', { name: '반복 측정 중지' }).click();
+  await expect(page.getByText('중지 요청을 보냈습니다. 실행 중인 Run이 끝나면 멈춥니다.')).toBeVisible();
+  expect(cancelled).toBe(true);
+  await expect(page.getByRole('button', { name: '반복 측정 중지' })).toBeDisabled();
+});

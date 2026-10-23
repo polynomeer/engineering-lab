@@ -95,6 +95,11 @@ public class RunSeriesController {
         return service.regression(seriesId, tolerancePct);
     }
 
+    @PostMapping("/{seriesId}/cancel")
+    public ResponseEntity<RunSeries> cancel(@PathVariable String seriesId) {
+        return ResponseEntity.accepted().body(service.cancel(seriesId));
+    }
+
     @GetMapping("/{seriesId}/baseline-file")
     public ResponseEntity<BaselineFile> baselineFile(@PathVariable String seriesId) {
         var file = service.baselineFile(seriesId);

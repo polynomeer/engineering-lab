@@ -176,6 +176,16 @@ export async function pinBaseline(seriesId: string): Promise<void> {
   if (!response.ok) throw new Error(`기준선을 지정하지 못했습니다 (${response.status}).`);
 }
 
+/** Stops before the next repetition (series) or point (sweep); the run in progress finishes. */
+export async function cancelMeasurement(kind: 'run-series' | 'run-sweeps', id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/${kind}/${encodeURIComponent(id)}/cancel`), {
+    method: 'POST',
+    signal: AbortSignal.timeout(15000),
+  });
+  if (response.status === 409) throw new Error('이미 끝났습니다.');
+  if (!response.ok) throw new Error(`중지하지 못했습니다 (${response.status}).`);
+}
+
 export type Sweep = {
   sequence: number;
   sweepId: string;

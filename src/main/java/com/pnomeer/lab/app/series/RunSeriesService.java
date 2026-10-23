@@ -32,6 +32,9 @@ public class RunSeriesService {
     private final SeriesProperties properties;
     private final ScenarioProperties scenarioProperties;
     private final DurableExperimentRunner runner;
+    /** Series asked to stop; checked before each repetition, so the running one always finishes. */
+    private final Set<String> cancelled = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    static final String CANCELLED = "Cancelled by request";
 
     public RunSeriesService(ScenarioRunService runs, ScenarioDocuments documents,
             com.pnomeer.lab.storage.JdbcRunStore store, @Qualifier("seriesTaskExecutor") TaskExecutor executor,
@@ -72,6 +75,10 @@ public class RunSeriesService {
             awaitIdle(id);
             int failedMeasured = 0;
             for (int position = 0; position < series.total(); position++) {
+                if (cancelled.remove(id)) {
+                    finish(id, RunStatus.INTERRUPTED, CANCELLED + " after " + position + " of " + series.total() + " runs");
+                    return RunStatus.INTERRUPTED;
+                }
                 boolean warmup = position < series.warmup();
                 String runId = runs.submit(definition, copy(input));
                 seriesStore.addSeriesRun(id, new RunSeries.Member(position, runId, warmup));
@@ -79,6 +86,7 @@ public class RunSeriesService {
                 if (status != RunStatus.SUCCEEDED && !warmup) failedMeasured++;
                 log.info("series_id={} stage=series position={} run_id={} warmup={} status={}", id, position, runId, warmup, status);
             }
+            cancelled.remove(id); // a request that arrived during the last repetition has nothing left to stop
             var status = failedMeasured == 0 ? RunStatus.SUCCEEDED : RunStatus.FAILED;
             seriesStore.completeSeries(id, status,
                     failedMeasured == 0 ? null : failedMeasured + " of " + series.repetitions() + " measured repetitions did not succeed");
@@ -92,6 +100,14 @@ public class RunSeriesService {
             finish(id, RunStatus.FAILED, "Series stopped: " + ex.getMessage());
             return RunStatus.FAILED;
         }
+    }
+
+    /** Stops a queued or running series before its next repetition; the repetition in progress finishes. */
+    public RunSeries cancel(String seriesId) {
+        var series = seriesStore.findSeries(seriesId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown series"));
+        if (TERMINAL.contains(series.status())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Series already finished");
+        cancelled.add(seriesId);
+        return series;
     }
 
     /** Sweeps hold one reservation across all points; the runner's reservation is re-entrant. */

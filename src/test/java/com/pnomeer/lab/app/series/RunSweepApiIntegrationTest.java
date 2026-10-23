@@ -58,8 +58,32 @@ class RunSweepApiIntegrationTest {
         mvc.perform(get("/run-sweeps")).andExpect(status().isOk()).andExpect(jsonPath("$[0].sweepId").value(id));
     }
 
+    @Test void cancelStopsTheCurrentPointAndSkipsTheRest() throws Exception {
+        var submitted = json.readTree(mvc.perform(post("/run-sweeps?repetitions=10&warmup=0").contentType("application/json")
+                .content(body("{\"queueCapacity\":[1,2,4]}"))).andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString());
+        String id = submitted.get("sweepId").asString();
+        long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        while (json.readTree(mvc.perform(get("/run-sweeps/" + id)).andReturn().getResponse().getContentAsString()).get("points").isEmpty()) {
+            assertTrue(System.nanoTime() < deadline, "first point never started");
+            Thread.sleep(10);
+        }
+        mvc.perform(post("/run-sweeps/" + id + "/cancel")).andExpect(status().isAccepted());
+        JsonNode view = null;
+        deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
+        while (System.nanoTime() < deadline) {
+            view = json.readTree(mvc.perform(get("/run-sweeps/" + id)).andReturn().getResponse().getContentAsString());
+            String state = view.get("sweep").get("status").asString();
+            if (!state.equals("QUEUED") && !state.equals("RUNNING")) break;
+            Thread.sleep(20);
+        }
+        assertEquals("INTERRUPTED", view.get("sweep").get("status").asString());
+        assertTrue(view.get("sweep").get("failureMessage").asString().startsWith("Cancelled by request"));
+        assertTrue(view.get("points").size() < 3);
+        mvc.perform(post("/run-sweeps/" + id + "/cancel")).andExpect(status().isConflict());
+    }
+
     @Test void validatesEveryPointBeforeRunningAnything() throws Exception {
-        int before = store.listSeries(null, 100).size();
+        int before = store.listSeries(null, 100).size(), sweepsBefore = store.listSweeps(null, 100).size();
         mvc.perform(post("/run-sweeps").contentType("application/json").content(body("{\"queueCapacity\":[1,0]}")))
                 .andExpect(status().isBadRequest()); // 0 is below the parameter minimum
         mvc.perform(post("/run-sweeps").contentType("application/json").content(body("{\"unknown\":[1]}")))
@@ -68,7 +92,7 @@ class RunSweepApiIntegrationTest {
         mvc.perform(post("/run-sweeps").contentType("application/json").content("{\"grid\":{\"queueCapacity\":[1]}}"))
                 .andExpect(status().isBadRequest());
         assertEquals(before, store.listSeries(null, 100).size());
-        assertTrue(store.listSweeps(null, 100).isEmpty());
+        assertEquals(sweepsBefore, store.listSweeps(null, 100).size());
         mvc.perform(get("/run-sweeps/missing")).andExpect(status().isNotFound());
     }
 }

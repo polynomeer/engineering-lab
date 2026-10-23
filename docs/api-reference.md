@@ -84,6 +84,7 @@ curl --fail --silent --show-error "http://localhost:8080/runs/$RUN_ID/metrics?af
 | GET | `/run-series?experimentType=...&limit=20` | 최신순 묶음 목록(limit 1–100) |
 | GET | `/run-series/{seriesId}` | `series`, `members`(position·runId·warmup·status), `measuredSucceeded`, `measures`(measure별 `statistics`), `overlappingRunIds`(반복 실행 중 같은 서버에서 실행된 다른 Run, 최대 20개), `stability`(변동 계수 10% 초과 measure `highVariationRoles`, 측정 반복의 1분 부하 범위 `load1mMin`/`load1mMax`, `availableProcessors`) |
 | PUT | `/run-series/{seriesId}/baseline` | 성공하고 측정 반복이 3회 이상인 묶음을 그 실험·시나리오 ID의 기준선으로 지정(교체). 조건 미달은 409 |
+| POST | `/run-series/{seriesId}/cancel` | 대기·실행 중인 묶음을 다음 반복 전에 멈춘다(202). 실행 중인 반복은 끝까지 돌고 묶음은 `INTERRUPTED`, 사유 `Cancelled by request after N of M runs`. 끝난 묶음은 409 |
 | GET | `/run-series/baselines?limit=50` | 지정된 기준선 묶음, 최근 지정순 |
 | GET | `/run-series/{seriesId}/regression?tolerancePct=5` | 같은 실험·시나리오 ID의 기준선과 비교. `overall`(PASS·REGRESSION·INSUFFICIENT·NO_BASELINE)과 measure별 `direction`, `changePct`, `separation`, `verdict` |
 | GET | `/run-series/{seriesId}/baseline-file` | 기준선 자격(성공, 측정 반복 3회 이상)이 있는 묶음의 측정값 원본·정의 hash·환경·Git commit을 담은 기준선 파일(JSON). 자격이 없으면 409 |
@@ -108,6 +109,7 @@ curl --fail --silent --show-error -H 'Content-Type: application/yaml' \
 | --- | --- | --- |
 | POST | `/run-sweeps?repetitions=3&warmup=0` | JSON `{"definition": <시나리오 문서>, "grid": {"queueCapacity": [1, 4, 16]}}`. Excel은 multipart `scenario`·`grid`(JSON)·`file`. 202와 `sweepId` |
 | GET | `/run-sweeps?experimentType=...&limit=20` | 최신순 스윕 목록 |
+| POST | `/run-sweeps/{sweepId}/cancel` | 다음 점 전에 스윕을 멈추고 진행 중인 점의 묶음에도 중지를 요청한다(202). 끝난 스윕은 409 |
 | GET | `/run-sweeps/{sweepId}` | `sweep`(grid·상태)과 `points`(position·parameters·각 점의 묶음 상세와 measure 통계) |
 
 - grid의 모든 조합을 하나씩 반복 묶음으로 실행한다. 순서는 마지막 키가 가장 빨리 바뀐다. 각 점의 시나리오 ID는 `<id>.p<N>`이다.

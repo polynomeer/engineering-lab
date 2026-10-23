@@ -68,6 +68,25 @@ class RunSeriesApiIntegrationTest {
         assertNotNull(scenarioRuns.submit(definition, null));
     }
 
+    @Test void cancelStopsBeforeTheNextRepetitionAndKeepsFinishedOnes() throws Exception {
+        String slow = queue(2).replace("\"itemsPerProducer\":20,\"consumerDelayMs\":1", "\"itemsPerProducer\":30,\"consumerDelayMs\":10");
+        String id = submit(slow, "?repetitions=10&warmup=0");
+        long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        while (json.readTree(mvc.perform(get("/run-series/" + id)).andReturn().getResponse().getContentAsString()).get("members").isEmpty()) {
+            assertTrue(System.nanoTime() < deadline, "first repetition never started");
+            Thread.sleep(10);
+        }
+        mvc.perform(post("/run-series/" + id + "/cancel")).andExpect(status().isAccepted());
+        var view = finished(id);
+        assertEquals("INTERRUPTED", view.get("series").get("status").asString());
+        assertTrue(view.get("series").get("failureMessage").asString().startsWith("Cancelled by request"));
+        int members = view.get("members").size();
+        assertTrue(members >= 1 && members < 10, "stopped early: " + members);
+        for (var member : view.get("members")) assertEquals("SUCCEEDED", member.get("status").asString()); // the running one finished
+        mvc.perform(post("/run-series/" + id + "/cancel")).andExpect(status().isConflict());
+        mvc.perform(post("/run-series/missing/cancel")).andExpect(status().isNotFound());
+    }
+
     @Test void runsWarmupThenRepetitionsAndSummarizesOnlyMeasuredRuns() throws Exception {
         String id = submit(queue(4), "?repetitions=3&warmup=1");
         var view = finished(id);

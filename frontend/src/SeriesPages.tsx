@@ -1,3 +1,4 @@
+import { CancelButton } from './CancelButton';
 import { BundleButton } from './bundle';
 import { useEffect, useState } from 'react';
 import { apiUrl, get, type Descriptor } from './api';
@@ -238,6 +239,7 @@ export function SeriesDetail({ id }: { id: string }) {
       >
         <i style={{ width: (progress.finished / progress.total) * 100 + '%' }} />
       </div>
+      {activeSeries(series.status) && <CancelButton kind="run-series" id={series.seriesId} />}
       {series.failureMessage && <p className="error">{series.failureMessage}</p>}
       <SeriesCautions view={value} />
       <section className="panel">

@@ -1,3 +1,4 @@
+import { CancelButton } from './CancelButton';
 import { useEffect, useState } from 'react';
 import { get, type Descriptor } from './api';
 import { Table } from './components';
@@ -228,6 +229,7 @@ export function SweepDetail({ id }: { id: string }) {
           </span>
         </span>
       </section>
+      {activeSeries(sweep.status) && <CancelButton kind="run-sweeps" id={sweep.sweepId} />}
       {sweep.failureMessage && <p className="error">{sweep.failureMessage}</p>}
       <section className="panel">
         <div className="section-heading">

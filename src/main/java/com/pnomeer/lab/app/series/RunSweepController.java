@@ -73,6 +73,11 @@ public class RunSweepController {
         return service.list(experimentType, limit);
     }
 
+    @PostMapping("/{sweepId}/cancel")
+    public ResponseEntity<com.pnomeer.lab.core.storage.RunSweep> cancel(@PathVariable String sweepId) {
+        return ResponseEntity.accepted().body(service.cancel(sweepId));
+    }
+
     @GetMapping("/{sweepId}")
     public RunSweepService.SweepView get(@PathVariable String sweepId) {
         return service.view(sweepId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown sweep"));

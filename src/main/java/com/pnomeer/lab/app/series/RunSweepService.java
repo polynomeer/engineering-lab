@@ -23,6 +23,7 @@ public class RunSweepService {
     private final RunSeriesStore store;
     private final ExperimentRegistry registry;
     private final TaskExecutor executor;
+    private final Set<String> cancelled = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public RunSweepService(RunSeriesService series, com.pnomeer.lab.storage.JdbcRunStore store, ExperimentRegistry registry,
             @Qualifier("seriesTaskExecutor") TaskExecutor executor) {
@@ -56,6 +57,10 @@ public class RunSweepService {
             store.startSweep(id);
             int failed = 0;
             for (var point : points) {
+                if (cancelled.remove(id)) {
+                    finish(id, RunStatus.INTERRUPTED, RunSeriesService.CANCELLED + " after " + point.position() + " of " + points.size() + " points");
+                    return;
+                }
                 if (Thread.currentThread().isInterrupted()) {
                     finish(id, RunStatus.INTERRUPTED, "Sweep interrupted before all points finished");
                     return;
@@ -65,11 +70,14 @@ public class RunSweepService {
                 var status = series.coordinate(pointSeries, point.definition(), series.copy(input));
                 log.info("sweep_id={} stage=sweep position={} series_id={} status={}", id, point.position(), pointSeries.seriesId(), status);
                 if (status == RunStatus.INTERRUPTED) {
-                    finish(id, RunStatus.INTERRUPTED, "Sweep interrupted before all points finished");
+                    finish(id, RunStatus.INTERRUPTED, cancelled.remove(id)
+                            ? RunSeriesService.CANCELLED + " during point " + point.position() + " of " + points.size()
+                            : "Sweep interrupted before all points finished");
                     return;
                 }
                 if (status != RunStatus.SUCCEEDED) failed++;
             }
+            cancelled.remove(id);
             finish(id, failed == 0 ? RunStatus.SUCCEEDED : RunStatus.FAILED,
                     failed == 0 ? null : failed + " of " + points.size() + " points did not succeed");
         } catch (RuntimeException | java.io.IOException ex) {
@@ -81,6 +89,20 @@ public class RunSweepService {
     private void finish(String id, RunStatus status, String message) {
         try { store.completeSweep(id, status, message); }
         catch (RuntimeException ex) { log.warn("sweep_id={} stage=sweep reason=cannot record completion: {}", id, ex.getMessage()); }
+    }
+
+    /** Stops a sweep before its next point and asks the point in progress to stop before its next repetition. */
+    public RunSweep cancel(String sweepId) {
+        var sweep = store.findSweep(sweepId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown sweep"));
+        if (sweep.status() != RunStatus.QUEUED && sweep.status() != RunStatus.RUNNING)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Sweep already finished");
+        cancelled.add(sweepId);
+        var points = store.sweepPoints(sweepId);
+        if (!points.isEmpty()) {
+            try { series.cancel(points.getLast().seriesId()); }
+            catch (ResponseStatusException finished) { /* the last point already ended; the sweep stops before the next */ }
+        }
+        return sweep;
     }
 
     public List<RunSweep> list(String experimentType, int limit) { return store.listSweeps(experimentType, limit); }
