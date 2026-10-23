@@ -13,9 +13,12 @@ public final class BuiltInMeasurements {
     private static final Property WORK = new Property("work-completion", "요청한 작업의 완료 수를 확인한다", "완료·실패 수와 입력 수를 대조; 처리율만으로 정확성을 판정하지 않는다");
     public static MeasurementContribution contribution() {
         var list = new ArrayList<MeasurementContract>();
-        list.add(contract("pipeline.excel-ingestion", List.of(BOUNDED, INTEGRITY), List.of(
+        list.add(new MeasurementContract(1, "pipeline.excel-ingestion", "1.1.0", List.of(BOUNDED, INTEGRITY), List.of(
                 measure("elapsed", Kind.gauge, "timing.elapsedMs", "ms", "pipeline", "elapsed", "PipelineRunner 처리 시작부터 종료까지; XLSX 업로드·Spring 시작 제외"),
-                measure("completed", Kind.counter, "rows.inserted", "rows", "pipeline", "inserted-rows", "동일 처리 구간의 저장 행 누계")), List.of("input.sha256", "measurement.mode", "mode"), "DB 상태·캐시·외부 부하의 동일성은 자동 증명하지 않는다"));
+                measure("completed", Kind.counter, "rows.inserted", "rows", "pipeline", "inserted-rows", "동일 처리 구간의 저장 행 누계"),
+                measure("throughput", Kind.gauge, "throughput.insertedRowsPerSec", "rows/s", "pipeline", "inserted-per-elapsed", "저장 행 / timing.elapsedMs; 경과 0ms이면 기록하지 않음"),
+                measure("heap", Kind.counter, "heap.sampledPeakBytes", "bytes", "jvm-process", "sampled-heap-maximum", "처리 구간 중 MemoryMXBean heap used, 20ms 주기와 경계 샘플; 서버에서 실행하면 같은 JVM의 다른 작업도 포함")),
+                List.of("input.sha256", "measurement.mode", "mode"), "DB 상태·캐시·외부 부하의 동일성은 자동 증명하지 않는다. 서버 내 실행의 heap은 프로세스 전체 값이다"));
         list.add(contract("concurrency.queue-contention", List.of(BOUNDED, WORK), List.of(
                 measure("elapsed", Kind.gauge, "time.elapsedMs", "ms", "queue", "elapsed", "생산자·소비자 작업 시작부터 완료까지"),
                 measure("throughput", Kind.gauge, "throughput.itemsPerSec", "items/s", "queue", "produced-per-elapsed", "생산 수 / 전체 경과 ms; 0ms이면 생산 수 사용")),

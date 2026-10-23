@@ -26,7 +26,7 @@ public final class MetricCatalog {
         add(map, "requests", "run", "requests.virtualCompleted requests.reactiveCompleted requests.totalCompleted");
         add(map, "requests/s", "run", "throughput.virtualRequestsPerSec throughput.reactiveRequestsPerSec throughput.totalRequestsPerSec");
         add(map, "items/s", "run", "throughput.itemsPerSec");
-        add(map, "rows/s", "run", "throughput.producedPerSec throughput.mappedPerSec throughput.insertedPerSec");
+        add(map, "rows/s", "run", "throughput.producedPerSec throughput.mappedPerSec throughput.insertedPerSec throughput.insertedRowsPerSec");
         add(map, "%", "run", "queue.raw.saturationPct queue.mapped.saturationPct backpressure.producerSlowdownPct errors.validationRatePct");
         add(map, "events", "run", "blocking.events backpressure.stallEvents retry.count storage.retries storage.failures observation.logs.events observation.logs.dropped");
         add(map, "events/min", "run", "backpressure.stallFrequencyPerMin");
@@ -35,14 +35,14 @@ public final class MetricCatalog {
         add(map, "batches/s", "run", "throughput.batchPerSec");
         add(map, "connections", "run", "resource.activeConnections resource.awaitingConnections");
         add(map, "MiB", "process", "resource.heapUsedMb resource.heapMaxMb resource.peakHeapMb");
-        add(map, "ms", "process", "resource.gcPauseMs jvm.gc.collectionTimeMs");
+        add(map, "ms", "process", "resource.gcPauseMs jvm.gc.collectionTimeMs gc.timeMs");
         add(map, "observations", "run", "storage.metrics.written storage.queue.depth storage.queue.maxDepth storage.preview.limit observation.jvm.samples observation.jvm.periodicSamples");
         add(map, "boolean", "run", "observation.jvm.capReached observation.jfr.durationLimitReached");
         add(map, "spans", "run", "trace.spans.recorded trace.spans.dropped");
         add(map, "ns", "span", "trace.durationNanos");
         add(map, "ns", "run", "storage.enqueueWaitNanos storage.writeNanos observation.jvm.captureNanos observation.jfr.lifecycleNanos observation.logs.captureNanos");
         add(map, "bytes", "run", "observation.jfr.bytes observation.logs.bytes");
-        add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes");
+        add(map, "bytes", "process", "jvm.heap.usedBytes jvm.heap.committedBytes jvm.heap.maxBytes heap.sampledPeakBytes heap.maxBytes");
         add(map, "executors", "run", "shutdown.unfinishedExecutors");
         add(map, "threads", "process", "jvm.threads.platformLive");
         add(map, "collections", "process", "jvm.gc.collectionCount");
@@ -71,15 +71,15 @@ public final class MetricCatalog {
             semantics = "RUN_MEAN"; aggregation = "Do not average snapshot means; require matching counts and totals";
         } else if (Set.of("throughput.producedPerSec", "throughput.mappedPerSec", "throughput.insertedPerSec", "throughput.batchPerSec", "retry.ratePerSec").contains(name)) {
             semantics = "INTERVAL_RATE"; aggregation = "Weight by actual interval; rounded rates cannot recover exact counts";
-        } else if (Set.of("throughput.itemsPerSec", "throughput.virtualRequestsPerSec", "throughput.reactiveRequestsPerSec", "throughput.totalRequestsPerSec", "backpressure.stallFrequencyPerMin").contains(name)) {
+        } else if (Set.of("throughput.itemsPerSec", "throughput.insertedRowsPerSec", "throughput.virtualRequestsPerSec", "throughput.reactiveRequestsPerSec", "throughput.totalRequestsPerSec", "backpressure.stallFrequencyPerMin").contains(name)) {
             semantics = "RUN_RATE"; aggregation = "Use the final rate; inspect producer denominator before comparing";
-        } else if (Set.of("backpressure.enqueueBlockingTimeMs", "resource.gcPauseMs").contains(name)) {
+        } else if (Set.of("backpressure.enqueueBlockingTimeMs", "resource.gcPauseMs", "gc.timeMs").contains(name)) {
             semantics = "INTERVAL_DELTA"; aggregation = "Sum only disjoint complete intervals; GC collection time is not pause latency";
-        } else if (Set.of("queue.maxDepth", "resource.peakHeapMb", "storage.queue.maxDepth").contains(name)) {
+        } else if (Set.of("queue.maxDepth", "resource.peakHeapMb", "storage.queue.maxDepth", "heap.sampledPeakBytes").contains(name)) {
             semantics = "OBSERVED_MAXIMUM"; aggregation = "Maximum of observed snapshots; unobserved peaks may be missed";
         } else if (Set.of("queue.depth", "queue.raw.size", "queue.mapped.size", "resource.heapUsedMb", "resource.heapMaxMb",
                 "resource.activeConnections", "resource.awaitingConnections", "storage.queue.depth", "jvm.heap.usedBytes",
-                "jvm.heap.committedBytes", "jvm.heap.maxBytes", "jvm.threads.platformLive").contains(name)) {
+                "jvm.heap.committedBytes", "jvm.heap.maxBytes", "heap.maxBytes", "jvm.threads.platformLive").contains(name)) {
             semantics = "INSTANTANEOUS"; aggregation = "Use timestamped samples; never sum gauges across time";
         } else if (Set.of("queue.raw.saturationPct", "queue.mapped.saturationPct", "backpressure.producerSlowdownPct", "errors.validationRatePct").contains(name)) {
             semantics = "RATIO"; aggregation = "Inspect numerator and denominator; never sum percentages";

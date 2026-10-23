@@ -5,6 +5,7 @@ import com.pnomeer.lab.core.ExperimentSummary;
 import com.pnomeer.lab.core.MetricPoint;
 import com.pnomeer.lab.app.ingest.PipelineMetricPointMapper;
 import com.pnomeer.lab.metrics.ExecutionMetricsSnapshot;
+import com.pnomeer.lab.metrics.HeapSampler;
 import com.pnomeer.lab.experiments.pipeline.model.ValidationError;
 import org.springframework.stereotype.Component;
 
@@ -47,14 +48,16 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
 
     private ExperimentSummary executeWithDeadLetters(PipelineExperimentScenario scenario, Consumer<MetricPoint> timelineListener,
             Consumer<ValidationError> deadLetters) throws Exception {
-        try (var input = scenario.payload().openStream()) {
-            PipelineRunner.PipelineRunResult result = pipelineRunner.run(
+        PipelineRunner.PipelineRunResult result;
+        var heap = HeapSampler.start();
+        try (heap; var input = scenario.payload().openStream()) {
+            result = pipelineRunner.run(
                     input,
                     scenario.runMode(),
                     progressSnapshot -> publishProgress(scenario, timelineListener, progressSnapshot), deadLetters);
             scenario.capture().setRunResult(result);
-            return toSummary(result);
         }
+        return toSummary(result, heap);
     }
 
     private static void publishProgress(
@@ -65,15 +68,21 @@ public class PipelineExperiment implements Experiment<PipelineExperimentScenario
         timelineListener.accept(PipelineMetricPointMapper.fromProgressSnapshot(progressSnapshot));
     }
 
-    private static ExperimentSummary toSummary(PipelineRunner.PipelineRunResult result) {
+    static ExperimentSummary toSummary(PipelineRunner.PipelineRunResult result, HeapSampler heap) {
         Map<String, Long> errorSummary = result.getValidationReasons();
         Map<String, Long> counters = Map.of(
                 "retry.count", (long) result.getRetryCount(),
                 "rows.produced", (long) result.getProducedCount(),
                 "rows.inserted", (long) result.getInsertedCount(),
-                "rows.validationErrors", result.getValidationErrorCount());
-        Map<String, Double> gauges = Map.of(
-                "timing.elapsedMs", (double) result.getElapsedMillis());
+                "rows.validationErrors", result.getValidationErrorCount(),
+                "heap.sampledPeakBytes", heap.peakBytes(),
+                "heap.maxBytes", heap.maxBytes(),
+                "gc.timeMs", heap.gcMillis());
+        var gauges = new java.util.HashMap<String, Double>();
+        gauges.put("timing.elapsedMs", (double) result.getElapsedMillis());
+        // No rate for a zero-length window: a made-up denominator would be a guess, not a measurement.
+        if (result.getElapsedMillis() > 0)
+            gauges.put("throughput.insertedRowsPerSec", result.getInsertedCount() * 1000.0 / result.getElapsedMillis());
         Map<String, String> details = errorSummary.entrySet().stream()
                 .collect(Collectors.toMap(
                         entry -> "validation." + entry.getKey(),

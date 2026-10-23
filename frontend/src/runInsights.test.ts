@@ -60,6 +60,18 @@ describe('run summary tiles', () => {
     expect(kpis.find((k) => k.id === 'invalid')).toMatchObject({ value: 4, tone: 'danger' });
   });
 
+  it('prefers the recorded pipeline rate and labels where the heap sample came from', () => {
+    const run = pipeline(
+      { 'rows.inserted': 100, 'heap.sampledPeakBytes': 64 * 1024 * 1024, 'heap.maxBytes': 256 * 1024 * 1024 },
+      { 'execution.kind': 'LOCAL_JVM' },
+    );
+    run.summary.gauges['throughput.insertedRowsPerSec'] = 400;
+    const kpis = runKpis(run);
+    expect(kpis.find((k) => k.id === 'throughput')).toMatchObject({ value: 400 });
+    expect(kpis.find((k) => k.id === 'heap')).toMatchObject({ value: 64, total: 256 });
+    expect(kpis.find((k) => k.id === 'heap')?.detail).toContain('독립 JVM');
+  });
+
   it('shows nothing for other experiments or runs without a valid duration', () => {
     expect(runKpis(evidence.run as Run)).toEqual([]);
     expect(durationSeconds({ ...pipeline({}), completedAtEpochMs: 0 })).toBeNull();

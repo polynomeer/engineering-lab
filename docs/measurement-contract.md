@@ -36,7 +36,7 @@ measures 32개, requiredParameters 64개다. 텍스트 1000자·ID 100자·스�
 
 | 실험 | 선언 지표 / 측정 구간 | 공통 성질 |
 | --- | --- | --- |
-| pipeline.excel-ingestion | elapsed ms, inserted rows / PipelineRunner 처리 구간 | bounded-memory, data-integrity |
+| pipeline.excel-ingestion (1.1.0) | elapsed ms, inserted rows, inserted rows/s, sampled peak heap bytes / PipelineRunner 처리 구간. 서버 내 실행의 heap은 JVM 전체 값 | bounded-memory, data-integrity |
 | concurrency.queue-contention | elapsed ms, produced items/s / 생산·소비 작업 구간 | bounded-memory, work-completion |
 | io.endpoint-comparison | requests/s / virtual sleep + Reactor delay.block의 작업 지연 합 | work-completion |
 | career.mcp-platform.sequence | elapsed ns / sequence harness, BEFORE 인위적 지연 포함 | mutual-exclusion, data-integrity |

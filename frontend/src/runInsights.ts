@@ -3,6 +3,7 @@ import type { Comparison, MetricPage, Run } from './api';
 type Observation = MetricPage['metrics'][number];
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nonnegative = (v: unknown): number | null => (finite(v) && v >= 0 ? v : null);
+const MIB = 1024 * 1024;
 const summary = (run: Run, name: string) =>
   nonnegative(run.summary.counters[name] ?? run.summary.gauges[name]);
 const parameter = (run: Run, ...names: string[]) => {
@@ -55,13 +56,35 @@ export function runKpis(run: Run): Kpi[] {
       detail: `파싱 ${count(produced)}` + (unconfirmed === null ? '' : ` · 미확인 ${count(unconfirmed)}`),
       tone: produced !== null && inserted >= produced && !unconfirmed ? 'success' : undefined,
     });
-  if (inserted !== null && seconds !== null && seconds > 0)
+  const recordedRate = summary(run, 'throughput.insertedRowsPerSec');
+  if (recordedRate !== null)
+    items.push({
+      id: 'throughput',
+      label: '평균 저장 처리량',
+      value: recordedRate,
+      unit: 'rows/s',
+      detail: '저장 행 ÷ 파이프라인 처리 시간 (기록값)',
+    });
+  else if (inserted !== null && seconds !== null && seconds > 0)
     items.push({
       id: 'throughput',
       label: '평균 저장 처리량',
       value: inserted / seconds,
       unit: 'rows/s',
       detail: '저장 확인 행 ÷ Run 경과 시간',
+    });
+  const peakHeap = summary(run, 'heap.sampledPeakBytes');
+  const maxHeap = summary(run, 'heap.maxBytes');
+  if (peakHeap !== null)
+    items.push({
+      id: 'heap',
+      label: '최대 heap 표본',
+      value: peakHeap / MIB,
+      total: maxHeap !== null && maxHeap > 0 ? maxHeap / MIB : undefined,
+      unit: 'MiB',
+      detail:
+        (run.runMetadata.parameters['execution.kind'] === 'LOCAL_JVM' ? '독립 JVM' : '서버 JVM 전체(다른 작업 포함)') +
+        ' · 20ms 표본 최대, 실제 peak의 하한',
     });
   if (invalid !== null)
     items.push({
