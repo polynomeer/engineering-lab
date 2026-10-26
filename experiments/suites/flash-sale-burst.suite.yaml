@@ -1,0 +1,19 @@
+schemaVersion: 1
+suite:
+  id: flash-sale-burst
+  title: 선착순 이벤트로 요청이 몰림
+  situation: >-
+    선착순 쿠폰 오픈 직후 요청 스레드가 평소의 열 배 이상 동시에 작업을 넣었다. 처리 worker 수는
+    그대로였고, 운영팀은 "요청 스레드 풀을 늘리면 더 빨리 처리된다"고 판단해 스레드 풀을 키웠다.
+  question: 소비 용량이 고정된 상태에서 동시 생산자를 늘리면 처리량이 늘어나는가, 대기만 늘어나는가?
+steps:
+  - id: normal-load
+    scenario: ../concurrency/queue-contention/scenarios/flash-sale-burst.yaml
+    repeat: 3
+    warmup: 1
+  - id: producers
+    scenario: ../concurrency/queue-contention/scenarios/flash-sale-burst.yaml
+    sweep: {producerThreads: [2, 8, 32]}
+    repeat: 3
+  - id: normal-vs-32-producers
+    compare: {baseline: producers.p0, candidate: producers.p2}

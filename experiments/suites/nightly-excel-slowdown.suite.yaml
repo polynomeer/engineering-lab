@@ -1,0 +1,24 @@
+schemaVersion: 1
+suite:
+  id: nightly-excel-slowdown
+  title: 야간 주문 Excel 적재가 배치 시간을 넘김
+  situation: >-
+    거래처 주문 Excel 적재가 데이터 증가로 야간 배치 창(새벽 2~4시)을 넘기기 시작했다. 지금은 한 스레드로
+    읽고 검증하고 저장한다. 병렬 파이프라인으로 바꾸면 얼마나 빨라지는지, 저장 worker 수와 batch 크기는
+    무엇으로 정할지 근거가 필요하다.
+  question: 같은 2만 행에서 파이프라인은 단일 스레드보다 빠른가, 그리고 저장 worker 수와 batch 크기 중 무엇이 더 영향을 주는가?
+steps:
+  - id: single-thread
+    scenario: ../pipeline/excel-ingestion/scenarios/nightly-orders-single-thread.yaml
+    repeat: 3
+    warmup: 1
+  - id: pipeline
+    scenario: ../pipeline/excel-ingestion/scenarios/nightly-orders-pipeline.yaml
+    repeat: 3
+    warmup: 1
+  - id: single-thread-vs-pipeline
+    compare: {baseline: single-thread, candidate: pipeline}
+  - id: tuning
+    scenario: ../pipeline/excel-ingestion/scenarios/nightly-orders-pipeline.yaml
+    sweep: {inserterThreads: [1, 2, 4], chunkSize: [100, 1000]}
+    repeat: 3

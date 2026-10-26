@@ -23,13 +23,15 @@ public final class LabCli {
             + "[--wait [--timeout-seconds N] [--check-baseline | --check-baseline-file FILE [--tolerance-pct P]]] "
             + "| baseline SERIES_ID [--export FILE] [--server URL] "
             + "| sweep FILE --grid NAME=V1,V2 [--grid ...] [--repeat N] [--warmup M] [--server URL] [--wait [--timeout-seconds N]] "
-            + "| retention --older-than-days N [--apply] [--server URL]";
+            + "| retention --older-than-days N [--apply] [--server URL] "
+            + "| suite FILE... [--dry-run] [--server URL] [--timeout-seconds N] [--report FILE]";
     /** Exit codes: 0 success, 1 failed run or error, 2 wait timeout, 3 regression, 4 no baseline or too few repetitions. */
     static final int EXIT_REGRESSION = 3, EXIT_INCONCLUSIVE = 4;
 
     public static void main(String[] args) { System.exit(execute(args, System.out, System.err)); }
 
     public static int execute(String[] args, PrintStream out, PrintStream err) {
+        if (args.length > 0 && args[0].equals("suite")) return ScenarioSuite.main(Arrays.copyOfRange(args, 1, args.length), out, err);
         HttpClient client = null;
         try {
             Options options = Options.parse(args);
@@ -234,7 +236,7 @@ public final class LabCli {
         return file;
     }
 
-    private static Object request(HttpClient client, URI uri, HttpRequest.BodyPublisher body, String type, Duration timeout) throws Exception {
+    static Object request(HttpClient client, URI uri, HttpRequest.BodyPublisher body, String type, Duration timeout) throws Exception {
         return request(client, uri, body, type, timeout, body == null ? "GET" : "POST");
     }
     private static Object request(HttpClient client, URI uri, HttpRequest.BodyPublisher body, String type, Duration timeout, String method) throws Exception {
@@ -251,7 +253,7 @@ public final class LabCli {
         }
         return JSON.readValue(response.body(), Object.class);
     }
-    private static Map<?, ?> object(Object value) throws IOException {
+    static Map<?, ?> object(Object value) throws IOException {
         if (!(value instanceof Map<?, ?> map)) throw new IOException("Expected a JSON object response");
         return map;
     }

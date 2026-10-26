@@ -1,0 +1,13 @@
+schemaVersion: 1
+experiment: concurrency.queue-contention
+scenario:
+  id: order-events-slow-consumer
+  hypothesis: 주문 이벤트 소비자 1개가 건당 2ms씩 지연되면 생산자 4개가 작은 큐(16) 앞에서 대기하고, 소비자를 늘려야 전체 처리 시간이 줄어든다.
+parameters:
+  queueCapacity: 16
+  producerThreads: 4
+  consumerThreads: 1
+  itemsPerProducer: 250
+  consumerDelayMs: 2
+measurement:
+  mode: SINGLE_PASS

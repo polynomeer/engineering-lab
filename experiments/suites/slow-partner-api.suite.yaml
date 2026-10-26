@@ -1,0 +1,19 @@
+schemaVersion: 1
+suite:
+  id: slow-partner-api
+  title: 외부 파트너 API 응답이 느려짐
+  situation: >-
+    배송 조회를 위임하는 파트너 API의 p50 응답이 10ms에서 200ms로 늘었다. 팀은 Reactor로 다시 짜면
+    지연이 줄어드는지, virtual thread 구현으로 충분한지 판단해야 한다.
+  question: 하위 API 지연이 늘 때 virtual thread와 Reactor의 요청당 소요 시간 차이는 지연에 비해 얼마나 되는가?
+steps:
+  - id: normal-latency
+    scenario: ../io/endpoint-comparison/scenarios/partner-api-latency.json
+    repeat: 3
+    warmup: 1
+  - id: latency
+    scenario: ../io/endpoint-comparison/scenarios/partner-api-latency.json
+    sweep: {delayMs: [10, 50, 200]}
+    repeat: 3
+  - id: normal-vs-200ms
+    compare: {baseline: latency.p0, candidate: latency.p2}

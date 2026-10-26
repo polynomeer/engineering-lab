@@ -1,0 +1,19 @@
+schemaVersion: 1
+experiment: pipeline.excel-ingestion
+scenario:
+  id: partner-file-dirty-pipeline
+  hypothesis: 거래처 파일 2만 행 중 4천 행(5행마다 1행)이 필수값 누락·숫자 형식 오류다. 파이프라인은 정상 1만6천 행만 저장하고 오류 4천 행을 행 문맥과 함께 dead-letter로 남긴다.
+parameters:
+  mode: PIPELINE
+  rawCapacity: 1000
+  mappedCapacity: 1000
+  validatorThreads: 2
+  inserterThreads: 4
+  chunkSize: 500
+  offerTimeoutMs: 200
+  forkedHeapMiB: 512
+measurement:
+  mode: SINGLE_PASS
+input:
+  file: fixtures/orders-20k-dirty.xlsx
+  sha256: 4d477c45b03832ee3876d85b48b89fb44c0674fc0a08f0e1b4bc8ffa35ce75b0

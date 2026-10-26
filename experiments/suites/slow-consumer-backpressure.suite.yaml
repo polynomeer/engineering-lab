@@ -1,0 +1,26 @@
+schemaVersion: 1
+suite:
+  id: slow-consumer-backpressure
+  title: 소비자 지연으로 주문 이벤트 큐가 가득 참
+  situation: >-
+    결제 완료 이벤트를 받는 소비자가 DB 지연으로 건당 처리 시간이 늘자, 이벤트를 넣는 API 스레드가
+    큐 offer에서 막혀 주문 API 응답이 함께 느려졌다. 장애 회의에서 "큐를 크게 늘리자"와
+    "소비자를 늘리자"가 맞섰다.
+  question: 큐 용량을 키우는 것과 소비자 수를 늘리는 것 중 무엇이 생산자 대기와 전체 처리 시간을 줄이는가?
+steps:
+  - id: incident
+    scenario: ../concurrency/queue-contention/scenarios/order-events-slow-consumer.yaml
+    repeat: 5
+    warmup: 1
+  - id: bigger-queue
+    scenario: ../concurrency/queue-contention/scenarios/order-events-slow-consumer.yaml
+    sweep: {queueCapacity: [16, 256, 4096]}
+    repeat: 3
+  - id: more-consumers
+    scenario: ../concurrency/queue-contention/scenarios/order-events-slow-consumer.yaml
+    sweep: {consumerThreads: [1, 2, 4]}
+    repeat: 3
+  - id: incident-vs-largest-queue
+    compare: {baseline: incident, candidate: bigger-queue.p2}
+  - id: incident-vs-four-consumers
+    compare: {baseline: incident, candidate: more-consumers.p2}

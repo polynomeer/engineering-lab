@@ -1,0 +1,19 @@
+schemaVersion: 1
+experiment: pipeline.excel-ingestion
+scenario:
+  id: nightly-orders-single-thread
+  hypothesis: 야간 주문 적재(2만 행)를 단일 스레드로 처리한 기준 시간이다. 병렬 파이프라인과 같은 입력·DB 조건에서 비교한다.
+parameters:
+  mode: SINGLE_THREAD
+  rawCapacity: 1000
+  mappedCapacity: 1000
+  validatorThreads: 2
+  inserterThreads: 4
+  chunkSize: 500
+  offerTimeoutMs: 200
+  forkedHeapMiB: 512
+measurement:
+  mode: SINGLE_PASS
+input:
+  file: fixtures/orders-20k.xlsx
+  sha256: d113c4c517ceefd232e6e153e84061705d131139124bce8978b05ddd248c89d8

@@ -1,0 +1,19 @@
+schemaVersion: 1
+experiment: pipeline.excel-ingestion
+scenario:
+  id: partner-file-dirty-single-thread
+  hypothesis: 같은 거래처 파일을 단일 스레드로 처리해도 저장 1만6천 행·오류 4천 행으로 파이프라인과 개수가 같다. 병렬화가 데이터를 잃거나 중복 저장하지 않는다는 근거다.
+parameters:
+  mode: SINGLE_THREAD
+  rawCapacity: 1000
+  mappedCapacity: 1000
+  validatorThreads: 2
+  inserterThreads: 4
+  chunkSize: 500
+  offerTimeoutMs: 200
+  forkedHeapMiB: 512
+measurement:
+  mode: SINGLE_PASS
+input:
+  file: fixtures/orders-20k-dirty.xlsx
+  sha256: 4d477c45b03832ee3876d85b48b89fb44c0674fc0a08f0e1b4bc8ffa35ce75b0

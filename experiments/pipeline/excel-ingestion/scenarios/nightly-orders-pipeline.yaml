@@ -1,0 +1,19 @@
+schemaVersion: 1
+experiment: pipeline.excel-ingestion
+scenario:
+  id: nightly-orders-pipeline
+  hypothesis: 같은 2만 행을 검증 2개·저장 4개 worker의 파이프라인으로 처리하면 단일 스레드보다 적재 시간이 짧아진다. 저장 worker 수와 batch 크기가 주된 변수다.
+parameters:
+  mode: PIPELINE
+  rawCapacity: 1000
+  mappedCapacity: 1000
+  validatorThreads: 2
+  inserterThreads: 4
+  chunkSize: 500
+  offerTimeoutMs: 200
+  forkedHeapMiB: 512
+measurement:
+  mode: SINGLE_PASS
+input:
+  file: fixtures/orders-20k.xlsx
+  sha256: d113c4c517ceefd232e6e153e84061705d131139124bce8978b05ddd248c89d8

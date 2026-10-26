@@ -118,6 +118,37 @@ class LabCliIntegrationTest {
         assertEquals(1, run("run", file, "--warmup", "1").code); // --warmup needs --repeat
         assertEquals(1, run("run", file, "--repeat", "3", "--check-baseline").code); // the check needs --wait
     }
+    @Test void runsASuiteOfRunSeriesSweepAndComparisonWithAssertions() throws Exception {
+        var dir = java.nio.file.Files.createTempDirectory("lab-suite-");
+        String queue = java.nio.file.Path.of("experiments/concurrency/queue-contention/scenarios/small-buffer.yaml").toAbsolutePath().toString();
+        var file = dir.resolve("demo.suite.yaml");
+        java.nio.file.Files.writeString(file, """
+                schemaVersion: 1
+                suite: {id: demo, title: demo suite, situation: a slow consumer, question: 'does capacity matter?'}
+                steps:
+                  - {id: once, scenario: %1$s, assert: {items.produced: 200, items.consumed: 200}}
+                  - {id: wrong, scenario: %1$s, assert: {items.produced: 1}}
+                  - {id: repeated, scenario: %1$s, repeat: 3}
+                  - {id: capacity, scenario: %1$s, sweep: {queueCapacity: [1, 8]}, repeat: 3}
+                  - {id: cmp, compare: {baseline: repeated, candidate: capacity.p1}}
+                """.formatted(queue));
+        var report = dir.resolve("report.json");
+        var result = run("suite", file.toString(), "--server", "http://localhost:" + port, "--report", report.toString());
+        assertEquals(1, result.code, result.err); // the deliberately wrong assertion fails the suite, not the run
+        var lines = result.out.lines().map(l -> (Map<?, ?>) json.readValue(l, Map.class)).toList();
+        assertEquals(7, lines.size()); // five steps, the suite summary, the total
+        assertEquals(true, lines.get(0).get("ok"));
+        assertEquals("passed", lines.get(0).get("assertions"));
+        assertEquals(false, lines.get(1).get("ok"));
+        assertEquals("SUCCEEDED", lines.get(1).get("status"));
+        assertEquals(true, lines.get(2).get("ok"));
+        assertEquals(2, ((List<?>) lines.get(3).get("points")).size());
+        assertFalse(((List<?>) lines.get(4).get("measures")).isEmpty());
+        assertEquals(List.of("wrong"), lines.get(5).get("failedSteps"));
+        assertEquals(false, lines.get(6).get("ok"));
+        Map<?, ?> saved = json.readValue(java.nio.file.Files.readString(report), Map.class);
+        assertEquals(1, ((List<?>) saved.get("results")).size());
+    }
     @Test void sweepsAGridAndWaitsForEveryPoint() throws Exception {
         var sweep = run("sweep", "experiments/concurrency/queue-contention/scenarios/small-buffer.yaml", "--server", "http://localhost:" + port,
                 "--grid", "queueCapacity=1,4", "--repeat", "3", "--wait", "--timeout-seconds", "120");

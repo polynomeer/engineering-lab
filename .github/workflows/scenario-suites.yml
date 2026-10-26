@@ -1,0 +1,52 @@
+name: Scenario suites
+
+# Runs every practical scenario suite on a fresh server and uploads the report. Runner numbers are not
+# comparable with local results; the job checks that every suite still runs and meets its expectations.
+on:
+  schedule:
+    - cron: '0 19 * * 6' # Sunday 04:00 KST
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: Suite files to run (space-separated); empty runs all
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build the API jar
+        run: ./gradlew bootJar -PskipFrontend
+      - name: Start a server with an empty store
+        run: |
+          java -jar "$PWD"/build/libs/engineering-lab-*-SNAPSHOT.jar --server.port=8080 --lab.storage.root="$RUNNER_TEMP/lab" > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/experiments > /dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/server.log"; exit 1
+      - name: Run suites
+        env:
+          SUITES: ${{ inputs.suites }}
+        run: |
+          files="${SUITES:-$(ls experiments/suites/*.suite.yaml | tr '\n' ' ')}"
+          ./gradlew -q lab --args="suite $files --server http://localhost:8080 --report $RUNNER_TEMP/suite-report.json" | tee "$RUNNER_TEMP/suites.ndjson"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenario-suite-report
+          path: |
+            ${{ runner.temp }}/suite-report.json
+            ${{ runner.temp }}/suites.ndjson
+            ${{ runner.temp }}/server.log
+          if-no-files-found: ignore

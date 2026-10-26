@@ -9,8 +9,9 @@ Engineering Lab은 실무 백엔드 문제를 재현 가능한 실험으로 만�
 1. [프로젝트 README](../README.md): 기능, 준비 사항, 빠른 시작, 구조와 제한
 2. [단계별 사용 가이드](user-guide.md): 큐·IO·Excel 실행, Run 조회·비교·다운로드
 3. [시나리오와 CLI](scenarios.md): 실행 조건 파일, 반복 측정·기준선 판정·파라미터 스윕
-4. [Run 증거](run-evidence.md): 비교 의미, export와 artifact 보존
-5. [Finding 작성](findings/README.md): 관측과 해석을 구분해 결과 기록, 대시보드 초안 내려받기
+4. [실무 시나리오 묶음](scenario-suites.md): 실무 상황별 실험을 suite 파일 하나로 자동 실행
+5. [Run 증거](run-evidence.md): 비교 의미, export와 artifact 보존
+6. [Finding 작성](findings/README.md): 관측과 해석을 구분해 결과 기록, 대시보드 초안 내려받기
 
 ## 현재 동작
 

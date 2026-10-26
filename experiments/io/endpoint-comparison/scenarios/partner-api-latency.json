@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "experiment": "io.endpoint-comparison",
+  "scenario": {
+    "id": "partner-api-latency",
+    "hypothesis": "외부 파트너 API의 응답 지연이 늘면 virtual thread와 Reactor 두 방식 모두 요청당 소요 시간이 지연만큼 늘어나며, 순차 호출에서는 방식 차이가 지연에 묻힌다."
+  },
+  "parameters": {"requests": 20, "delayMs": 10, "pinning": false, "pinDelayMs": 0},
+  "measurement": {"mode": "SINGLE_PASS"}
+}

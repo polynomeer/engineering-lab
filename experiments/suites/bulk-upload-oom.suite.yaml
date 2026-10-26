@@ -1,0 +1,21 @@
+schemaVersion: 1
+suite:
+  id: bulk-upload-oom
+  title: 대량 업로드 때 서버가 OutOfMemoryError로 죽음
+  situation: >-
+    관리자 화면에서 10만 행 Excel을 올리자 업로드 서버가 OOM으로 재시작됐다. 원인이 파일 크기인지,
+    중간 큐에 행이 무제한으로 쌓이는 구조인지 가려야 한다. 각 실행은 별도 JVM에서 heap 상한을 걸고 돈다.
+  question: 큐 상한을 둔 파이프라인은 몇 MiB heap에서 10만 행을 끝내며, 큐 상한을 크게 풀면 같은 heap에서 무엇이 달라지는가?
+steps:
+  - id: heap-limit
+    scenario: ../pipeline/excel-ingestion/scenarios/bulk-upload-forked.yaml
+    sweep: {forkedHeapMiB: [32, 64, 256]}
+    repeat: 3
+    # The smallest heap is expected to run out; the step reports where the boundary is.
+    expect: ANY
+  - id: queue-limit
+    scenario: ../pipeline/excel-ingestion/scenarios/bulk-upload-forked.yaml
+    # At the 64 MiB boundary found above, compare bounded queues with queues that can hold the whole file.
+    sweep: {forkedHeapMiB: [64], rawCapacity: [500, 100000], mappedCapacity: [500, 100000]}
+    repeat: 3
+    expect: ANY

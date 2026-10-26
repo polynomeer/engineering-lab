@@ -106,6 +106,12 @@ java -jar build/libs/engineering-lab-0.0.1-SNAPSHOT.jar --server.address=127.0.0
 
 대시보드의 [실행 기록](http://localhost:8080/app/runs)에서 해당 실행을 열어 확인합니다. 서버 주소를 바꿨다면 CLI에 `--server http://localhost:18080`을 추가합니다.
 
+실무 상황(소비자 지연, 트래픽 급증, 외부 API 지연, 야간 Excel 적재, 대량 업로드 OOM, 오류 행이 섞인 파일)별 실험 묶음은 suite 파일로 한 번에 실행합니다. 형식과 결과 읽는 법은 [실무 시나리오 묶음](docs/scenario-suites.md)을 봅니다.
+
+```bash
+./gradlew -q lab --args='suite experiments/suites/slow-consumer-backpressure.suite.yaml --report build/suite-report.json'
+```
+
 ### 4. Excel·IO 예제 실행
 
 ```bash

@@ -1,0 +1,19 @@
+schemaVersion: 1
+suite:
+  id: dirty-partner-file
+  title: 잘못된 행이 섞인 거래처 파일
+  situation: >-
+    신규 거래처가 보낸 파일에 필수값 누락과 숫자 형식 오류가 섞여 있었다. 지난번에는 오류 행 때문에
+    파일 전체가 실패했고, 다시 올리자 일부 행이 중복 저장됐다. 정상 행은 저장하고 오류 행은 원본
+    문맥과 함께 따로 남겨야 하며, 병렬 처리로 바꿔도 개수가 같아야 한다.
+  question: 2만 행 중 오류 4천 행이 섞인 파일에서 두 처리 방식 모두 정확히 1만6천 행을 저장하고 4천 행을 dead-letter로 남기는가?
+steps:
+  - id: pipeline-counts
+    scenario: ../pipeline/excel-ingestion/scenarios/partner-file-dirty-pipeline.yaml
+    assert: {rows.produced: 20000, rows.inserted: 16000, rows.validationErrors: 4000}
+  - id: single-thread-counts
+    scenario: ../pipeline/excel-ingestion/scenarios/partner-file-dirty-single-thread.yaml
+    assert: {rows.produced: 20000, rows.inserted: 16000, rows.validationErrors: 4000}
+  - id: pipeline-repeated
+    scenario: ../pipeline/excel-ingestion/scenarios/partner-file-dirty-pipeline.yaml
+    repeat: 3

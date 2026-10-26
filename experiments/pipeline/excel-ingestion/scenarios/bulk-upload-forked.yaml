@@ -1,0 +1,19 @@
+schemaVersion: 1
+experiment: pipeline.excel-ingestion
+scenario:
+  id: bulk-upload-forked
+  hypothesis: 10만 행 대량 업로드도 큐 상한(1000행) 덕분에 작은 heap에서 끝난다. heap을 줄이면 어느 지점부터 OutOfMemoryError로 실패하는지 확인한다.
+parameters:
+  mode: PIPELINE
+  rawCapacity: 1000
+  mappedCapacity: 1000
+  validatorThreads: 2
+  inserterThreads: 4
+  chunkSize: 500
+  offerTimeoutMs: 200
+  forkedHeapMiB: 128
+measurement:
+  mode: SINGLE_PASS
+input:
+  file: fixtures/orders-100k.xlsx
+  sha256: b36bedcfe601643ea1d92e844724907819e10a23e7c8eb72f94061ea101681d3

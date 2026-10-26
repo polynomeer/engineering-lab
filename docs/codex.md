@@ -39,7 +39,7 @@ P7 전체 인수와 v0.2.0 운영 전환은 [릴리스 기록](releases/v0.2.0-d
 | `com/pnomeer/lab/app/run/` | registry 조회, 공통 시나리오 제출, `/runs` 조회·비교·export·artifact 참조·검증 다운로드와 오류 응답 |
 | `com/pnomeer/lab/app/series/` | `/run-series` 반복 묶음 제출·순차 실행·measure 통계·묶음 비교·기준선 회귀 판정, `/run-sweeps` 파라미터 스윕. 저장은 `JdbcRunStore`의 `RunSeriesStore`(schema v4) |
 | `com/pnomeer/lab/app/maintenance/` | `/maintenance/retention` 오래된 JFR·Run 로그 미리보기·토큰 기반 정리(기본 비활성) |
-| `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI |
+| `com/pnomeer/lab/registry/`, `scenario/`, `cli/` | typed registry, JSON/YAML 정의 검증, HTTP CLI(`ScenarioSuite`: `lab suite` 실행기) |
 | `com/pnomeer/lab/experiments/pipeline/` | `PipelineRunner`, 파이프라인 어댑터, 설정, 스트리밍 파서, bounded channel, 종료 신호 |
 | `com/pnomeer/lab/experiments/concurrency/` | 큐 경합 실험과 시나리오 |
 | `com/pnomeer/lab/experiments/io/` | IO 비교 실험, blocking / virtual-thread / selector 서버, 부하 클라이언트 |
