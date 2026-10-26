@@ -54,9 +54,11 @@ public final class ForkedPipeline {
             Future<JsonNode> result = io.submit(() -> read(child.getInputStream(), metrics, deadLetters));
             if (!process.waitFor(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) throw new IOException("Forked pipeline exceeded " + TIMEOUT.toMinutes() + " minutes");
             String errors = new String(get(stderr), StandardCharsets.UTF_8);
-            JsonNode outcome = get(result);
-            if (errors.contains("OutOfMemoryError"))
-                throw new IOException("Forked JVM ran out of heap at -Xmx" + heapMiB + "m (OutOfMemoryError)");
+            JsonNode outcome;
+            boolean outOfMemory = errors.contains("OutOfMemoryError");
+            try { outcome = get(result); }
+            catch (OutOfMemory ex) { outcome = null; outOfMemory = true; }
+            if (outOfMemory) throw new IOException("Forked JVM ran out of heap at -Xmx" + heapMiB + "m (OutOfMemoryError)");
             if (process.exitValue() != 0 || outcome == null)
                 throw new IOException("Forked pipeline exited with " + process.exitValue() + lastLine(errors));
             return outcome(outcome);
@@ -75,7 +77,7 @@ public final class ForkedPipeline {
     static List<String> java(int heapMiB) {
         var command = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                 "-Xmx" + heapMiB + "m", "-Xms" + Math.min(32, heapMiB) + "m", "-XX:+ExitOnOutOfMemoryError",
-                "-cp", System.getProperty("java.class.path")));
+                "-cp", absoluteClasspath(System.getProperty("java.class.path"))));
         var location = ForkedPipelineMain.class.getProtectionDomain().getCodeSource().getLocation().toString();
         if (location.startsWith("jar:") || location.contains("!/BOOT-INF/") || location.contains("!BOOT-INF")) {
             command.add("-Dloader.main=" + ForkedPipelineMain.class.getName());
@@ -84,12 +86,20 @@ public final class ForkedPipeline {
         return command;
     }
 
+    /** The child runs in its own workspace directory, so relative entries (java -jar build/libs/x.jar) must be resolved here. */
+    static String absoluteClasspath(String classpath) {
+        return String.join(File.pathSeparator, Arrays.stream(classpath.split(java.util.regex.Pattern.quote(File.pathSeparator)))
+                .filter(entry -> !entry.isEmpty()).map(entry -> Path.of(entry).toAbsolutePath().normalize().toString()).toList());
+    }
+
     private static JsonNode read(InputStream stdout, Consumer<MetricPoint> metrics, Consumer<DeadLetter> deadLetters) throws IOException {
         JsonNode result = null;
         try (var in = new BufferedInputStream(stdout)) {
             String line;
             while ((line = line(in)) != null) {
                 if (line.isBlank()) continue;
+                // -XX:+ExitOnOutOfMemoryError writes its "Terminating due to ..." notice to stdout.
+                if (!line.startsWith("{") && line.contains("OutOfMemoryError")) throw new OutOfMemory();
                 JsonNode node = JSON.readTree(line);
                 switch (node.path("t").asString()) {
                     case "metric" -> metrics.accept(JSON.treeToValue(node.get("point"), MetricPoint.class));
@@ -105,6 +115,9 @@ public final class ForkedPipeline {
         }
         return result;
     }
+
+    /** The child stopped on its heap limit; distinguished from a protocol error. */
+    static final class OutOfMemory extends IOException { OutOfMemory() { super("Forked JVM ran out of heap"); } }
 
     /** One UTF-8 line without its terminator, or null at end of stream; longer lines are a protocol error. */
     private static String line(InputStream in) throws IOException {

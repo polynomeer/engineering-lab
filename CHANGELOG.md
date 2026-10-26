@@ -10,6 +10,7 @@
 
 - 기존 Java 내장 화면(`/ui`, `/experiments/ui`, `/ingest/ui`, `/lab/io/ui`, `/runs/ui`)과 `bootDashboardJar` 별칭, `lab.dashboard.redirect-enabled`를 제거했다. 기존 주소는 대시보드가 있으면 `/app`으로 전환되고, API만 빌드한 경우 404다.
 - 브라우저 테스트의 `LEGACY_URL`을 `API_URL`로 바꿨다.
+- 별도 JVM Excel 실행이 서버를 상대 경로 jar로 띄운 경우에도 동작하고, heap 부족을 `OutOfMemoryError` 사유로 정확히 기록한다.
 
 ## v0.3.0 — 2026-10-24
 
